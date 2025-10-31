@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CLAUDE</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="perplex.css" />
+</head>
+<body>
+<h1 id="introduction-to-statistics-course-plan">Introduction to
+Statistics Course Plan</h1>
+<h2 id="ans-500---fall-2025-8-weeks">AnS 500 - Fall 2025 (8 Weeks)</h2>
+<hr />
+<h2 id="course-overview">Course Overview</h2>
+<p><strong>Duration</strong>: 8 weeks <strong>Format</strong>: 2 hours
+lecture per week + 1 homework assignment <strong>Tools</strong>: R +
+Quarto exclusively <strong>Prerequisites</strong>: Basic data science
+and data management in R</p>
+<hr />
+<h2 id="week-course-outline">8-Week Course Outline</h2>
+<h3 id="week-1-statistical-foundations-study-design">Week 1: Statistical
+Foundations &amp; Study Design</h3>
+<p><strong>Topics</strong>: - Big picture: What is statistics? -
+Frequentist vs Bayesian frameworks - Understanding p-values and
+statistical significance - Observational vs Experimental studies -
+Randomized Controlled Trials (RCTs) - Confounding variables and
+causation vs correlation</p>
+<p><strong>R/Quarto Focus</strong>: Setting up statistical analysis
+workflows, basic visualization of distributions</p>
+<p><strong>Homework</strong>: Critique a published study (observational
+vs experimental), identify potential confounders</p>
+<hr />
+<h3 id="week-2-descriptive-statistics-exploratory-data-analysis">Week 2:
+Descriptive Statistics &amp; Exploratory Data Analysis</h3>
+<p><strong>Topics</strong>: - Measures of central tendency (mean,
+median, mode) - Measures of variability (variance, SD, IQR, range) -
+Data visualization principles - Distribution shapes (normal, skewed,
+bimodal) - Outlier detection - Summary statistics in context</p>
+<p><strong>R/Quarto Focus</strong>: <code>dplyr::summarise()</code>,
+<code>ggplot2</code> for EDA, creating publication-ready tables with
+<code>gt</code> or <code>knitr::kable()</code></p>
+<p><strong>Homework</strong>: Complete EDA on a provided dataset with
+Quarto report</p>
+<hr />
+<h3 id="week-3-probability-distributions-introduction-to-inference">Week
+3: Probability Distributions &amp; Introduction to Inference</h3>
+<p><strong>Topics</strong>: - Normal distribution and properties -
+Central Limit Theorem - Sampling distributions - Standard error vs
+standard deviation - Confidence intervals (concept and calculation) -
+Introduction to z-scores and standardization</p>
+<p><strong>R/Quarto Focus</strong>: <code>rnorm()</code>,
+<code>pnorm()</code>, <code>qnorm()</code>, simulations to demonstrate
+CLT, visualization of sampling distributions</p>
+<p><strong>Homework</strong>: Simulation exercise demonstrating CLT with
+different sample sizes</p>
+<hr />
+<h3 id="week-4-hypothesis-testing-fundamentals">Week 4: Hypothesis
+Testing Fundamentals</h3>
+<p><strong>Topics</strong>: - Null and alternative hypotheses - Type I
+and Type II errors - Statistical power - One-sample t-tests - Two-sample
+t-tests (independent samples) - Paired t-tests - Assumptions and
+diagnostics</p>
+<p><strong>R/Quarto Focus</strong>: <code>t.test()</code>, checking
+assumptions (normality tests, QQ plots), effect sizes with
+<code>effsize</code> package</p>
+<p><strong>Homework</strong>: Conduct and interpret t-tests on
+agricultural/animal science datasets</p>
+<hr />
+<h3 id="week-5-analysis-of-variance-anova">Week 5: Analysis of Variance
+(ANOVA)</h3>
+<p><strong>Topics</strong>: - When to use ANOVA vs t-tests - One-way
+ANOVA - ANOVA assumptions (normality, homogeneity of variance,
+independence) - Post-hoc tests (Tukey HSD, Bonferroni) - Multiple
+comparisons problem - Effect sizes (eta-squared, omega-squared)</p>
+<p><strong>R/Quarto Focus</strong>: <code>aov()</code>,
+<code>TukeyHSD()</code>, <code>car::leveneTest()</code>, visualization
+of group differences with boxplots and interaction plots</p>
+<p><strong>Homework</strong>: Complete one-way ANOVA analysis with
+post-hoc comparisons</p>
+<hr />
+<h3 id="week-6-categorical-data-analysis">Week 6: Categorical Data
+Analysis</h3>
+<p><strong>Topics</strong>: - Chi-square goodness of fit test -
+Chi-square test of independence - Fisher’s exact test - Risk ratios and
+odds ratios - 2x2 contingency tables - Interpretation in biological
+contexts</p>
+<p><strong>R/Quarto Focus</strong>: <code>chisq.test()</code>,
+<code>fisher.test()</code>, <code>table()</code>,
+<code>prop.test()</code>, mosaic plots with <code>ggplot2</code></p>
+<p><strong>Homework</strong>: Analyze categorical data from a veterinary
+or animal breeding study</p>
+<hr />
+<h3 id="week-7-simple-linear-regression">Week 7: Simple Linear
+Regression</h3>
+<p><strong>Topics</strong>: - Correlation vs regression - Pearson
+correlation coefficient - Simple linear regression model - Least squares
+estimation - Interpretation of coefficients (slope, intercept) -
+R-squared and model fit - Residual diagnostics - Prediction and
+confidence intervals</p>
+<p><strong>R/Quarto Focus</strong>: <code>lm()</code>,
+<code>cor()</code>, diagnostic plots (<code>plot(model)</code>),
+<code>broom::tidy()</code> and <code>broom::glance()</code>,
+<code>ggplot2::geom_smooth()</code></p>
+<p><strong>Homework</strong>: Build and interpret a simple linear
+regression model</p>
+<hr />
+<h3 id="week-8-multiple-regression-course-integration">Week 8: Multiple
+Regression &amp; Course Integration</h3>
+<p><strong>Topics</strong>: - Multiple regression basics - Interpreting
+multiple predictors - Categorical predictors (dummy variables) - Model
+comparison (AIC, adjusted R-squared) - Variable selection considerations
+- Course synthesis: choosing the right statistical test - Review of key
+concepts - Path forward: next steps in statistical learning</p>
+<p><strong>R/Quarto Focus</strong>: <code>lm()</code> with multiple
+predictors, <code>step()</code>, model comparison, creating
+comprehensive analysis reports in Quarto</p>
+<p><strong>Homework</strong>: Final project - complete analysis from EDA
+through regression with written interpretation</p>
+<hr />
+<h2 id="general-course-guidelines">General Course Guidelines</h2>
+<h3 id="quarto-workflow">Quarto Workflow</h3>
+<ul>
+<li>Each lecture will include a <code>.qmd</code> file with code
+examples</li>
+<li>Students will submit homework as rendered Quarto documents (HTML or
+PDF)</li>
+<li>Emphasize reproducible research practices</li>
+<li>YAML header templates will be provided</li>
+</ul>
+<h3 id="recommended-r-packages">Recommended R Packages</h3>
+<p>Core packages to install at the start of the course:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;tidyverse&quot;</span>,      <span class="co"># Data manipulation and visualization</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;broom&quot;</span>,          <span class="co"># Tidy statistical output</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;car&quot;</span>,            <span class="co"># Companion to Applied Regression</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;effsize&quot;</span>,        <span class="co"># Effect size calculations</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;ggpubr&quot;</span>,         <span class="co"># Publication-ready plots</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;rstatix&quot;</span>,        <span class="co"># Pipe-friendly statistical tests</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;gt&quot;</span>,             <span class="co"># Grammar of Tables</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;patchwork&quot;</span>,      <span class="co"># Combining plots</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;emmeans&quot;</span>         <span class="co"># Estimated marginal means</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div>
+<h3 id="assessment-philosophy">Assessment Philosophy</h3>
+<ul>
+<li>Focus on interpretation over calculation</li>
+<li>Emphasize assumptions and diagnostics</li>
+<li>Real-world datasets from animal/agricultural sciences</li>
+<li>Build statistical thinking, not just button-pushing</li>
+</ul>
+<h3 id="teaching-approach">Teaching Approach</h3>
+<ul>
+<li>Start with questions, not tests</li>
+<li>Use simulation to build intuition</li>
+<li>Connect to previous R/data management skills</li>
+<li>Emphasize visualization before testing</li>
+<li>Discuss common pitfalls and misinterpretations</li>
+</ul>
+<hr />
+<h2 id="week-1-detailed-lecture-outline">Week 1 Detailed Lecture
+Outline</h2>
+<h3 id="learning-objectives">Learning Objectives</h3>
+<p>By the end of Week 1, students will be able to: 1. Distinguish
+between frequentist and Bayesian statistical philosophies 2. Correctly
+interpret p-values and identify common misinterpretations 3.
+Differentiate observational studies from experimental studies 4. Explain
+the key features and benefits of Randomized Controlled Trials (RCTs) 5.
+Understand the relationship between study design and causal inference 6.
+Identify confounding variables in research scenarios</p>
+<hr />
+<h3 id="lecture-structure-2-hours">Lecture Structure (2 hours)</h3>
+<h4 id="part-1-what-is-statistics-20-minutes">Part 1: What is
+Statistics? (20 minutes)</h4>
+<p><strong>Key Questions</strong>: - Why do we need statistics? - What
+can statistics tell us? What can’t it tell us? - The role of uncertainty
+and variability</p>
+<p><strong>Discussion Points</strong>: - Statistics as a tool for making
+decisions under uncertainty - Difference between descriptive and
+inferential statistics - Preview of the course: building a statistical
+toolkit</p>
+<p><strong>R Example</strong>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Demonstrate variability with a simple example</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate two groups of cattle weights</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>group_a <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="dv">30</span>, <span class="at">mean =</span> <span class="dv">500</span>, <span class="at">sd =</span> <span class="dv">50</span>)  <span class="co"># Treatment A</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>group_b <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="dv">30</span>, <span class="at">mean =</span> <span class="dv">520</span>, <span class="at">sd =</span> <span class="dv">50</span>)  <span class="co"># Treatment B</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualize</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">weight =</span> <span class="fu">c</span>(group_a, group_b),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">treatment =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">&quot;A&quot;</span>, <span class="st">&quot;B&quot;</span>), <span class="at">each =</span> <span class="dv">30</span>)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>) <span class="sc">%&gt;%</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> treatment, <span class="at">y =</span> weight)) <span class="sc">+</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>() <span class="sc">+</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_jitter</span>(<span class="at">width =</span> <span class="fl">0.1</span>, <span class="at">alpha =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;Do treatments differ?&quot;</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Weight (kg)&quot;</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">&quot;Treatment&quot;</span>) <span class="sc">+</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code></pre></div>
+<p><strong>Key Question for Students</strong>: <em>How confident are we
+that Treatment B is actually better?</em></p>
+<hr />
+<h4 id="part-2-frequentist-vs-bayesian-frameworks-25-minutes">Part 2:
+Frequentist vs Bayesian Frameworks (25 minutes)</h4>
+<p><strong>Frequentist Approach</strong>: - Probability = long-run
+frequency - Parameters are fixed but unknown - Focus on what would
+happen if we repeated the experiment many times - P-values and
+confidence intervals - “What is the probability of observing data this
+extreme, given the null hypothesis is true?”</p>
+<p><strong>Bayesian Approach</strong>: - Probability = degree of belief
+- Parameters are uncertain (have distributions) - Incorporates prior
+knowledge - Posterior distributions and credible intervals - “What is
+the probability that the hypothesis is true, given the data?”</p>
+<p><strong>Key Differences Table</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 41%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Frequentist</th>
+<th>Bayesian</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Probability</td>
+<td>Long-run frequency</td>
+<td>Degree of belief</td>
+</tr>
+<tr>
+<td>Parameters</td>
+<td>Fixed, unknown</td>
+<td>Random variables with distributions</td>
+</tr>
+<tr>
+<td>Prior knowledge</td>
+<td>Not formally incorporated</td>
+<td>Explicitly incorporated via priors</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>p-values, confidence intervals</td>
+<td>Posterior distributions, credible intervals</td>
+</tr>
+<tr>
+<td>Interpretation</td>
+<td>“If null is true, how likely is this data?”</td>
+<td>“Given the data, how likely is the hypothesis?”</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note</strong>: This course will focus primarily on
+frequentist methods (most common in animal/agricultural sciences), but
+awareness of Bayesian thinking is valuable.</p>
+<p><strong>Discussion</strong>: Why is the frequentist approach dominant
+in scientific publishing?</p>
+<hr />
+<h4 id="part-3-understanding-p-values-30-minutes">Part 3: Understanding
+P-Values (30 minutes)</h4>
+<p><strong>Definition</strong>: A p-value is the probability of
+obtaining results at least as extreme as the observed results, assuming
+the null hypothesis is true.</p>
+<p><strong>What p-values ARE</strong>: - A measure of compatibility
+between data and the null hypothesis - Continuous measure (not binary) -
+Dependent on sample size - A probability about the data, not about the
+hypothesis</p>
+<p><strong>What p-values ARE NOT</strong>: - ❌ The probability that the
+null hypothesis is true - ❌ The probability that the result occurred by
+chance - ❌ The probability of making a wrong decision - ❌ Evidence for
+the alternative hypothesis - ❌ The magnitude or importance of an
+effect</p>
+<p><strong>Common Misinterpretations</strong>: 1. “p = 0.03 means
+there’s a 3% chance the null is true” → <strong>WRONG</strong> 2. “p =
+0.06 means there’s no effect” → <strong>WRONG</strong> (absence of
+evidence ≠ evidence of absence) 3. “p = 0.001 means a large effect” →
+<strong>WRONG</strong> (statistical significance ≠ practical
+significance)</p>
+<p><strong>The p &lt; 0.05 Threshold</strong>: - Arbitrary convention
+proposed by R.A. Fisher - Not a bright line between “true” and “false” -
+Many fields are moving away from rigid thresholds - Focus should be on
+effect sizes and confidence intervals</p>
+<p><strong>R Simulation to Build Intuition</strong>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate what p-values mean</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">456</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate data where null hypothesis is TRUE (no difference)</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>simulate_null_true <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  group1 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="dv">20</span>, <span class="at">mean =</span> <span class="dv">100</span>, <span class="at">sd =</span> <span class="dv">15</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  group2 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="dv">20</span>, <span class="at">mean =</span> <span class="dv">100</span>, <span class="at">sd =</span> <span class="dv">15</span>)  <span class="co"># Same mean!</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">t.test</span>(group1, group2)<span class="sc">$</span>p.value</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Run simulation 1000 times</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>p_values <span class="ot">&lt;-</span> <span class="fu">replicate</span>(<span class="dv">1000</span>, <span class="fu">simulate_null_true</span>())</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualize</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">p_value =</span> p_values) <span class="sc">%&gt;%</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> p_value)) <span class="sc">+</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">20</span>, <span class="at">fill =</span> <span class="st">&quot;steelblue&quot;</span>, <span class="at">alpha =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="fl">0.05</span>, <span class="at">color =</span> <span class="st">&quot;red&quot;</span>, <span class="at">linetype =</span> <span class="st">&quot;dashed&quot;</span>, <span class="at">size =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;Distribution of p-values when null is TRUE&quot;</span>,</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="st">&quot;~5% of p-values are below 0.05 by chance alone&quot;</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">&quot;P-value&quot;</span>,</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Count&quot;</span>) <span class="sc">+</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co"># What proportion are &quot;significant&quot;?</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="fu">mean</span>(p_values <span class="sc">&lt;</span> <span class="fl">0.05</span>)  <span class="co"># Should be close to 0.05</span></span></code></pre></div>
+<p><strong>Key Insight</strong>: When the null hypothesis is true, we
+still get p &lt; 0.05 about 5% of the time. This is Type I error.</p>
+<hr />
+<h4 id="part-4-observational-vs-experimental-studies-30-minutes">Part 4:
+Observational vs Experimental Studies (30 minutes)</h4>
+<p><strong>Observational Studies</strong>: - Researcher observes without
+manipulating - Cannot control for confounding variables - Examples:
+surveys, cohort studies, case-control studies - Can show associations
+but not causation</p>
+<p><strong>Experimental Studies</strong>: - Researcher actively
+manipulates variables (treatments) - Controls conditions - Randomization
+helps balance confounders - Can establish causation (under proper
+design)</p>
+<p><strong>Key Concept: Confounding</strong></p>
+<p>A confounder is a variable that: 1. Is associated with the
+exposure/treatment 2. Independently affects the outcome 3. Is not on the
+causal pathway</p>
+<p><strong>Classic Example: Ice Cream and Drowning</strong> -
+Observational data shows ice cream sales correlate with drowning deaths
+- Confounder: Temperature/Season - Ice cream doesn’t cause drowning!</p>
+<p><strong>Agricultural Example: Pasture Type and Weight
+Gain</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulated example showing confounding</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">789</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>farm_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">farm =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">20</span>, <span class="at">each =</span> <span class="dv">10</span>),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">pasture_type =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">&quot;A&quot;</span>, <span class="st">&quot;B&quot;</span>), <span class="at">each =</span> <span class="dv">100</span>),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Farm quality is a confounder (better farms choose pasture A)</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">farm_quality =</span> <span class="fu">rep</span>(<span class="fu">rnorm</span>(<span class="dv">20</span>, <span class="at">mean =</span> <span class="dv">50</span>, <span class="at">sd =</span> <span class="dv">10</span>), <span class="at">each =</span> <span class="dv">10</span>),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Weight gain depends on farm quality, NOT pasture type</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">weight_gain =</span> farm_quality <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="dv">200</span>, <span class="at">mean =</span> <span class="dv">0</span>, <span class="at">sd =</span> <span class="dv">5</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Naive analysis (ignoring confounding)</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>farm_data <span class="sc">%&gt;%</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(pasture_type) <span class="sc">%&gt;%</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">mean_gain =</span> <span class="fu">mean</span>(weight_gain))</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Appears that pasture A is better!</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co"># But it&#39;s because better farms chose pasture A</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualization</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>farm_data <span class="sc">%&gt;%</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> farm_quality, <span class="at">y =</span> weight_gain, <span class="at">color =</span> pasture_type)) <span class="sc">+</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">alpha =</span> <span class="fl">0.6</span>) <span class="sc">+</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_smooth</span>(<span class="at">method =</span> <span class="st">&quot;lm&quot;</span>, <span class="at">se =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;Confounding Example: Farm Quality affects both pasture choice and outcome&quot;</span>,</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">&quot;Farm Quality Score&quot;</span>,</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Weight Gain (kg)&quot;</span>,</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>       <span class="at">color =</span> <span class="st">&quot;Pasture Type&quot;</span>) <span class="sc">+</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code></pre></div>
+<p><strong>Discussion</strong>: How can we address confounding? -
+Randomization (experimental studies) - Statistical adjustment
+(observational studies) - Matching - Stratification</p>
+<hr />
+<h4 id="part-5-randomized-controlled-trials-rcts-15-minutes">Part 5:
+Randomized Controlled Trials (RCTs) (15 minutes)</h4>
+<p><strong>Definition</strong>: An experiment where participants are
+randomly assigned to treatment or control groups.</p>
+<p><strong>Key Features of RCTs</strong>: 1.
+<strong>Randomization</strong>: Ensures groups are balanced on both
+known and unknown confounders 2. <strong>Control group</strong>:
+Provides a comparison baseline 3. <strong>Blinding</strong> (when
+possible): Reduces bias - Single-blind: Participants don’t know their
+group - Double-blind: Neither participants nor researchers know 4.
+<strong>Standardization</strong>: All other conditions kept as similar
+as possible</p>
+<p><strong>Why Randomization Works</strong>: - Balances confounders
+across groups (on average) - Allows causal inference - Known probability
+distribution (enables statistical testing)</p>
+<p><strong>Agricultural/Animal Science Examples</strong>: - Feed trial:
+Randomly assign calves to different diets - Drug efficacy: Randomly
+assign pigs to antibiotic vs placebo - Breeding trial: Randomly assign
+mating pairs</p>
+<p><strong>Limitations of RCTs</strong>: - Can be expensive - May not be
+ethical (e.g., can’t randomly assign animals to disease exposure) - May
+not be practical (long-term outcomes, rare events) - Results may not
+generalize to real-world conditions</p>
+<p><strong>R Simulation: Demonstrating the Power of
+Randomization</strong>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Show that randomization balances confounders</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2024</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Population of 100 animals with various characteristics</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>population <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">animal_id =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">age =</span> <span class="fu">runif</span>(<span class="dv">100</span>, <span class="at">min =</span> <span class="dv">1</span>, <span class="at">max =</span> <span class="dv">5</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">baseline_weight =</span> <span class="fu">rnorm</span>(<span class="dv">100</span>, <span class="at">mean =</span> <span class="dv">300</span>, <span class="at">sd =</span> <span class="dv">50</span>),</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">farm =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="st">&quot;North&quot;</span>, <span class="st">&quot;South&quot;</span>, <span class="st">&quot;East&quot;</span>, <span class="st">&quot;West&quot;</span>), <span class="dv">100</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">sex =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="st">&quot;M&quot;</span>, <span class="st">&quot;F&quot;</span>), <span class="dv">100</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Randomly assign to treatment</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>population <span class="ot">&lt;-</span> population <span class="sc">%&gt;%</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">treatment =</span> <span class="fu">sample</span>(<span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">&quot;Control&quot;</span>, <span class="st">&quot;Treatment&quot;</span>), <span class="at">each =</span> <span class="dv">50</span>)))</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Check balance</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>population <span class="sc">%&gt;%</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(treatment) <span class="sc">%&gt;%</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_age =</span> <span class="fu">mean</span>(age),</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_weight =</span> <span class="fu">mean</span>(baseline_weight),</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">prop_male =</span> <span class="fu">mean</span>(sex <span class="sc">==</span> <span class="st">&quot;M&quot;</span>),</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">&#39;drop&#39;</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Should be similar between groups!</span></span></code></pre></div>
+<hr />
+<h3 id="wrap-up-preview-10-minutes">Wrap-up &amp; Preview (10
+minutes)</h3>
+<p><strong>Key Takeaways</strong>: 1. Statistics helps us make decisions
+under uncertainty 2. Frequentist approach: focus on long-run properties
+3. P-values are widely misunderstood—they tell us about data, not
+hypotheses 4. Study design matters: observational vs experimental 5.
+Randomization is powerful for causal inference 6. Next week: We’ll start
+quantifying data with descriptive statistics</p>
+<p><strong>Questions to Ponder</strong>: - When you read research
+papers, can you identify the study design? - Are the conclusions
+justified by the design? - What confounders might be present?</p>
+<hr />
+<h2 id="week-1-homework-assignment">Week 1 Homework Assignment</h2>
+<h3
+id="assignment-study-design-critique-p-value-interpretation">Assignment:
+Study Design Critique &amp; P-value Interpretation</h3>
+<p><strong>Part 1: Study Design Analysis (50 points)</strong></p>
+<p>You will be provided with 3 short abstracts from published animal
+science studies. For each study:</p>
+<ol type="1">
+<li>Identify whether it is observational or experimental</li>
+<li>If experimental, describe the randomization procedure</li>
+<li>List potential confounding variables</li>
+<li>Assess whether the conclusions about causation are justified</li>
+<li>Suggest improvements to the study design (if any)</li>
+</ol>
+<p><strong>Part 2: P-value Simulation (30 points)</strong></p>
+<p>Using R and Quarto:</p>
+<ol type="1">
+<li>Generate two groups of simulated data where the null hypothesis is
+FALSE (means are actually different: 100 vs 110, n=25 each, SD=15)</li>
+<li>Run a t-test and report the p-value</li>
+<li>Repeat this process 100 times (using a loop or
+<code>replicate()</code>)</li>
+<li>Create a histogram of the p-values</li>
+<li>Calculate what proportion of p-values are &lt; 0.05</li>
+<li>Write a brief interpretation: What is this proportion called? What
+does it depend on?</li>
+</ol>
+<p><strong>Part 3: Reflection (20 points)</strong></p>
+<p>In 200-300 words, reflect on: - One common p-value misinterpretation
+that surprised you - How you will think differently about statistical
+significance going forward - A real-world example from your field where
+confounding might be an issue</p>
+<p><strong>Submission</strong>: - Render your Quarto document to HTML -
+Submit both the <code>.qmd</code> and <code>.html</code> files</p>
+<p><strong>Grading Rubric</strong>: - Correct identification and
+justification (Part 1): 50% - Code correctness and visualization (Part
+2): 30% - Thoughtfulness of reflection (Part 3): 20%</p>
+<hr />
+<h2 id="additional-resources-for-week-1">Additional Resources for Week
+1</h2>
+<h3 id="required-reading">Required Reading</h3>
+<ul>
+<li>ASA Statement on P-values and Statistical Significance (2016)</li>
+<li>“The Earth Is Round (p &lt; .05)” by Cohen (1994) - sections on
+p-value interpretation</li>
+</ul>
+<h3 id="optional-reading">Optional Reading</h3>
+<ul>
+<li>Ioannidis (2005) “Why Most Published Research Findings Are
+False”</li>
+<li>Greenland et al. (2016) “Statistical tests, P values, confidence
+intervals, and power: a guide to misinterpretations”</li>
+</ul>
+<h3 id="r-resources">R Resources</h3>
+<ul>
+<li>R for Data Science (2e): Chapters on data visualization and
+transformation (review)</li>
+<li>Quarto documentation:
+https://quarto.org/docs/get-started/hello/rstudio.html</li>
+</ul>
+<h3 id="videostutorials">Videos/Tutorials</h3>
+<ul>
+<li>“Dance of the p-values” (YouTube) - visual demonstration of p-value
+distributions</li>
+<li>StatQuest: “P-values, clearly explained” by Josh Starmer</li>
+</ul>
+<hr />
+<h2 id="notes-for-instructor">Notes for Instructor</h2>
+<h3 id="timing-recommendations">Timing Recommendations</h3>
+<ul>
+<li>Spend more time on p-values (students struggle most with this)</li>
+<li>Interactive elements: Have students guess if differences are
+“significant” before revealing p-values</li>
+<li>Use real datasets from animal science journals for discussion</li>
+</ul>
+<h3 id="common-student-misconceptions-to-address">Common Student
+Misconceptions to Address</h3>
+<ol type="1">
+<li>“p = 0.05 is the cutoff” (rigid thinking)</li>
+<li>“Significant means important” (conflating statistical and practical
+significance)</li>
+<li>“Randomization means we assign treatments randomly to humans/animals
+we encounter” (no—we randomly assign within the study participants)</li>
+<li>“Observational studies are bad” (no—they’re necessary when
+experiments aren’t feasible)</li>
+</ol>
+<h3 id="engagement-strategies">Engagement Strategies</h3>
+<ul>
+<li>Poll: “What % of studies do you trust based on p &lt; 0.05
+alone?”</li>
+<li>Think-pair-share: Identify confounders in a provided scenario</li>
+<li>Live coding: Simulate p-value distributions together</li>
+</ul>
+<h3 id="assessment-notes">Assessment Notes</h3>
+<ul>
+<li>Grade homework holistically, not just on correctness</li>
+<li>Look for statistical thinking, not perfect answers</li>
+<li>Provide detailed feedback on p-value interpretation (this is
+foundational)</li>
+</ul>
+<hr />
+<h2 id="appendix-sample-quarto-setup-for-course">Appendix: Sample Quarto
+Setup for Course</h2>
+<h3 id="recommended-yaml-header-for-student-assignments">Recommended
+YAML Header for Student Assignments</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Week 1 Homework: Study Design &amp; P-values&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">author</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Your Name&quot;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="fu">date</span><span class="kw">:</span><span class="at"> today</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">format</span><span class="kw">:</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">html</span><span class="kw">:</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">toc</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">toc-depth</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">code-fold</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">theme</span><span class="kw">:</span><span class="at"> cosmo</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">embed-resources</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="fu">execute</span><span class="kw">:</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">warning</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">message</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
+<h3 id="setup-chunk-for-course">Setup Chunk for Course</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load packages</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(broom)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Set theme for all plots</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="fu">theme_set</span>(<span class="fu">theme_minimal</span>())</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Set seed for reproducibility</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span></code></pre></div>
+<hr />
+<p><em>End of Week 1 Plan</em></p>
+</body>
+</html>
