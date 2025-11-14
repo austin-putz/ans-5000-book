@@ -10,7 +10,7 @@ book:
 
   sidebar:
     style: docked
-    background: "#6A5ACD"
+    background: "#FF8C00"
 
   chapters:
     - index.qmd
