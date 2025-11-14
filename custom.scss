@@ -1,0 +1,51 @@
+/*-- scss:defaults --*/
+
+// Custom colors
+$sidebar-bg: #6A5ACD;
+$sidebar-fg: #FFFFFF;
+$heading-color: $sidebar-bg;
+
+/*-- scss:rules --*/
+
+// Expose heading color as CSS variable for reuse
+:root {
+  --quarto-heading-color: #{$heading-color};
+}
+
+// Book title styling
+.sidebar-title {
+  color: #FFFFFF !important;
+}
+
+// Ensure sidebar links are readable
+.sidebar-navigation .sidebar-item a {
+  color: #FFFFFF;
+}
+
+.sidebar-navigation .sidebar-item a:hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+// Active chapter styling
+.sidebar-navigation .active {
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+// Header colors matching sidebar theme
+h1, h2, h3,
+.section h1, .section h2, .section h3,
+.quarto-title-block .title,
+.quarto-title-block h1,
+.quarto-title-block h2,
+.quarto-title-block h3,
+main.content h1,
+main.content h2,
+main.content h3 {
+  color: var(--quarto-heading-color);
+}
+
+.header-section-number {
+  color: var(--quarto-heading-color);
+}

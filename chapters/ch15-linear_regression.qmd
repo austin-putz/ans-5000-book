@@ -1,0 +1,1169 @@
+---
+title: "Week 15: Simple Linear Regression"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup}
+#| include: false
+
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(car)
+
+# Set theme for all plots
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(2025)
+```
+
+# Introduction {#sec-introduction}
+
+Imagine you're managing a dairy operation and notice that cows consuming more feed tend to produce more milk. But **how much more** milk can you expect for each additional kilogram of feed? Can you **predict** a cow's milk production based on her feed intake? And how confident can you be in those predictions?
+
+These questions move us beyond simply testing whether differences exist (hypothesis testing) or whether variables are associated (correlation) to actually **modeling relationships** and making **predictions**. This is the domain of regression analysis.
+
+## Motivating Scenario
+
+A dairy nutritionist wants to optimize feeding strategies. She has data on daily feed intake (kg of dry matter) and milk production (kg/day) from 50 cows. Her questions include:
+
+- Is there a relationship between feed intake and milk yield?
+- For every additional kg of feed consumed, how much more milk is produced?
+- Can I predict milk production for a cow consuming 20 kg of feed per day?
+- How accurate are these predictions?
+
+## Key Questions We'll Address
+
+::: {.callout-note icon=false}
+## This Week's Learning Objectives
+
+By the end of this session, you will be able to:
+
+1. Distinguish between correlation and regression analyses
+2. Fit and interpret simple linear regression models
+3. Assess model fit using $R^2$ and residual diagnostics
+4. Check regression assumptions with diagnostic plots
+5. Make predictions with confidence and prediction intervals
+6. Report regression results appropriately
+:::
+
+## Building on Previous Weeks
+
+::: {.callout-tip}
+## Connection to Previous Material
+
+- **Week 2**: We used scatter plots for exploratory analysis
+- **Week 3**: We learned about sampling distributions and confidence intervals
+- **Week 4**: We tested hypotheses about means (t-tests)
+- **Week 7 (Now)**: We model **relationships** between variables and make predictions
+
+Regression extends hypothesis testing by not just asking "is there an effect?" but "**how large** is the effect and what can we predict?"
+:::
+
+# Correlation vs Regression {#sec-correlation-vs-regression}
+
+Before diving into regression, it's crucial to understand when to use correlation versus regression. While related, they answer different questions.
+
+## Conceptual Differences
+
+**Correlation** measures the **strength and direction** of a linear relationship between two variables:
+- Both variables are random
+- Symmetric relationship (correlating X with Y = correlating Y with X)
+- Answers: "How strongly are these variables associated?"
+- No prediction involved
+
+**Regression** models one variable as a function of another:
+- Response variable (Y) is random; predictor variable (X) may be fixed or random
+- Asymmetric relationship (regressing Y on X ≠ regressing X on Y)
+- Answers: "How does Y change as X changes?" and "What value of Y do we predict for a given X?"
+- Enables prediction
+
+## Pearson Correlation Coefficient
+
+The Pearson correlation coefficient ($r$) quantifies linear association:
+
+$$r = \frac{\sum(x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\sum(x_i - \bar{x})^2 \sum(y_i - \bar{y})^2}}$$
+
+**Properties**:
+- Range: $-1 \leq r \leq 1$
+- $r = 1$: Perfect positive linear relationship
+- $r = -1$: Perfect negative linear relationship
+- $r = 0$: No linear relationship
+- $r^2$ equals the proportion of variance in Y explained by X (in regression context)
+
+**Interpretation Guidelines** (rough rules of thumb):
+- $|r| < 0.3$: Weak correlation
+- $0.3 \leq |r| < 0.7$: Moderate correlation
+- $|r| \geq 0.7$: Strong correlation
+
+::: {.callout-warning}
+## Important Limitations of Correlation
+
+1. **Only measures linear relationships** (can miss nonlinear patterns)
+2. **Sensitive to outliers**
+3. **Does not imply causation**
+4. **Can be misleading with restricted ranges**
+:::
+
+## Example: Feed Intake and Milk Yield
+
+Let's generate some realistic data and explore correlation:
+
+```{r correlation-example}
+# Simulate dairy cow data
+n <- 50
+feed_intake <- rnorm(n, mean = 22, sd = 3)  # kg DM/day
+
+# Milk yield depends on feed intake plus random variation
+milk_yield <- 8 + 1.5 * feed_intake + rnorm(n, mean = 0, sd = 4)  # kg/day
+
+# Create data frame
+dairy_data <- tibble(
+  cow_id = 1:n,
+  feed_intake = feed_intake,
+  milk_yield = milk_yield
+)
+
+# Visualize relationship
+ggplot(dairy_data, aes(x = feed_intake, y = milk_yield)) +
+  geom_point(size = 3, alpha = 0.6, color = "steelblue") +
+  labs(
+    title = "Relationship Between Feed Intake and Milk Yield",
+    subtitle = "50 dairy cows",
+    x = "Feed Intake (kg DM/day)",
+    y = "Milk Yield (kg/day)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+**Calculate correlation**:
+
+```{r correlation-calculation}
+# Pearson correlation
+cor_result <- cor.test(dairy_data$feed_intake, dairy_data$milk_yield)
+
+# Display results
+cor_result
+
+# Extract key values
+r_value <- cor_result$estimate
+p_value <- cor_result$p.value
+ci_lower <- cor_result$conf.int[1]
+ci_upper <- cor_result$conf.int[2]
+```
+
+**Interpretation**: The correlation between feed intake and milk yield is $r$ = `r sprintf("%.3f", r_value)` (95% CI: [`r sprintf("%.3f", ci_lower)`, `r sprintf("%.3f", ci_upper)`], *p* < 0.001). This indicates a **strong positive** linear relationship.
+
+But correlation alone doesn't tell us:
+- How much milk yield changes per kg of feed
+- What milk yield to expect for a specific feed intake
+- This is where **regression** comes in!
+
+# Simple Linear Regression Model {#sec-simple-regression}
+
+## The Linear Model
+
+Simple linear regression models the relationship between a continuous response variable ($Y$) and a single predictor variable ($X$):
+
+$$Y_i = \beta_0 + \beta_1 X_i + \epsilon_i$$
+
+Where:
+- $Y_i$ = response variable for observation $i$ (e.g., milk yield)
+- $X_i$ = predictor variable for observation $i$ (e.g., feed intake)
+- $\beta_0$ = intercept (expected value of $Y$ when $X = 0$)
+- $\beta_1$ = slope (change in $Y$ for a 1-unit increase in $X$)
+- $\epsilon_i$ = random error term, assumed $\epsilon_i \sim N(0, \sigma^2)$
+
+## Least Squares Estimation
+
+The **method of least squares** finds the line that minimizes the sum of squared residuals (vertical distances from points to the line):
+
+$$\text{Minimize: } \sum_{i=1}^{n} (y_i - \hat{y}_i)^2 = \sum_{i=1}^{n} (y_i - (\beta_0 + \beta_1 x_i))^2$$
+
+The resulting estimates are:
+
+$$\hat{\beta}_1 = \frac{\sum(x_i - \bar{x})(y_i - \bar{y})}{\sum(x_i - \bar{x})^2} = r \frac{s_y}{s_x}$$
+
+$$\hat{\beta}_0 = \bar{y} - \hat{\beta}_1 \bar{x}$$
+
+::: {.callout-tip}
+## Key Insight
+
+The regression line **always** passes through the point $(\bar{x}, \bar{y})$.
+:::
+
+## Fitting a Model in R
+
+Let's fit a regression model to our dairy data:
+
+```{r fit-model}
+# Fit simple linear regression
+model1 <- lm(milk_yield ~ feed_intake, data = dairy_data)
+
+# Display summary
+summary(model1)
+```
+
+## Interpreting Coefficients {#sec-interpretation}
+
+```{r extract-coefficients}
+# Tidy output with broom
+tidy_model <- tidy(model1, conf.int = TRUE)
+tidy_model
+
+# Extract coefficients
+intercept <- coef(model1)[1]
+slope <- coef(model1)[2]
+```
+
+**Intercept** ($\hat{\beta}_0$ = `r sprintf("%.2f", intercept)`):
+- The **predicted** milk yield when feed intake = 0 kg/day
+- **Interpretation**: Not biologically meaningful in this case (cows can't consume 0 feed and produce milk!)
+- Often, the intercept is not of primary interest; it ensures the line fits the data well
+
+**Slope** ($\hat{\beta}_1$ = `r sprintf("%.2f", slope)`):
+- For every **1 kg increase** in feed intake (dry matter), milk yield **increases** by `r sprintf("%.2f", slope)` kg/day, on average
+- This is the **key quantity of interest** for the dairy nutritionist
+- 95% CI: [`r sprintf("%.2f", tidy_model$conf.int.low[2])`, `r sprintf("%.2f", tidy_model$conf.int.high[2])`]
+
+::: {.callout-important}
+## Always Include Units!
+
+When interpreting coefficients, **always specify units**:
+- "For every 1 kg increase in feed intake..."
+- "...milk yield increases by 1.53 kg/day"
+
+Coefficients without units are meaningless in applied contexts.
+:::
+
+## Visualizing the Fitted Line
+
+```{r visualize-fitted-line}
+# Base scatter plot with regression line
+p1 <- ggplot(dairy_data, aes(x = feed_intake, y = milk_yield)) +
+  geom_point(size = 3, alpha = 0.6, color = "steelblue") +
+  geom_smooth(method = "lm", se = TRUE, color = "red", linewidth = 1) +
+  labs(
+    title = "Simple Linear Regression",
+    subtitle = "Fitted line with 95% confidence band",
+    x = "Feed Intake (kg DM/day)",
+    y = "Milk Yield (kg/day)"
+  )
+
+# Add residuals visualization
+dairy_augmented <- augment(model1, data = dairy_data)
+
+p2 <- ggplot(dairy_augmented, aes(x = feed_intake, y = milk_yield)) +
+  geom_segment(aes(xend = feed_intake, yend = .fitted),
+               alpha = 0.4, color = "gray50") +
+  geom_point(size = 3, alpha = 0.6, color = "steelblue") +
+  geom_line(aes(y = .fitted), color = "red", linewidth = 1) +
+  labs(
+    title = "Residuals Visualization",
+    subtitle = "Vertical lines show residuals (observed - predicted)",
+    x = "Feed Intake (kg DM/day)",
+    y = "Milk Yield (kg/day)"
+  )
+
+# Combine plots
+p1 / p2
+```
+
+# Model Fit and R-squared {#sec-model-fit}
+
+How well does our model fit the data? We need measures of **model quality**.
+
+## Understanding R-squared
+
+**R-squared** ($R^2$) represents the **proportion of variance in Y explained by X**:
+
+$$R^2 = 1 - \frac{SS_{residual}}{SS_{total}} = 1 - \frac{\sum(y_i - \hat{y}_i)^2}{\sum(y_i - \bar{y})^2}$$
+
+**Interpretation**:
+- Range: $0 \leq R^2 \leq 1$
+- $R^2 = 0$: Model explains none of the variance (no better than using $\bar{y}$ as prediction)
+- $R^2 = 1$: Model explains all variance (perfect fit)
+- For simple linear regression: $R^2 = r^2$ (square of correlation coefficient)
+
+```{r rsquared}
+# Extract R-squared
+model_summary <- glance(model1)
+model_summary
+
+r_squared <- model_summary$r.squared
+adj_r_squared <- model_summary$adj.r.squared
+```
+
+**For our model**: $R^2$ = `r sprintf("%.3f", r_squared)`, meaning **`r sprintf("%.1f", r_squared*100)`% of the variance** in milk yield is explained by feed intake.
+
+::: {.callout-note}
+## What about the other `r sprintf("%.1f", (1-r_squared)*100)`%?
+
+The remaining variance is due to:
+- Other factors not in the model (genetics, lactation stage, health status, etc.)
+- Random biological variation
+- Measurement error
+
+This is normal! Perfect $R^2 = 1$ is rare in biological data.
+:::
+
+## Residual Standard Error
+
+The **residual standard error** (RSE) estimates $\sigma$, the standard deviation of the errors:
+
+$$\text{RSE} = \sqrt{\frac{\sum(y_i - \hat{y}_i)^2}{n - 2}}$$
+
+```{r rse}
+rse <- model_summary$sigma
+```
+
+**For our model**: RSE = `r sprintf("%.2f", rse)` kg/day
+
+**Interpretation**: On average, observed milk yields deviate from predicted values by about `r sprintf("%.2f", rse)` kg/day. This is the typical **prediction error**.
+
+## Hypothesis Test for the Slope
+
+The model output includes a t-test for $H_0: \beta_1 = 0$ (no relationship):
+
+$$t = \frac{\hat{\beta}_1 - 0}{SE(\hat{\beta}_1)}$$
+
+```{r slope-test}
+# Extract slope test
+slope_test <- tidy_model[2, ]
+t_stat <- slope_test$statistic
+p_val <- slope_test$p.value
+```
+
+**Result**: $t$ = `r sprintf("%.2f", t_stat)`, *p* < 0.001
+
+This provides **very strong evidence** that feed intake is associated with milk yield (slope is not zero).
+
+::: {.callout-tip}
+## Statistical vs Practical Significance
+
+A significant p-value tells us there's a relationship, but doesn't tell us if it's **practically meaningful**:
+
+- A slope of 0.01 might be statistically significant (large sample) but meaningless biologically
+- Focus on **effect size** (magnitude of the slope) and **confidence intervals**
+:::
+
+# Residual Diagnostics {#sec-diagnostics}
+
+Before trusting our model, we must check **assumptions**:
+
+1. **Linearity**: Relationship between X and Y is linear
+2. **Independence**: Observations are independent
+3. **Homoscedasticity**: Constant variance of errors
+4. **Normality**: Errors are normally distributed
+
+## The Four Diagnostic Plots
+
+R provides four key diagnostic plots via `plot(model)`:
+
+```{r diagnostic-plots}
+#| fig.height: 8
+#| fig.width: 8
+
+# Set up 2x2 plotting layout
+par(mfrow = c(2, 2))
+plot(model1)
+par(mfrow = c(1, 1))  # Reset
+```
+
+### Plot 1: Residuals vs Fitted
+
+**Purpose**: Check **linearity** and **homoscedasticity**
+
+**What to look for**:
+- Random scatter around horizontal line at 0
+- No clear patterns (U-shapes, curves, funnels)
+
+**Our plot**: ✓ Looks good! Random scatter with no obvious pattern.
+
+**Red flags**:
+- Curved pattern → nonlinear relationship (try transformation or polynomial regression)
+- Funnel shape → heteroscedasticity (variance increases with fitted values)
+
+### Plot 2: Normal Q-Q Plot
+
+**Purpose**: Check **normality** of residuals
+
+**What to look for**:
+- Points fall along diagonal reference line
+- Minor deviations at extremes are okay
+
+**Our plot**: ✓ Looks good! Points mostly follow the line.
+
+**Red flags**:
+- Systematic S-curve → heavy-tailed distribution
+- Points far from line at extremes → outliers
+
+### Plot 3: Scale-Location (Sqrt Standardized Residuals vs Fitted)
+
+**Purpose**: Check **homoscedasticity** (constant variance)
+
+**What to look for**:
+- Horizontal line with random scatter
+- Roughly equal spread across the x-axis
+
+**Our plot**: ✓ Looks good! Relatively constant spread.
+
+**Red flags**:
+- Increasing/decreasing trend → heteroscedasticity
+
+### Plot 4: Residuals vs Leverage
+
+**Purpose**: Identify **influential points** (high leverage and/or large residuals)
+
+**What to look for**:
+- Most points clustered in lower-left corner
+- No points beyond Cook's distance contours (dashed lines)
+
+**Our plot**: ✓ Looks good! No highly influential points.
+
+**Red flags**:
+- Points beyond Cook's distance lines → investigate these observations
+
+::: {.callout-important}
+## Cook's Distance
+
+Cook's distance measures how much the regression would change if an observation were removed:
+
+- $D > 0.5$: Potentially influential
+- $D > 1$: Very influential (investigate!)
+
+Use `cooks.distance(model)` to calculate.
+:::
+
+## Formal Tests (Use with Caution)
+
+While diagnostic plots are primary, formal tests are available:
+
+```{r formal-tests}
+# Shapiro-Wilk test for normality of residuals
+shapiro_test <- shapiro.test(residuals(model1))
+
+# Breusch-Pagan test for heteroscedasticity
+bp_test <- car::ncvTest(model1)
+
+# Display results
+cat("Shapiro-Wilk test (normality): p =", sprintf("%.4f", shapiro_test$p.value), "\n")
+cat("Breusch-Pagan test (homoscedasticity): p =", sprintf("%.4f", bp_test$p), "\n")
+```
+
+::: {.callout-warning}
+## Don't Over-Rely on Normality Tests
+
+- Shapiro-Wilk test is sensitive to sample size
+- Small samples: may not detect violations
+- Large samples: may detect trivial violations
+
+**Always prioritize visual inspection of diagnostic plots!**
+:::
+
+## What If Assumptions Are Violated?
+
+| Violation | Potential Solutions |
+|-----------|-------------------|
+| **Non-linearity** | Transform variables (log, sqrt), polynomial regression |
+| **Heteroscedasticity** | Transform response (log), weighted least squares |
+| **Non-normality** | Often okay with large n (CLT), try transformations, robust methods |
+| **Influential points** | Investigate for errors, consider robust regression |
+| **Non-independence** | Use mixed models, time series methods, or clustered SEs |
+
+# Prediction and Confidence Intervals {#sec-prediction}
+
+One of regression's key strengths is **making predictions**.
+
+## Types of Intervals
+
+1. **Confidence Interval (CI) for the Mean Response**
+   - "What is the **average** Y for a given X?"
+   - Interval for $E(Y | X = x^*)$
+   - Narrower interval
+
+2. **Prediction Interval (PI) for an Individual Response**
+   - "What Y value will a **new individual** have at X = x*?"
+   - Interval for a **single future observation**
+   - Wider interval (accounts for individual variation)
+
+::: {.callout-tip}
+## Key Distinction
+
+- CI: Uncertainty about the **mean**
+- PI: Uncertainty about a **specific individual**
+
+PI is always wider because it includes both:
+1. Uncertainty in estimating the mean (like CI)
+2. Individual variation around the mean ($\pm \sigma$)
+:::
+
+## Making Predictions
+
+Suppose we want to predict milk yield for cows consuming 20 kg and 25 kg of feed per day:
+
+```{r predictions}
+# New data for prediction
+new_data <- tibble(
+  feed_intake = c(20, 25)
+)
+
+# Confidence intervals (for mean response)
+pred_conf <- predict(model1, newdata = new_data, interval = "confidence", level = 0.95)
+
+# Prediction intervals (for individual response)
+pred_pred <- predict(model1, newdata = new_data, interval = "prediction", level = 0.95)
+
+# Combine results
+predictions_table <- tibble(
+  feed_intake = new_data$feed_intake,
+  predicted_yield = pred_conf[, "fit"],
+  ci_lower = pred_conf[, "lwr"],
+  ci_upper = pred_conf[, "upr"],
+  pi_lower = pred_pred[, "lwr"],
+  pi_upper = pred_pred[, "upr"]
+)
+
+# Display
+knitr::kable(predictions_table, digits = 2,
+             caption = "Predicted milk yields with 95% confidence and prediction intervals")
+```
+
+**Interpretation for 20 kg feed intake**:
+
+- **Point estimate**: `r sprintf("%.2f", predictions_table$predicted_yield[1])` kg/day
+- **95% CI**: [`r sprintf("%.2f", predictions_table$ci_lower[1])`, `r sprintf("%.2f", predictions_table$ci_upper[1])`] - We're 95% confident the **mean** milk yield for all cows consuming 20 kg/day is in this range
+- **95% PI**: [`r sprintf("%.2f", predictions_table$pi_lower[1])`, `r sprintf("%.2f", predictions_table$pi_upper[1])`] - We're 95% confident a **specific cow** consuming 20 kg/day will produce milk in this range
+
+## Visualizing Intervals
+
+```{r visualize-intervals}
+# Create prediction grid
+pred_grid <- tibble(
+  feed_intake = seq(min(dairy_data$feed_intake),
+                    max(dairy_data$feed_intake),
+                    length.out = 100)
+)
+
+# Get predictions
+pred_grid$fit <- predict(model1, newdata = pred_grid)
+pred_ci <- predict(model1, newdata = pred_grid, interval = "confidence")
+pred_pi <- predict(model1, newdata = pred_grid, interval = "prediction")
+
+pred_grid$ci_lower <- pred_ci[, "lwr"]
+pred_grid$ci_upper <- pred_ci[, "upr"]
+pred_grid$pi_lower <- pred_pi[, "lwr"]
+pred_grid$pi_upper <- pred_pi[, "upr"]
+
+# Plot
+ggplot() +
+  # Prediction interval (wider, outer band)
+  geom_ribbon(data = pred_grid,
+              aes(x = feed_intake, ymin = pi_lower, ymax = pi_upper),
+              fill = "lightblue", alpha = 0.3) +
+  # Confidence interval (narrower, inner band)
+  geom_ribbon(data = pred_grid,
+              aes(x = feed_intake, ymin = ci_lower, ymax = ci_upper),
+              fill = "steelblue", alpha = 0.5) +
+  # Regression line
+  geom_line(data = pred_grid,
+            aes(x = feed_intake, y = fit),
+            color = "darkblue", linewidth = 1) +
+  # Original data points
+  geom_point(data = dairy_data,
+             aes(x = feed_intake, y = milk_yield),
+             size = 2, alpha = 0.6) +
+  labs(
+    title = "Confidence vs Prediction Intervals",
+    subtitle = "Dark band = 95% CI for mean | Light band = 95% PI for individuals",
+    x = "Feed Intake (kg DM/day)",
+    y = "Milk Yield (kg/day)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Extrapolation Warning
+
+::: {.callout-warning}
+## Danger of Extrapolation
+
+**Never** make predictions far outside the range of observed X values!
+
+- Our data: feed intake ranges from `r sprintf("%.1f", min(dairy_data$feed_intake))` to `r sprintf("%.1f", max(dairy_data$feed_intake))` kg/day
+- Predicting at 5 kg/day or 40 kg/day would be **extrapolation**
+- The linear relationship may not hold outside the observed range
+- Predictions become unreliable (and potentially absurd)
+:::
+
+# Complete Worked Example {#sec-worked-example}
+
+Let's work through a full regression analysis with a new dataset.
+
+## Scenario: Body Weight and Average Daily Gain in Cattle
+
+A beef cattle researcher wants to understand the relationship between an animal's body weight and average daily gain (ADG). Data were collected from 60 steers over a 90-day feeding period.
+
+**Research Question**: Can we predict ADG based on initial body weight?
+
+## Step 1: Load and Explore Data
+
+```{r cattle-data}
+# Simulate realistic cattle data
+n_cattle <- 60
+initial_weight <- rnorm(n_cattle, mean = 350, sd = 40)  # kg
+
+# Heavier cattle tend to have slightly higher ADG
+adg <- 0.8 + 0.002 * initial_weight + rnorm(n_cattle, mean = 0, sd = 0.15)  # kg/day
+
+cattle_data <- tibble(
+  steer_id = 1:n_cattle,
+  initial_weight = initial_weight,
+  adg = adg
+)
+
+# Summary statistics
+cattle_data %>%
+  summarise(
+    n = n(),
+    mean_weight = mean(initial_weight),
+    sd_weight = sd(initial_weight),
+    mean_adg = mean(adg),
+    sd_adg = sd(adg)
+  ) %>%
+  knitr::kable(digits = 2, caption = "Summary statistics for cattle data")
+```
+
+## Step 2: Exploratory Data Analysis
+
+```{r cattle-eda}
+# Scatter plot
+p1 <- ggplot(cattle_data, aes(x = initial_weight, y = adg)) +
+  geom_point(size = 3, alpha = 0.6, color = "darkgreen") +
+  labs(
+    title = "Initial Body Weight vs Average Daily Gain",
+    x = "Initial Body Weight (kg)",
+    y = "Average Daily Gain (kg/day)"
+  )
+
+# Marginal histograms
+p2 <- ggplot(cattle_data, aes(x = initial_weight)) +
+  geom_histogram(bins = 15, fill = "darkgreen", alpha = 0.6) +
+  labs(x = "Initial Weight (kg)", y = "Count")
+
+p3 <- ggplot(cattle_data, aes(x = adg)) +
+  geom_histogram(bins = 15, fill = "darkgreen", alpha = 0.6) +
+  labs(x = "ADG (kg/day)", y = "Count")
+
+# Combine
+p1 / (p2 | p3)
+```
+
+**Initial observations**:
+- Positive relationship appears present
+- No obvious outliers
+- Both variables roughly normally distributed
+
+## Step 3: Calculate Correlation
+
+```{r cattle-correlation}
+cor_cattle <- cor.test(cattle_data$initial_weight, cattle_data$adg)
+cor_cattle
+```
+
+**Result**: $r$ = `r sprintf("%.3f", cor_cattle$estimate)`, *p* = `r sprintf("%.4f", cor_cattle$p.value)`
+
+This suggests a **weak to moderate positive** correlation.
+
+## Step 4: Fit Regression Model
+
+```{r cattle-model}
+# Fit model
+cattle_model <- lm(adg ~ initial_weight, data = cattle_data)
+
+# Tidy output
+tidy(cattle_model, conf.int = TRUE) %>%
+  knitr::kable(digits = 4, caption = "Regression coefficients")
+
+# Model fit statistics
+glance(cattle_model) %>%
+  select(r.squared, adj.r.squared, sigma, statistic, p.value) %>%
+  knitr::kable(digits = 4, caption = "Model fit statistics")
+```
+
+## Step 5: Interpret Coefficients
+
+```{r cattle-interpretation}
+coefs <- coef(cattle_model)
+intercept_cattle <- coefs[1]
+slope_cattle <- coefs[2]
+```
+
+**Intercept** ($\hat{\beta}_0$ = `r sprintf("%.4f", intercept_cattle)`): Predicted ADG when initial weight = 0 kg (not meaningful)
+
+**Slope** ($\hat{\beta}_1$ = `r sprintf("%.4f", slope_cattle)`): For every **1 kg increase** in initial body weight, ADG **increases** by `r sprintf("%.4f", slope_cattle)` kg/day (about `r sprintf("%.1f", slope_cattle*1000)` g/day), on average.
+
+**Is this biologically meaningful?**
+- A 50 kg difference in weight → ~`r sprintf("%.2f", slope_cattle*50)` kg/day difference in ADG (about `r sprintf("%.0f", slope_cattle*50*1000)` g/day)
+- This is a **small but meaningful effect** in beef production
+
+## Step 6: Check Assumptions
+
+```{r cattle-diagnostics}
+#| fig.height: 8
+#| fig.width: 8
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(cattle_model)
+par(mfrow = c(1, 1))
+```
+
+**Assessment**:
+- ✓ Residuals vs Fitted: Random scatter, no pattern
+- ✓ Q-Q Plot: Points follow line well
+- ✓ Scale-Location: Constant variance
+- ✓ Residuals vs Leverage: No influential points
+
+**Conclusion**: Assumptions appear satisfied.
+
+## Step 7: Visualize Results
+
+```{r cattle-final-plot}
+ggplot(cattle_data, aes(x = initial_weight, y = adg)) +
+  geom_point(size = 3, alpha = 0.6, color = "darkgreen") +
+  geom_smooth(method = "lm", se = TRUE, color = "darkred", fill = "pink") +
+  labs(
+    title = "Body Weight and Average Daily Gain in Beef Cattle",
+    subtitle = sprintf("ADG = %.3f + %.4f × Weight (R² = %.3f)",
+                      intercept_cattle, slope_cattle,
+                      glance(cattle_model)$r.squared),
+    x = "Initial Body Weight (kg)",
+    y = "Average Daily Gain (kg/day)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Step 8: Make Predictions
+
+What ADG would we expect for steers weighing 300 kg and 400 kg?
+
+```{r cattle-predictions}
+# New data
+new_cattle <- tibble(initial_weight = c(300, 400))
+
+# Predictions with intervals
+pred_cattle <- predict(cattle_model, newdata = new_cattle,
+                       interval = "prediction", level = 0.95) %>%
+  as_tibble() %>%
+  bind_cols(new_cattle, .)
+
+pred_cattle %>%
+  knitr::kable(digits = 3,
+               caption = "Predicted ADG with 95% prediction intervals")
+```
+
+**Interpretation**:
+- A 300 kg steer: Expected ADG = `r sprintf("%.2f", pred_cattle$fit[1])` kg/day (95% PI: [`r sprintf("%.2f", pred_cattle$lwr[1])`, `r sprintf("%.2f", pred_cattle$upr[1])`])
+- A 400 kg steer: Expected ADG = `r sprintf("%.2f", pred_cattle$fit[2])` kg/day (95% PI: [`r sprintf("%.2f", pred_cattle$lwr[2])`, `r sprintf("%.2f", pred_cattle$upr[2])`])
+
+## Step 9: Report Results
+
+::: {.callout-note icon=false}
+## Example Results Statement
+
+"A simple linear regression was conducted to examine the relationship between initial body weight and average daily gain (ADG) in beef cattle (n = 60). Initial body weight was significantly associated with ADG (*p* = `r sprintf("%.4f", tidy(cattle_model)$p.value[2])`), with each 1 kg increase in body weight corresponding to a `r sprintf("%.4f", slope_cattle)` kg/day increase in ADG (95% CI: [`r sprintf("%.4f", tidy(cattle_model, conf.int = TRUE)$conf.int.low[2])`, `r sprintf("%.4f", tidy(cattle_model, conf.int = TRUE)$conf.int.high[2])`]). However, initial body weight explained only `r sprintf("%.1f", glance(cattle_model)$r.squared * 100)`% of the variance in ADG ($R^2$ = `r sprintf("%.3f", glance(cattle_model)$r.squared)`), suggesting that other factors (e.g., genetics, health status, feed composition) play substantial roles in determining growth rate. Model diagnostics indicated that regression assumptions were adequately met."
+:::
+
+# Practical Considerations {#sec-practical}
+
+## When is Simple Linear Regression Appropriate?
+
+**Use simple linear regression when**:
+- You have one continuous predictor and one continuous response
+- The relationship appears linear
+- You want to quantify the relationship or make predictions
+- You want to test if a relationship exists
+
+**Don't use simple linear regression when**:
+- The relationship is clearly nonlinear (use transformations or nonlinear models)
+- You have multiple predictors (use multiple regression - Week 8!)
+- Response is binary (use logistic regression)
+- Data have hierarchical structure (use mixed models)
+
+## Sample Size Considerations
+
+**Rules of thumb**:
+- **Minimum**: ~20-30 observations for stable estimates
+- **Preferred**: 10-20 observations per predictor (simple regression = 1 predictor)
+- **Larger samples**: Better for detecting small effects and checking assumptions
+
+## Outliers and Influential Points
+
+**Types of unusual observations**:
+
+1. **Outliers**: Large residuals (Y is unusual given X)
+2. **High leverage points**: Unusual X values (far from $\bar{x}$)
+3. **Influential points**: Combining high leverage and large residual; removal changes the regression line
+
+**What to do**:
+- Investigate (data entry error? Valid unusual case?)
+- Report results with and without influential points
+- Consider robust regression methods if many outliers
+
+```{r influential-points-demo}
+# Calculate influence metrics
+influence_metrics <- cattle_data %>%
+  mutate(
+    cooks_d = cooks.distance(cattle_model),
+    leverage = hatvalues(cattle_model),
+    std_resid = rstandard(cattle_model)
+  ) %>%
+  arrange(desc(cooks_d))
+
+# Display top 5 by Cook's distance
+influence_metrics %>%
+  slice_head(n = 5) %>%
+  select(steer_id, initial_weight, adg, cooks_d, leverage, std_resid) %>%
+  knitr::kable(digits = 3, caption = "Top 5 observations by Cook's distance")
+```
+
+All Cook's distances are well below 0.5, indicating no influential points.
+
+## Biological vs Statistical Significance
+
+::: {.callout-important}
+## Statistical Significance ≠ Practical Importance
+
+Consider:
+- **Effect size**: Is the magnitude of the slope meaningful?
+- **Context**: A slope of 0.002 kg/day per kg of body weight is small but might be economically important over 100+ days
+- **Confidence intervals**: Provide range of plausible effect sizes
+- **Cost-benefit**: Is the predictor worth measuring/manipulating?
+:::
+
+## Common Pitfalls
+
+::: {.callout-warning}
+## Watch Out For These Mistakes!
+
+1. **Confusing correlation with causation**
+   - Regression shows association, not causation (unless from RCT)
+
+2. **Extrapolating beyond data range**
+   - Predictions unreliable outside observed X values
+
+3. **Ignoring assumption violations**
+   - Always check diagnostic plots!
+
+4. **Focusing only on p-values**
+   - Report effect sizes, CIs, and $R^2$
+
+5. **Forgetting units**
+   - Coefficients are meaningless without units
+
+6. **Overlooking influential points**
+   - One outlier can dramatically change results
+:::
+
+# Reporting Regression Results {#sec-reporting}
+
+## Essential Components
+
+A complete regression report should include:
+
+1. **Sample size** (n)
+2. **Model equation** (in words or symbols)
+3. **Coefficients** with standard errors or CIs
+4. **Statistical significance** (t-statistics, p-values)
+5. **Model fit** ($R^2$, RSE)
+6. **Assumption checks** (statement that diagnostics were examined)
+7. **Interpretation** in context (with units!)
+8. **Visualization** (scatter plot with regression line)
+
+## Table Format Example
+
+```{r reporting-table}
+# Create publication-ready table
+cattle_table <- tidy(cattle_model, conf.int = TRUE) %>%
+  select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) %>%
+  mutate(
+    term = case_match(term,
+                      "(Intercept)" ~ "Intercept",
+                      "initial_weight" ~ "Initial Weight (kg)")
+  )
+
+cattle_table %>%
+  knitr::kable(
+    digits = 4,
+    col.names = c("Term", "Estimate", "SE", "t", "p", "95% CI Lower", "95% CI Upper"),
+    caption = "Simple linear regression: ADG predicted by initial body weight"
+  )
+```
+
+## Figure Requirements
+
+**Good regression figures include**:
+- Scatter plot of raw data
+- Fitted regression line
+- Confidence band (optional but recommended)
+- Clear axis labels **with units**
+- Informative title
+- Regression equation and/or $R^2$ in caption or subtitle
+
+# Summary and Key Takeaways {#sec-summary}
+
+::: {.callout-note icon=false}
+## Key Concepts from Week 7
+
+1. **Correlation** measures association; **regression** models relationships and enables prediction
+
+2. **Simple linear regression**: $Y = \beta_0 + \beta_1 X + \epsilon$
+   - $\beta_1$ (slope) is typically of primary interest
+   - Always interpret with **units** and **context**
+
+3. **$R^2$** = proportion of variance explained (0 to 1)
+   - Useful but don't obsess over it; biology is complex!
+
+4. **Assumptions matter**:
+   - Linearity, independence, homoscedasticity, normality
+   - Check with **diagnostic plots** (4 key plots)
+
+5. **Two types of intervals**:
+   - **CI**: For mean response (narrower)
+   - **PI**: For individual response (wider)
+
+6. **Don't extrapolate** beyond the range of your data
+
+7. **Report comprehensively**: coefficients, CIs, $R^2$, and assumption checks
+:::
+
+## Decision Framework: When to Use Regression
+
+```{r decision-framework}
+#| echo: false
+
+tribble(
+  ~Question, ~`If YES`, ~`If NO`,
+  "One continuous Y and one continuous X?", "Continue", "Consider other methods",
+  "Relationship appears linear?", "Continue", "Transform or use nonlinear model",
+  "Want to quantify relationship/predict Y?", "Use regression", "Correlation may suffice",
+  "Care about direction of prediction?", "Regression (Y ~ X)", "Correlation is symmetric",
+  "Have multiple predictors?", "Multiple regression (Week 8!)", "Simple regression"
+) %>%
+  knitr::kable(caption = "Decision tree for simple linear regression")
+```
+
+## Looking Ahead to Week 8
+
+Next week we'll extend to **multiple regression**:
+- Multiple predictor variables simultaneously
+- Controlling for confounders
+- Categorical predictors (factor variables)
+- Model comparison and selection
+- Interactions
+
+## Practice Problems
+
+Try these to solidify your understanding:
+
+1. **Conceptual**: Explain to a fellow student the difference between correlation and regression. When would you use each?
+
+2. **Interpretation**: A regression of egg weight (Y, grams) on hen age (X, weeks) gives: $\hat{Y} = 35 + 0.8X$. Interpret both coefficients with proper units.
+
+3. **Prediction**: Using the equation above, predict the egg weight for a 20-week-old hen. Would you trust a prediction for a 100-week-old hen? Why or why not?
+
+4. **Analysis**: Load the `mtcars` dataset in R. Fit a regression predicting `mpg` from `wt` (weight). Check assumptions, interpret coefficients, and make a publication-quality plot.
+
+# Additional Resources {#sec-resources}
+
+## Recommended Reading
+
+- Zuur et al. (2009). "Mixed Effects Models and Extensions in Ecology with R" - Chapter 4 (excellent on diagnostics)
+- Fox (2016). "Applied Regression Analysis and Generalized Linear Models" - Chapters 6-12
+- Faraway (2014). "Linear Models with R" - Practical guide with R code
+
+## Online Resources
+
+- **R for Data Science** (2e): Chapter on modeling - https://r4ds.hadley.nz/
+- **Statistical Rethinking** by Richard McElreath - Lectures on YouTube
+- **Regression Diagnostic Plots** interpretation guide: https://library.virginia.edu/data/articles/diagnostic-plots
+
+## R Functions Summary
+
+| Function | Purpose |
+|----------|---------|
+| `lm(y ~ x, data)` | Fit linear model |
+| `summary(model)` | Model summary |
+| `coef(model)` | Extract coefficients |
+| `residuals(model)` | Extract residuals |
+| `fitted(model)` | Extract fitted values |
+| `predict(model, newdata, interval)` | Make predictions |
+| `plot(model)` | Diagnostic plots |
+| `cor(x, y)` | Correlation |
+| `cor.test(x, y)` | Correlation with inference |
+| `broom::tidy(model)` | Tidy coefficient table |
+| `broom::glance(model)` | Model fit statistics |
+| `broom::augment(model)` | Add fitted values, residuals to data |
+
+---
+
+# Homework Assignment: Week 7 {#sec-homework}
+
+## Instructions
+
+Complete the following assignment using R and Quarto. Submit both your `.qmd` source file and the rendered `.html` output.
+
+Due: [One week from today]
+
+---
+
+## Part 1: Correlation vs Regression Concepts (20 points)
+
+For each scenario below, indicate whether **correlation** or **regression** is more appropriate and justify your answer (2-3 sentences each).
+
+**Scenario A**: A veterinarian wants to examine if there's an association between dogs' body weight and resting heart rate, with no interest in prediction.
+
+**Scenario B**: A swine nutritionist wants to predict market weight based on daily feed intake to optimize feeding strategies.
+
+**Scenario C**: An animal behaviorist is studying whether time spent grazing is related to daily step count in cattle.
+
+**Scenario D**: A dairy manager wants to estimate milk production for cows based on their lactation number to plan herd management.
+
+---
+
+## Part 2: Complete Regression Analysis (50 points)
+
+You will analyze a dataset on **pig growth performance**. The data include:
+- `pig_id`: Unique pig identifier
+- `initial_weight`: Weight at start of trial (kg)
+- `final_weight`: Weight after 60 days (kg)
+- `feed_intake`: Average daily feed intake (kg/day)
+
+### Tasks:
+
+1. **Create simulated data** (5 points)
+
+Use this code to generate the dataset:
+
+```r
+set.seed(450)
+n_pigs <- 45
+
+pig_data <- tibble(
+  pig_id = 1:n_pigs,
+  initial_weight = rnorm(n_pigs, mean = 25, sd = 4),
+  feed_intake = rnorm(n_pigs, mean = 1.8, sd = 0.3)
+) %>%
+  mutate(
+    final_weight = initial_weight +
+      35 + 12 * feed_intake + rnorm(n_pigs, mean = 0, sd = 3)
+  )
+```
+
+2. **Exploratory Data Analysis** (10 points)
+   - Calculate summary statistics for all variables
+   - Create a scatter plot of `feed_intake` (X) vs `final_weight` (Y)
+   - Calculate and interpret the correlation coefficient
+
+3. **Fit Regression Model** (10 points)
+   - Fit a simple linear regression: `final_weight ~ feed_intake`
+   - Report the regression equation
+   - Create a publication-quality plot with the fitted line
+
+4. **Interpret Coefficients** (10 points)
+   - Interpret the intercept (include units and biological meaning if any)
+   - Interpret the slope (include units and practical significance)
+   - Report 95% confidence intervals for both coefficients
+
+5. **Assess Model Fit** (5 points)
+   - Report and interpret $R^2$
+   - Report and interpret the residual standard error
+
+6. **Check Assumptions** (10 points)
+   - Create the four diagnostic plots
+   - For each plot, state whether assumptions appear satisfied or violated
+   - Overall conclusion: Are assumptions met?
+
+---
+
+## Part 3: Prediction Challenge (20 points)
+
+Using your fitted model from Part 2:
+
+1. **Make predictions** (10 points)
+   - Predict final weight for pigs with feed intakes of 1.5, 2.0, and 2.5 kg/day
+   - Calculate 95% **confidence intervals** for the mean response
+   - Calculate 95% **prediction intervals** for individual pigs
+   - Present results in a well-formatted table
+
+2. **Interpret intervals** (10 points)
+   - For feed intake = 2.0 kg/day:
+     - Explain what the confidence interval tells you (in words)
+     - Explain what the prediction interval tells you (in words)
+     - Why is the prediction interval wider?
+   - Would you trust a prediction for a pig consuming 4.0 kg/day? Why or why not?
+
+---
+
+## Part 4: Critical Thinking (10 points)
+
+A research paper reports the following:
+
+> "We found a significant relationship between barn temperature (°F) and daily egg production in laying hens (p = 0.03). The regression equation was: Eggs = 15.2 + 0.05 × Temperature, with $R^2$ = 0.08."
+
+**Questions**:
+
+1. What does the slope (0.05) mean in practical terms? (2 points)
+
+2. Is the relationship statistically significant? Is it practically meaningful? Explain. (3 points)
+
+3. What does $R^2 = 0.08$ tell you? Should the researchers be concerned about this value? (3 points)
+
+4. What additional information would you want to know before trusting this model? (2 points)
+
+---
+
+## Grading Rubric
+
+| Component | Points | Criteria |
+|-----------|--------|----------|
+| **Part 1** | 20 | Correct identification and clear justification |
+| **Part 2** | 50 | Code correctness (15), interpretation accuracy (20), visualizations (10), assumption checks (5) |
+| **Part 3** | 20 | Correct predictions (10), clear explanations (10) |
+| **Part 4** | 10 | Thoughtful critical analysis |
+| **Overall Quality** | Bonus +5 | Exceptional organization, clarity, professional presentation |
+
+**Total: 100 points (+ 5 bonus)**
+
+---
+
+## Submission Checklist
+
+Before submitting, ensure:
+
+- [ ] All code runs without errors
+- [ ] Plots have clear titles and axis labels **with units**
+- [ ] Interpretations include appropriate units
+- [ ] Diagnostic plots are included and interpreted
+- [ ] Document is well-organized and professional
+- [ ] Both `.qmd` and `.html` files are submitted
+
+---
+
+**Good luck! Remember: Regression is about understanding relationships and making informed predictions. Focus on interpretation, not just numbers!**

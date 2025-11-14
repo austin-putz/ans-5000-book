@@ -1,0 +1,55 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Introduction to Data Science & Statistics"
+  subtitle: "AnS 500 - Fall 2025"
+  author: "Iowa State University"
+  date: today
+
+  sidebar:
+    style: docked
+    background: "#6A5ACD"
+
+  chapters:
+    - index.qmd
+
+    - part: "Part 1: Introduction to Data Science"
+      chapters:
+        - chapters/ch01-foundations.qmd
+        - chapters/ch02-r_rstudio_reading_data.qmd
+        - chapters/ch03-data_types_strings_dplyr.qmd
+        - chapters/ch04-dplyr.qmd
+        - chapters/ch05-ggplot2_intro.qmd
+        - chapters/ch06-ggplot2_advanced.qmd
+        - chapters/ch07-tidyr_joins_purrr.qmd
+        - chapters/ch08-special_formats.qmd
+
+    - part: "Part 2: Introduction to Statistics"
+      chapters:
+        - chapters/ch09-statistical_foundations.qmd
+        - chapters/ch10-descriptive_statistics.qmd
+        - chapters/ch11-probability_distributions.qmd
+        - chapters/ch12-hypothesis_testing.qmd
+        - chapters/ch13-anova.qmd
+        - chapters/ch14-categorical_data.qmd
+        - chapters/ch15-linear_regression.qmd
+        - chapters/ch16-multiple_regression.qmd
+
+format:
+  html:
+    theme:
+      light: [cosmo, custom.scss]
+    code-fold: false
+    code-tools: true
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    link-external-icon: true
+    link-external-newwindow: true
+
+execute:
+  warning: false
+  message: false
+  cache: false

@@ -1,0 +1,21 @@
+# Getting Started with R, RStudio, and Reading Data
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Navigate the RStudio interface and understand its main components
+2. Create and manage R Projects for organized workflows
+3. Install and load R packages
+4. Create and render Quarto documents
+5. Read CSV and Excel files into R
+6. Perform basic data exploration
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Chapter**: [Data Types, Strings, and Introduction to dplyr](part1-ch03-data_types_strings_dplyr.qmd)

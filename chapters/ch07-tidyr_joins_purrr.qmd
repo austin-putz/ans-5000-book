@@ -1,0 +1,20 @@
+# Data Reshaping, Joining, and Iteration
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Apply tidy data principles
+2. Reshape data with `pivot_longer()` and `pivot_wider()`
+3. Join multiple datasets using various join types
+4. Use functional programming with `purrr`
+5. Work with nested data structures
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Chapter**: [Special Data Formats and Course Wrap-up](part1-ch08-special_formats.qmd)

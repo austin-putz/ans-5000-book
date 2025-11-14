@@ -1,18 +1,346 @@
-# Introduction to Statistics Course Plan
-## AnS 500 - Fall 2025 (8 Weeks)
+# Introduction to Data Science & Statistics Course Plan
+## AnS 500 - Fall 2025 (16 Weeks Total: 8 Weeks Data Science + 8 Weeks Statistics)
 
 ---
 
 ## Course Overview
 
-**Duration**: 8 weeks
+**Duration**: 16 weeks total (8 weeks Part 1 + 8 weeks Part 2)
 **Format**: 2 hours lecture per week + 1 homework assignment
 **Tools**: R + Quarto exclusively
-**Prerequisites**: Basic data science and data management in R
+**Prerequisites**: None (Part 1 starts from basics)
 
 ---
 
-## 8-Week Course Outline
+# PART 1: INTRODUCTION TO DATA SCIENCE (Weeks 1-8)
+
+## Part 1 Overview
+
+This first half of the course introduces students to data science fundamentals using R, RStudio, and Quarto. Students will learn modern data manipulation and visualization techniques using the tidyverse ecosystem. By the end of Part 1, students will be able to import, clean, transform, visualize, and report on data using reproducible workflows.
+
+**Philosophy**: Tidyverse-first approach, real-world animal science datasets, reproducible research from day one.
+
+---
+
+## Part 1: 8-Week Course Outline
+
+### Week 1: Foundations of Data Science & Best Practices
+**Topics**:
+- What is data science? Definition, scope, and the data science workflow
+- Why statistics matters (preview of Part 2)
+- Observational vs experimental design (brief intro)
+- Programming languages for data science: R, Python, Julia
+- Why avoid Excel for analysis (when it's okay, when it's not)
+- Project organization: folder structure, file naming conventions
+- Data best practices: column naming, file formats (CSV, Excel), metadata
+- Database fundamentals: relational structure, long vs wide format
+- Version control basics: Git and GitHub
+- Introduction to R, RStudio, and Quarto
+- What does it take to be a data scientist?
+
+**R/Quarto Focus**: Installing R/RStudio, first Quarto document, project setup, basic R as a calculator
+
+**Homework**: Install R/RStudio/Quarto, set up a project with proper folder structure, write reflection on data science
+
+**External Links to Include**:
+- [The R Project](https://www.r-project.org/)
+- [RStudio/Posit](https://posit.co/downloads/)
+- [Quarto](https://quarto.org/)
+- [Python](https://www.python.org/)
+- [Julia Language](https://julialang.org/)
+- [Git](https://git-scm.com/)
+- [GitHub](https://github.com/)
+- [R for Data Science (2e)](https://r4ds.hadley.nz/)
+
+---
+
+### Week 2: Getting Started with R, RStudio, and Reading Data
+**Topics**:
+- RStudio interface: Console, Scripts, Environment, Files, Plots, Help
+- R Projects and working directories (`here` package)
+- Installing and loading packages: `install.packages()`, `library()`
+- Quarto documents: YAML headers, markdown syntax, code chunks, rendering
+- Reading CSV files: `readr::read_csv()`
+- Reading Excel files: `readxl::read_excel()`
+- First look at data: `head()`, `tail()`, `glimpse()`, `str()`, `summary()`
+- Basic data structures: vectors, data frames, tibbles
+- R help system: `?function`, `??search term`, package documentation
+
+**R/Quarto Focus**: Create first analysis with imported data, render to HTML/PDF
+
+**Homework**: Import CSV and Excel datasets, explore structure, create Quarto report with observations
+
+**External Links**:
+- [readr documentation](https://readr.tidyverse.org/)
+- [readxl documentation](https://readxl.tidyverse.org/)
+- [Tidyverse](https://www.tidyverse.org/)
+
+---
+
+### Week 3: Data Types, Strings, and Introduction to dplyr
+**Topics**:
+- R data types: numeric, integer, character, factor, logical, Date/POSIXct
+- Type checking: `class()`, `typeof()`, `is.numeric()`, etc.
+- Type coercion: `as.numeric()`, `as.character()`, `as.factor()`
+- Working with factors: `forcats` package basics
+- String manipulation with `stringr`:
+  - `str_detect()`, `str_replace()`, `str_replace_all()`
+  - `str_to_lower()`, `str_to_upper()`, `str_trim()`
+  - `str_split()`, `str_c()`, `str_subset()`
+- Regular expressions (regex) basics
+- Introduction to the pipe: `%>%` (magrittr) and `|>` (native pipe)
+- First dplyr verbs: `select()`, `filter()`
+
+**R/Quarto Focus**: Cleaning messy data, string operations, filtering datasets
+
+**Homework**: Clean dataset with messy strings/column names, apply filters, document process in Quarto
+
+**External Links**:
+- [stringr documentation](https://stringr.tidyverse.org/)
+- [forcats documentation](https://forcats.tidyverse.org/)
+- [Regular expressions cheat sheet](https://www.rstudio.com/wp-content/uploads/2016/09/RegExCheatsheet.pdf)
+
+---
+
+### Week 4: Data Manipulation with dplyr
+**Topics**:
+- Core dplyr verbs in depth:
+  - `mutate()`: Create and modify variables
+  - `arrange()`: Sort rows by one or more columns
+  - `group_by()` + `summarise()`: Grouped aggregations
+  - `count()` and `tally()`: Frequency tables
+  - `rename()`: Rename columns
+  - `relocate()`: Reorder columns
+- The power of the pipe: chaining operations
+- Working across multiple columns: `across()` function
+- Conditional operations:
+  - `if_else()`: Vectorized if-else
+  - `case_when()`: Multiple condition logic
+- Handling missing data:
+  - `is.na()`, `drop_na()`, `replace_na()`
+  - `coalesce()`: Replace NAs with values
+- Window functions: `lag()`, `lead()`, `cumsum()`, `row_number()`
+
+**R/Quarto Focus**: Complex multi-step transformations, grouped summaries, dealing with NAs
+
+**Homework**: Multi-step data transformation challenge using animal science dataset
+
+**External Links**:
+- [dplyr documentation](https://dplyr.tidyverse.org/)
+- [dplyr cheat sheet](https://github.com/rstudio/cheatsheets/blob/main/data-transformation.pdf)
+
+---
+
+### Week 5: Introduction to Data Visualization with ggplot2
+**Topics**:
+- The Grammar of Graphics philosophy
+- ggplot2 basic structure: `data` + `aes()` + `geom_*()`
+- Essential geometries:
+  - `geom_point()`: Scatter plots
+  - `geom_line()`: Line plots
+  - `geom_col()` / `geom_bar()`: Bar charts
+  - `geom_histogram()`: Distributions
+  - `geom_boxplot()`: Box plots
+  - `geom_violin()`: Violin plots
+- Aesthetic mappings: `x`, `y`, `color`, `fill`, `size`, `shape`, `alpha`
+- Scales: continuous and discrete
+- Coordinate systems: `coord_cartesian()`, `coord_flip()`
+- Labels and titles: `labs(title, subtitle, x, y, caption)`
+- Themes: `theme_minimal()`, `theme_classic()`, `theme_bw()`
+- Saving plots: `ggsave()`
+
+**R/Quarto Focus**: Create publication-ready plots, understand when to use each geom
+
+**Homework**: Create 5 different plot types from dataset, properly labeled and themed
+
+**External Links**:
+- [ggplot2 documentation](https://ggplot2.tidyverse.org/)
+- [ggplot2 cheat sheet](https://github.com/rstudio/cheatsheets/blob/main/data-visualization.pdf)
+- [R Graph Gallery](https://r-graph-gallery.com/)
+
+---
+
+### Week 6: Advanced ggplot2 and Multi-Panel Plots
+**Topics**:
+- Faceting for small multiples:
+  - `facet_wrap()`: Wrap panels by one variable
+  - `facet_grid()`: Grid of panels by two variables
+- Statistical layers:
+  - `geom_smooth()`: Add trend lines (lm, loess, gam)
+  - `stat_summary()`: Summarize y for each x
+  - Error bars: `geom_errorbar()`, `geom_pointrange()`
+- Customizing themes:
+  - `theme()`: Fine-tune plot appearance
+  - Creating custom themes
+  - Modifying legends, axes, grid lines
+- Color palettes:
+  - `scale_color_brewer()`, `scale_fill_brewer()`
+  - `scale_color_viridis_c()` / `_d()`: Colorblind-friendly
+  - Custom color scales
+- Text and annotations:
+  - `geom_text()`, `geom_label()`: Add text to plots
+  - `annotate()`: Add annotations
+- Combining plots:
+  - `cowplot` package: `plot_grid()`
+  - `patchwork` package: `+`, `/`, `|` operators
+- Final polish for publications
+
+**R/Quarto Focus**: Complex multi-panel figures, publication-ready output
+
+**Homework**: Replicate a published figure from a journal article
+
+**External Links**:
+- [cowplot documentation](https://wilkelab.org/cowplot/)
+- [patchwork documentation](https://patchwork.data-imaginist.com/)
+- [Color Brewer](https://colorbrewer2.org/)
+
+---
+
+### Week 7: Data Reshaping, Joining, and Iteration
+**Topics**:
+- Tidy data principles (Hadley Wickham)
+- Reshaping with `tidyr`:
+  - `pivot_longer()`: Wide to long format
+  - `pivot_wider()`: Long to wide format
+  - `separate()`: Split one column into many
+  - `unite()`: Combine columns
+- Joining datasets (SQL-style joins):
+  - `left_join()`: Keep all rows from left table
+  - `right_join()`: Keep all rows from right table
+  - `inner_join()`: Keep only matching rows
+  - `full_join()`: Keep all rows from both tables
+  - `anti_join()`, `semi_join()`: Filtering joins
+- Binding datasets:
+  - `bind_rows()`: Stack datasets vertically
+  - `bind_cols()`: Attach datasets horizontally
+- When to use loops (and when NOT to)
+- Functional programming with `purrr`:
+  - `map()`: Apply function, return list
+  - `map_dbl()`, `map_chr()`: Return vectors
+  - `map_df()`: Return data frame
+  - `map2()`, `pmap()`: Multiple inputs
+- List columns and nested data frames
+
+**R/Quarto Focus**: Complex reshaping, merging multiple datasets, iteration
+
+**Homework**: Merge multiple related datasets, reshape from wide to long, summarize with iteration
+
+**External Links**:
+- [tidyr documentation](https://tidyr.tidyverse.org/)
+- [purrr documentation](https://purrr.tidyverse.org/)
+- [Tidy data paper](https://www.jstatsoft.org/article/view/v059i10)
+
+---
+
+### Week 8: Special Data Formats, Integration, and Course Wrap-up
+**Topics**:
+- Reading data from other statistical software:
+  - `haven` package: SAS (`.sas7bdat`), SPSS (`.sav`), Stata (`.dta`)
+  - Why you might need this, how to handle labels
+- Working with Excel files:
+  - `readxl`: Reading Excel (simple)
+  - `writexl`: Writing Excel files
+  - `openxlsx`: Advanced Excel operations (formatting, multiple sheets)
+- Other useful packages:
+  - `janitor`: Cleaning column names, removing duplicates, `tabyl()`
+  - `lubridate`: Date and time manipulation
+  - `glue`: String interpolation
+- Review: The complete data science workflow
+- Reproducibility and best practices checklist
+- Transitioning to Part 2: How data science enables statistics
+- Resources for continued learning
+- Career paths in data science
+
+**R/Quarto Focus**: Import from various formats, complete pipeline from raw data to report
+
+**Homework**: **Final Part 1 Project** - Import messy multi-source data, clean, transform, visualize, present in professional Quarto report
+
+**External Links**:
+- [haven documentation](https://haven.tidyverse.org/)
+- [writexl documentation](https://docs.ropensci.org/writexl/)
+- [janitor documentation](https://sfirke.github.io/janitor/)
+- [lubridate documentation](https://lubridate.tidyverse.org/)
+
+---
+
+## Part 1 Teaching Notes
+
+### Package Installation - Week 1
+Recommend students install all necessary packages at the start:
+
+```r
+# Core tidyverse (includes dplyr, ggplot2, tidyr, readr, purrr, stringr, forcats, tibble)
+install.packages("tidyverse")
+
+# Additional packages for Part 1
+install.packages(c(
+  "readxl",      # Read Excel files
+  "writexl",     # Write Excel files
+  "haven",       # Read SAS/SPSS/Stata files
+  "janitor",     # Data cleaning
+  "lubridate",   # Date/time manipulation
+  "cowplot",     # Combining plots
+  "patchwork",   # Combining plots (alternative)
+  "here",        # Project-relative paths
+  "glue"         # String interpolation
+))
+```
+
+### Recommended Quarto YAML for Part 1 Assignments
+
+```yaml
+---
+title: "Week X Homework: [Topic]"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: false
+    code-tools: true
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Teaching Philosophy for Part 1
+
+1. **Tidyverse-first**: No base R subsetting (`df$col`, `df[,1]`), use dplyr/tidyr exclusively
+2. **Pipe-forward**: Encourage `|>` or `%>%` for readable code flow
+3. **Real data**: Use actual animal science datasets with real messiness
+4. **Reproducibility**: Every analysis in Quarto from Week 1
+5. **Best practices early**: Teach project organization, naming conventions, documentation from the start
+6. **Build incrementally**: Each week builds directly on previous weeks
+7. **Show, don't tell**: Live coding demonstrations, not just slides
+
+### Common Student Challenges (Part 1)
+
+1. **Path issues**: Teach R Projects and `here::here()` early
+2. **Package loading**: Distinguish `install.packages()` (once) vs `library()` (every session)
+3. **Pipe confusion**: Practice reading pipes as "and then"
+4. **ggplot layering**: Use `+` not `%>%` between ggplot layers
+5. **Join confusion**: Draw Venn diagrams for different join types
+6. **Forgetting `group_by()` before `summarise()`
+
+---
+
+---
+
+# PART 2: INTRODUCTION TO STATISTICS (Weeks 9-16)
+
+## Part 2 Overview
+
+The second half builds on Part 1's data manipulation and visualization skills to conduct statistical analyses. Students will learn frequentist statistical inference, hypothesis testing, and regression modeling.
+
+**Prerequisites**: Completion of Part 1 (or equivalent R/tidyverse experience)
+
+---
+
+## Part 2: 8-Week Course Outline
 
 ### Week 1: Statistical Foundations & Study Design
 **Topics**:

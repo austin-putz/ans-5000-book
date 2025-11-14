@@ -1,0 +1,1567 @@
+---
+title: "Week 12: Hypothesis Testing Fundamentals"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup}
+#| include: false
+
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(scales)
+library(car)
+library(effsize)
+
+# Set default theme
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20250112)
+```
+
+# Introduction {#sec-intro}
+
+You're an animal nutritionist testing a new feed additive that's supposed to increase daily weight gain in finishing pigs. You've conducted a trial with 30 pigs on the new feed and observed an average daily gain of 0.85 kg/day, compared to the historical average of 0.78 kg/day. The difference looks promising, but is it **real**, or could it have occurred by chance?
+
+This is the fundamental question that hypothesis testing helps us answer. This week, we'll develop a formal framework for making decisions about whether observed differences in data represent true effects or simply random variation.
+
+**Key Questions We'll Address:**
+
+- How do we structure hypotheses about our data?
+- What types of errors can we make, and how do we manage them?
+- When should we use one-sample vs two-sample vs paired t-tests?
+- How do we check whether our assumptions are met?
+- What is statistical power, and why should we care?
+
+By the end of this lecture, you'll be able to conduct and interpret t-tests appropriately, check assumptions, calculate effect sizes, and understand the limitations of hypothesis testing.
+
+::: {.callout-note}
+## Building on Previous Weeks
+
+We've already covered:
+
+- **Week 1**: P-values, study design, and the logic of statistical inference
+- **Week 2**: Descriptive statistics and distributions
+- **Week 3**: Probability distributions, Central Limit Theorem, and confidence intervals
+
+This week, we formalize these ideas into **hypothesis testing procedures**.
+:::
+
+# The Logic of Hypothesis Testing {#sec-logic}
+
+## The Hypothesis Testing Framework {#sec-framework}
+
+Hypothesis testing follows a structured approach:
+
+1. **State hypotheses**: Define null (H₀) and alternative (H₁) hypotheses
+2. **Choose significance level**: Typically α = 0.05
+3. **Collect data** and calculate a test statistic
+4. **Calculate p-value**: Probability of observing data this extreme under H₀
+5. **Make decision**: Reject H₀ if p < α, otherwise fail to reject H₀
+6. **Interpret** in context with effect sizes and confidence intervals
+
+::: {.callout-important}
+## Hypothesis Testing is NOT Absolute Truth
+
+Hypothesis testing doesn't tell us:
+
+- Whether H₀ is true
+- Whether H₁ is true
+- The probability we've made a mistake
+
+It tells us: **How compatible our data is with the null hypothesis.**
+:::
+
+## Null and Alternative Hypotheses {#sec-hypotheses}
+
+The **null hypothesis (H₀)** represents the status quo, no effect, or no difference. It's the hypothesis we try to find evidence *against*.
+
+The **alternative hypothesis (H₁ or Hₐ)** represents what we're trying to find evidence *for*—usually that there is an effect or difference.
+
+**Example: Feed Additive Trial**
+
+- H₀: The new feed additive has no effect on daily weight gain (μ = 0.78 kg/day)
+- H₁: The new feed additive changes daily weight gain (μ ≠ 0.78 kg/day)
+
+This is a **two-sided test** because we're open to the additive increasing *or* decreasing weight gain.
+
+We could also formulate **one-sided tests**:
+
+- H₁: μ > 0.78 (additive increases gain)
+- H₁: μ < 0.78 (additive decreases gain)
+
+::: {.callout-warning}
+## One-Sided vs Two-Sided Tests
+
+**Use two-sided tests by default.** One-sided tests are only appropriate when:
+
+1. You have strong *a priori* reasons to test in only one direction
+2. A difference in the other direction would be meaningless or impossible
+3. You specified the direction *before* collecting data
+
+Don't choose one-sided tests just to get p < 0.05!
+:::
+
+## Visual Intuition: Is There a Difference? {#sec-visual-intuition}
+
+Let's visualize what hypothesis testing is trying to determine:
+
+```{r intuition-visual}
+# Simulate two scenarios
+set.seed(123)
+
+# Scenario A: No real difference (H0 is true)
+scenario_a <- tibble(
+  group = rep(c("Control", "Treatment"), each = 30),
+  weight_gain = c(rnorm(30, mean = 0.78, sd = 0.12),
+                  rnorm(30, mean = 0.78, sd = 0.12))
+)
+
+# Scenario B: Real difference (H0 is false)
+scenario_b <- tibble(
+  group = rep(c("Control", "Treatment"), each = 30),
+  weight_gain = c(rnorm(30, mean = 0.78, sd = 0.12),
+                  rnorm(30, mean = 0.88, sd = 0.12))
+)
+
+# Plot both scenarios
+p1 <- ggplot(scenario_a, aes(x = group, y = weight_gain, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.5, size = 2) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Scenario A: No True Difference",
+       subtitle = "Both groups sampled from same distribution",
+       y = "Daily Weight Gain (kg)",
+       x = "") +
+  theme(legend.position = "none") +
+  ylim(0.4, 1.2)
+
+p2 <- ggplot(scenario_b, aes(x = group, y = weight_gain, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.5, size = 2) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Scenario B: Real Difference",
+       subtitle = "Treatment group has higher mean",
+       y = "Daily Weight Gain (kg)",
+       x = "") +
+  theme(legend.position = "none") +
+  ylim(0.4, 1.2)
+
+p1 + p2
+```
+
+**The challenge**: Even when there's no real difference (Scenario A), we still see *some* difference in sample means due to random variation. Hypothesis testing helps us quantify whether the observed difference is larger than we'd expect by chance alone.
+
+```{r means-comparison}
+# Calculate means and run t-tests
+scenario_a_summary <- scenario_a %>%
+  group_by(group) %>%
+  summarise(mean_gain = mean(weight_gain), .groups = 'drop')
+
+scenario_b_summary <- scenario_b %>%
+  group_by(group) %>%
+  summarise(mean_gain = mean(weight_gain), .groups = 'drop')
+
+test_a <- t.test(weight_gain ~ group, data = scenario_a)
+test_b <- t.test(weight_gain ~ group, data = scenario_b)
+
+cat("Scenario A (no true difference):\n")
+cat(sprintf("  Control: %.3f kg/day, Treatment: %.3f kg/day\n",
+            scenario_a_summary$mean_gain[1], scenario_a_summary$mean_gain[2]))
+cat(sprintf("  Difference: %.3f kg/day, p-value: %.3f\n\n",
+            diff(scenario_a_summary$mean_gain), test_a$p.value))
+
+cat("Scenario B (true difference = 0.10 kg/day):\n")
+cat(sprintf("  Control: %.3f kg/day, Treatment: %.3f kg/day\n",
+            scenario_b_summary$mean_gain[1], scenario_b_summary$mean_gain[2]))
+cat(sprintf("  Difference: %.3f kg/day, p-value: %.4f\n",
+            diff(scenario_b_summary$mean_gain), test_b$p.value))
+```
+
+In Scenario A, we correctly **fail to reject H₀** (p > 0.05). In Scenario B, we correctly **reject H₀** (p < 0.05) and conclude there's evidence of a real difference.
+
+# Type I and Type II Errors {#sec-errors}
+
+When we make decisions based on hypothesis tests, we can make two types of mistakes.
+
+## Definitions {#sec-error-definitions}
+
+**Type I Error (False Positive, α)**: Rejecting H₀ when it's actually true
+
+- Concluding there's an effect when there isn't one
+- The probability of Type I error is α (significance level)
+- Typically set at α = 0.05 (5% false positive rate)
+
+**Type II Error (False Negative, β)**: Failing to reject H₀ when it's actually false
+
+- Concluding there's no effect when there is one
+- The probability of Type II error is β
+- Power = 1 - β (probability of correctly rejecting false H₀)
+
+## The Truth Table {#sec-truth-table}
+
+|                      | **H₀ is True**       | **H₀ is False**      |
+|----------------------|----------------------|----------------------|
+| **Reject H₀**        | Type I Error (α)     | ✓ Correct (Power)    |
+| **Fail to Reject H₀**| ✓ Correct (1-α)      | Type II Error (β)    |
+
+::: {.callout-note}
+## Why α = 0.05?
+
+The 0.05 threshold is a **convention**, not a law of nature. R.A. Fisher suggested it as a convenient benchmark, but it's arbitrary. Some fields use:
+
+- α = 0.01 for more stringent control of false positives
+- α = 0.10 for exploratory research where false negatives are more costly
+
+**Focus on effect sizes and confidence intervals**, not just whether p < 0.05.
+:::
+
+## Consequences in Animal Science {#sec-error-consequences}
+
+The consequences of these errors depend on context:
+
+**Example 1: New Feed Additive**
+
+- **Type I Error**: Conclude additive works when it doesn't → waste money on ineffective product
+- **Type II Error**: Conclude additive doesn't work when it does → miss opportunity to improve productivity
+
+**Example 2: Disease Screening**
+
+- **Type I Error**: Conclude animal is diseased when it's healthy → unnecessary treatment, stress, cost
+- **Type II Error**: Conclude animal is healthy when it's diseased → disease spreads, welfare issues
+
+The relative costs of these errors should inform your choice of α and sample size (which affects β).
+
+## Simulating Type I Errors {#sec-simulate-type-i}
+
+Let's demonstrate that when H₀ is true, we still get p < 0.05 about 5% of the time:
+
+```{r type-i-simulation}
+# Function to run one trial where H0 is TRUE
+run_null_true_trial <- function() {
+  # Both groups from same distribution (no real difference)
+  control <- rnorm(25, mean = 100, sd = 15)
+  treatment <- rnorm(25, mean = 100, sd = 15)  # Same mean!
+
+  test_result <- t.test(treatment, control)
+  test_result$p.value
+}
+
+# Run 1000 trials
+n_sims <- 1000
+p_values_null_true <- replicate(n_sims, run_null_true_trial())
+
+# Visualize
+tibble(p_value = p_values_null_true) %>%
+  ggplot(aes(x = p_value)) +
+  geom_histogram(bins = 20, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_vline(xintercept = 0.05, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of P-values When H₀ is True",
+       subtitle = sprintf("Proportion with p < 0.05: %.3f (expected: 0.05)",
+                         mean(p_values_null_true < 0.05)),
+       x = "P-value",
+       y = "Count") +
+  theme_minimal(base_size = 12)
+```
+
+```{r type-i-rate}
+type_i_rate <- mean(p_values_null_true < 0.05)
+cat(sprintf("Type I error rate: %.3f (%.1f%%)\n", type_i_rate, type_i_rate * 100))
+cat(sprintf("Out of %d trials: %d false positives\n",
+            n_sims, sum(p_values_null_true < 0.05)))
+```
+
+**Key insight**: Even when there's no real effect, we'll get "significant" results about 5% of the time. This is why **replication** is crucial in science!
+
+## Simulating Type II Errors {#sec-simulate-type-ii}
+
+Now let's see Type II errors—when there IS a real effect, but we fail to detect it:
+
+```{r type-ii-simulation}
+# Function to run one trial where H0 is FALSE (real effect exists)
+run_null_false_trial <- function(true_effect = 10, sample_size = 20, sd = 15) {
+  control <- rnorm(sample_size, mean = 100, sd = sd)
+  treatment <- rnorm(sample_size, mean = 100 + true_effect, sd = sd)
+
+  test_result <- t.test(treatment, control)
+  test_result$p.value
+}
+
+# Small effect, small sample
+p_values_small <- replicate(n_sims, run_null_false_trial(true_effect = 5, sample_size = 20))
+
+# Medium effect, small sample
+p_values_medium <- replicate(n_sims, run_null_false_trial(true_effect = 10, sample_size = 20))
+
+# Medium effect, large sample
+p_values_large_n <- replicate(n_sims, run_null_false_trial(true_effect = 10, sample_size = 50))
+
+# Combine results
+error_rates <- tibble(
+  Scenario = c("Small effect (d=0.33), n=20",
+               "Medium effect (d=0.67), n=20",
+               "Medium effect (d=0.67), n=50"),
+  `Type II Error Rate (β)` = c(mean(p_values_small >= 0.05),
+                                 mean(p_values_medium >= 0.05),
+                                 mean(p_values_large_n >= 0.05)),
+  `Power (1-β)` = 1 - `Type II Error Rate (β)`
+)
+
+knitr::kable(error_rates, digits = 3, align = 'lcc',
+             caption = "Type II Error Rates Under Different Scenarios")
+```
+
+**Key insights**:
+
+1. Smaller effects are harder to detect (higher β)
+2. Larger samples reduce Type II error (increase power)
+3. Even with a real effect, we often fail to detect it with small samples!
+
+# Statistical Power {#sec-power}
+
+**Power** is the probability of correctly rejecting a false null hypothesis. In other words, it's the probability of detecting an effect when one truly exists.
+
+$$\text{Power} = 1 - \beta = P(\text{reject } H_0 \mid H_0 \text{ is false})$$
+
+## Factors Affecting Power {#sec-power-factors}
+
+Power depends on four factors:
+
+1. **Effect size**: Larger effects are easier to detect
+2. **Sample size (n)**: More data = more power
+3. **Significance level (α)**: Lower α = lower power (trade-off with Type I error)
+4. **Variability (σ)**: Less noisy data = more power
+
+::: {.callout-tip}
+## Typical Power Target
+
+Many researchers aim for **power = 0.80** (80% probability of detecting the effect). This means accepting a 20% Type II error rate (β = 0.20).
+
+The choice of 80% is conventional, like α = 0.05. In some contexts (e.g., clinical trials), you might want higher power (0.90 or 0.95).
+:::
+
+## Visualizing Power {#sec-power-curves}
+
+Let's visualize how power changes with sample size and effect size:
+
+```{r power-curves}
+# Function to calculate power via simulation
+calculate_power_sim <- function(n, effect_size, sd = 15, alpha = 0.05, n_sims = 1000) {
+  p_values <- replicate(n_sims, {
+    control <- rnorm(n, mean = 100, sd = sd)
+    treatment <- rnorm(n, mean = 100 + effect_size, sd = sd)
+    t.test(treatment, control)$p.value
+  })
+  mean(p_values < alpha)
+}
+
+# Calculate power for different scenarios
+power_data <- expand_grid(
+  n = seq(10, 100, by = 5),
+  effect_size = c(5, 10, 15, 20)
+) %>%
+  mutate(
+    effect_label = sprintf("Effect = %d (d = %.2f)", effect_size, effect_size / 15),
+    power = map2_dbl(n, effect_size, ~calculate_power_sim(.x, .y, n_sims = 500))
+  )
+
+# Plot power curves
+ggplot(power_data, aes(x = n, y = power, color = effect_label)) +
+  geom_line(linewidth = 1.2) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = 0.05, linetype = "dotted", color = "gray60") +
+  annotate("text", x = 90, y = 0.82, label = "Target power = 0.80", size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "Statistical Power vs Sample Size",
+       subtitle = "For two-sample t-test with SD = 15, α = 0.05",
+       x = "Sample Size per Group",
+       y = "Power (1 - β)",
+       color = "Effect Size") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+```
+
+**Key insights from power curves:**
+
+1. **Small effects need large samples**: For a small effect (d = 0.33), you need n ≈ 90 per group to achieve 80% power
+2. **Large effects need small samples**: For a large effect (d = 1.33), n ≈ 10 per group is sufficient
+3. **Diminishing returns**: Going from n=20 to n=40 adds more power than going from n=60 to n=80
+
+## Sample Size Planning {#sec-sample-size}
+
+Before conducting a study, you should estimate the required sample size to achieve adequate power. This requires:
+
+1. **Specify α**: Usually 0.05
+2. **Specify desired power**: Usually 0.80
+3. **Estimate effect size**: Based on pilot data or literature
+4. **Estimate variability**: SD or variance
+
+**Example: Feed Additive Study**
+
+Suppose we expect the feed additive to increase daily gain by 0.08 kg (from 0.78 to 0.86 kg/day), and we know the SD ≈ 0.12 kg/day from previous trials. How many pigs do we need?
+
+```{r sample-size-example}
+# Calculate Cohen's d
+expected_effect <- 0.08
+expected_sd <- 0.12
+cohens_d <- expected_effect / expected_sd
+
+cat(sprintf("Expected Cohen's d: %.2f\n", cohens_d))
+
+# Use power.t.test for analytical power calculation
+power_analysis <- power.t.test(
+  delta = expected_effect,    # Difference in means
+  sd = expected_sd,           # Standard deviation
+  sig.level = 0.05,           # α
+  power = 0.80,               # Desired power
+  type = "two.sample",
+  alternative = "two.sided"
+)
+
+print(power_analysis)
+
+cat(sprintf("\nRequired sample size: %.0f pigs per group\n", ceiling(power_analysis$n)))
+cat(sprintf("Total pigs needed: %.0f\n", 2 * ceiling(power_analysis$n)))
+```
+
+**Interpretation**: We need approximately **36 pigs per group** (72 total) to have 80% power to detect a difference of 0.08 kg/day.
+
+::: {.callout-important}
+## Power Analysis Should Be Done BEFORE Data Collection
+
+Conducting power analysis *after* your study doesn't change anything about your results. Power analysis is most useful for:
+
+1. **Study planning**: Determine required sample size before collecting data
+2. **Interpreting non-significant results**: A non-significant result from an underpowered study is uninformative
+3. **Evaluating published research**: Were studies adequately powered to detect realistic effects?
+
+"Post-hoc power analysis" of your own data is generally not recommended.
+:::
+
+# One-Sample t-Test {#sec-one-sample}
+
+A **one-sample t-test** compares a sample mean to a known or hypothesized population value.
+
+**Research question**: Does the sample mean differ from a specific value?
+
+**Example**: A dairy nutritionist wants to know if a new feeding program affects milk production. Historical data shows the average milk production is 35 kg/day. After implementing the new program, they measure milk production in 25 cows.
+
+## Assumptions {#sec-one-sample-assumptions}
+
+1. **Independence**: Observations are independent of each other
+2. **Normality**: The data (or sampling distribution of means) is approximately normal
+
+::: {.callout-note}
+## Central Limit Theorem to the Rescue
+
+The t-test is fairly **robust to violations of normality** when:
+
+- Sample size is moderate to large (n > 30 as a rule of thumb)
+- The distribution isn't extremely skewed
+- There are no extreme outliers
+
+For small samples (n < 30), normality is more important.
+:::
+
+## Worked Example: Milk Production {#sec-one-sample-example}
+
+```{r one-sample-data}
+# Simulate milk production data
+set.seed(456)
+milk_production <- tibble(
+  cow_id = 1:25,
+  milk_kg = rnorm(25, mean = 37.2, sd = 4.5)  # True mean = 37.2 (higher than historical 35)
+)
+
+# Summary statistics
+milk_summary <- milk_production %>%
+  summarise(
+    n = n(),
+    mean = mean(milk_kg),
+    sd = sd(milk_kg),
+    se = sd / sqrt(n),
+    median = median(milk_kg),
+    min = min(milk_kg),
+    max = max(milk_kg)
+  )
+
+knitr::kable(milk_summary, digits = 2,
+             caption = "Summary Statistics: Milk Production (kg/day)")
+```
+
+**Hypotheses:**
+
+- H₀: μ = 35 kg/day (no change from historical average)
+- H₁: μ ≠ 35 kg/day (production has changed)
+
+### Step 1: Check Assumptions {#sec-one-sample-check}
+
+```{r one-sample-assumptions}
+# Visual check: Histogram and QQ plot
+p1 <- ggplot(milk_production, aes(x = milk_kg)) +
+  geom_histogram(bins = 10, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_vline(xintercept = 35, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 35, y = 5.5, label = "Historical\nmean = 35",
+           color = "red", hjust = -0.1, size = 3) +
+  labs(title = "Distribution of Milk Production",
+       x = "Milk Production (kg/day)",
+       y = "Count") +
+  theme_minimal(base_size = 11)
+
+p2 <- ggplot(milk_production, aes(sample = milk_kg)) +
+  stat_qq(color = "steelblue", size = 2) +
+  stat_qq_line(color = "red", linetype = "dashed") +
+  labs(title = "Q-Q Plot",
+       subtitle = "Checking normality assumption",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal(base_size = 11)
+
+p1 + p2
+```
+
+**Visual assessment**: The histogram looks reasonably symmetric, and the QQ plot shows points close to the line → normality assumption seems reasonable.
+
+**Formal test**: Shapiro-Wilk test
+
+```{r shapiro-test}
+shapiro_result <- shapiro.test(milk_production$milk_kg)
+cat(sprintf("Shapiro-Wilk test: W = %.4f, p-value = %.3f\n",
+            shapiro_result$statistic, shapiro_result$p.value))
+
+if(shapiro_result$p.value > 0.05) {
+  cat("→ No evidence against normality (p > 0.05)\n")
+} else {
+  cat("→ Some evidence against normality (p < 0.05)\n")
+}
+```
+
+::: {.callout-warning}
+## Don't Over-Rely on Normality Tests
+
+Shapiro-Wilk and other normality tests can be:
+
+- **Too sensitive** with large samples (reject for trivial deviations)
+- **Not sensitive enough** with small samples (fail to detect important deviations)
+
+**Recommendation**: Use visual assessment (QQ plots) as your primary tool, and consider the robustness of the t-test.
+:::
+
+### Step 2: Conduct the t-Test {#sec-one-sample-test}
+
+```{r one-sample-t-test}
+# One-sample t-test
+milk_test <- t.test(milk_production$milk_kg, mu = 35)
+
+# Tidy output
+milk_test_tidy <- tidy(milk_test)
+
+knitr::kable(milk_test_tidy, digits = 3,
+             caption = "One-Sample t-Test Results")
+
+# Print results
+cat(sprintf("\nOne-Sample t-Test Results:\n"))
+cat(sprintf("Sample mean: %.2f kg/day\n", milk_test$estimate))
+cat(sprintf("Hypothesized mean: %.2f kg/day\n", 35))
+cat(sprintf("Difference: %.2f kg/day\n", milk_test$estimate - 35))
+cat(sprintf("t-statistic: %.3f\n", milk_test$statistic))
+cat(sprintf("Degrees of freedom: %d\n", milk_test$parameter))
+cat(sprintf("P-value: %.4f\n", milk_test$p.value))
+cat(sprintf("95%% CI: [%.2f, %.2f]\n", milk_test$conf.int[1], milk_test$conf.int[2]))
+```
+
+### Step 3: Interpret Results {#sec-one-sample-interpret}
+
+```{r one-sample-visualization}
+# Visualize result with confidence interval
+ggplot(milk_production, aes(x = "Sample", y = milk_kg)) +
+  geom_jitter(width = 0.1, alpha = 0.4, size = 2, color = "steelblue") +
+  geom_hline(yintercept = 35, color = "red", linetype = "dashed", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", size = 4, color = "darkblue") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar",
+               width = 0.2, color = "darkblue", linewidth = 1) +
+  annotate("text", x = 1.3, y = 35, label = "Historical mean\n(H₀: μ = 35)",
+           color = "red", hjust = 0, size = 3) +
+  annotate("text", x = 1.3, y = milk_test$estimate,
+           label = sprintf("Sample mean\n%.1f kg/day", milk_test$estimate),
+           color = "darkblue", hjust = 0, size = 3) +
+  labs(title = "Milk Production: Sample vs Historical Mean",
+       subtitle = sprintf("95%% CI: [%.1f, %.1f], p = %.4f",
+                         milk_test$conf.int[1], milk_test$conf.int[2], milk_test$p.value),
+       x = "",
+       y = "Milk Production (kg/day)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_blank())
+```
+
+**Statistical conclusion**: We reject H₀ (p `r ifelse(milk_test$p.value < 0.001, "< 0.001", sprintf("= %.3f", milk_test$p.value))`). There is strong evidence that milk production under the new feeding program differs from the historical average of 35 kg/day.
+
+**Practical interpretation**: The new feeding program is associated with an increase of approximately `r sprintf("%.1f", milk_test$estimate - 35)` kg/day (95% CI: [`r sprintf("%.1f", milk_test$conf.int[1] - 35)`, `r sprintf("%.1f", milk_test$conf.int[2] - 35)`]). This is both statistically significant and potentially economically meaningful.
+
+## Effect Size for One-Sample t-Test {#sec-one-sample-effect}
+
+```{r one-sample-effect-size}
+# Calculate Cohen's d for one-sample test
+cohens_d_one_sample <- (milk_test$estimate - 35) / milk_summary$sd
+
+cat(sprintf("Cohen's d: %.3f\n", cohens_d_one_sample))
+
+# Interpretation
+if(abs(cohens_d_one_sample) < 0.2) {
+  interpretation <- "negligible"
+} else if(abs(cohens_d_one_sample) < 0.5) {
+  interpretation <- "small"
+} else if(abs(cohens_d_one_sample) < 0.8) {
+  interpretation <- "medium"
+} else {
+  interpretation <- "large"
+}
+
+cat(sprintf("Effect size interpretation: %s\n", interpretation))
+```
+
+**Cohen's d guidelines** (rough benchmarks):
+
+- d = 0.2: Small effect
+- d = 0.5: Medium effect
+- d = 0.8: Large effect
+
+Our effect size is **`r interpretation`**, indicating a substantial difference from the historical mean.
+
+# Two-Sample t-Test (Independent Samples) {#sec-two-sample}
+
+A **two-sample t-test** compares means between two independent groups.
+
+**Research question**: Does the mean of Group A differ from the mean of Group B?
+
+**Example**: An animal scientist wants to compare weight gain in beef cattle fed two different grain supplements (Supplement A vs Supplement B). Forty steers are randomly assigned to one of the two supplements (20 per group).
+
+## Assumptions {#sec-two-sample-assumptions}
+
+1. **Independence**: Observations within and between groups are independent
+2. **Normality**: Data in each group is approximately normally distributed
+3. **Equal variances** (for standard t-test): The variances in the two groups are equal
+
+::: {.callout-note}
+## Welch's t-Test: Unequal Variances
+
+If variances are unequal, use **Welch's t-test** (the default in R's `t.test()`). It adjusts the degrees of freedom to account for unequal variances.
+
+The standard t-test assumes equal variances (Student's t-test), but Welch's t-test is more robust and is generally recommended as the default.
+:::
+
+## Worked Example: Grain Supplements {#sec-two-sample-example}
+
+```{r two-sample-data}
+# Simulate weight gain data
+set.seed(789)
+cattle_gain <- tibble(
+  supplement = rep(c("A", "B"), each = 20),
+  weight_gain_kg = c(
+    rnorm(20, mean = 185, sd = 22),  # Supplement A
+    rnorm(20, mean = 205, sd = 25)   # Supplement B (higher gain)
+  )
+)
+
+# Summary statistics by group
+cattle_summary <- cattle_gain %>%
+  group_by(supplement) %>%
+  summarise(
+    n = n(),
+    mean = mean(weight_gain_kg),
+    sd = sd(weight_gain_kg),
+    se = sd / sqrt(n),
+    median = median(weight_gain_kg),
+    .groups = 'drop'
+  )
+
+knitr::kable(cattle_summary, digits = 2,
+             caption = "Summary Statistics: Weight Gain by Supplement")
+```
+
+**Hypotheses:**
+
+- H₀: μ_A = μ_B (no difference in weight gain between supplements)
+- H₁: μ_A ≠ μ_B (supplements lead to different weight gains)
+
+### Step 1: Visualize the Data {#sec-two-sample-visualize}
+
+```{r two-sample-visual}
+# Box plots with individual points
+p1 <- ggplot(cattle_gain, aes(x = supplement, y = weight_gain_kg, fill = supplement)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5, size = 2) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+               fill = "red", color = "darkred") +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Weight Gain by Supplement Type",
+       subtitle = "Diamonds show group means",
+       x = "Supplement",
+       y = "Weight Gain (kg)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+# Density plots
+p2 <- ggplot(cattle_gain, aes(x = weight_gain_kg, fill = supplement)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(data = cattle_summary, aes(xintercept = mean, color = supplement),
+             linetype = "dashed", linewidth = 1) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  scale_color_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Distribution of Weight Gain",
+       subtitle = "Dashed lines show group means",
+       x = "Weight Gain (kg)",
+       y = "Density") +
+  theme_minimal(base_size = 12)
+
+p1 + p2
+```
+
+**Visual assessment**: Supplement B appears to produce higher weight gain on average, with some overlap between distributions.
+
+### Step 2: Check Assumptions {#sec-two-sample-check-assumptions}
+
+**Normality Check (QQ Plots by Group):**
+
+```{r two-sample-normality}
+ggplot(cattle_gain, aes(sample = weight_gain_kg, color = supplement)) +
+  stat_qq(size = 2) +
+  stat_qq_line(linetype = "dashed") +
+  facet_wrap(~supplement) +
+  scale_color_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Q-Q Plots by Supplement",
+       subtitle = "Checking normality assumption",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+Both groups show reasonably normal distributions.
+
+**Equal Variance Check (Levene's Test):**
+
+```{r levene-test}
+# Levene's test for homogeneity of variance
+levene_result <- leveneTest(weight_gain_kg ~ supplement, data = cattle_gain)
+
+cat("Levene's Test for Equality of Variances:\n")
+print(levene_result)
+
+cat(sprintf("\nP-value: %.3f\n", levene_result$`Pr(>F)`[1]))
+
+if(levene_result$`Pr(>F)`[1] > 0.05) {
+  cat("→ No evidence of unequal variances (p > 0.05)\n")
+  cat("  Standard t-test or Welch's t-test are both appropriate\n")
+} else {
+  cat("→ Evidence of unequal variances (p < 0.05)\n")
+  cat("  Welch's t-test is recommended\n")
+}
+```
+
+::: {.callout-tip}
+## Visualizing Variance Differences
+
+A simple way to compare variances visually:
+
+```{r variance-visual}
+cattle_gain %>%
+  ggplot(aes(x = supplement, y = weight_gain_kg)) +
+  geom_boxplot(aes(fill = supplement), alpha = 0.4) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1),
+               geom = "errorbar", width = 0.3, linewidth = 1, color = "darkred") +
+  stat_summary(fun = mean, geom = "point", size = 3, color = "darkred") +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(title = "Mean ± SD by Group",
+       subtitle = "Error bars show ±1 SD",
+       x = "Supplement",
+       y = "Weight Gain (kg)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+If one group's error bars are much longer, variances may be unequal.
+:::
+
+### Step 3: Conduct the t-Test {#sec-two-sample-test}
+
+```{r two-sample-t-test}
+# Welch's t-test (default, doesn't assume equal variances)
+cattle_test_welch <- t.test(weight_gain_kg ~ supplement, data = cattle_gain)
+
+# Student's t-test (assumes equal variances)
+cattle_test_student <- t.test(weight_gain_kg ~ supplement, data = cattle_gain, var.equal = TRUE)
+
+# Compare results
+cat("Welch's t-Test (unequal variances assumed):\n")
+cat(sprintf("  t(%.2f) = %.3f, p = %.4f\n",
+            cattle_test_welch$parameter,
+            cattle_test_welch$statistic,
+            cattle_test_welch$p.value))
+cat(sprintf("  95%% CI for difference: [%.2f, %.2f]\n\n",
+            cattle_test_welch$conf.int[1], cattle_test_welch$conf.int[2]))
+
+cat("Student's t-Test (equal variances assumed):\n")
+cat(sprintf("  t(%d) = %.3f, p = %.4f\n",
+            cattle_test_student$parameter,
+            cattle_test_student$statistic,
+            cattle_test_student$p.value))
+cat(sprintf("  95%% CI for difference: [%.2f, %.2f]\n",
+            cattle_test_student$conf.int[1], cattle_test_student$conf.int[2]))
+```
+
+**Note**: In this case, both tests give similar results because the variances are fairly similar. When in doubt, use Welch's t-test (the default).
+
+### Step 4: Calculate Effect Size {#sec-two-sample-effect-size}
+
+```{r two-sample-cohen-d}
+# Calculate Cohen's d
+cattle_cohen_d <- cohen.d(weight_gain_kg ~ supplement, data = cattle_gain)
+
+print(cattle_cohen_d)
+
+cat(sprintf("\nCohen's d: %.3f\n", cattle_cohen_d$estimate))
+cat(sprintf("95%% CI for d: [%.3f, %.3f]\n",
+            cattle_cohen_d$conf.int[1], cattle_cohen_d$conf.int[2]))
+
+# Interpretation
+d_value <- abs(cattle_cohen_d$estimate)
+if(d_value < 0.2) {
+  interpretation <- "negligible"
+} else if(d_value < 0.5) {
+  interpretation <- "small"
+} else if(d_value < 0.8) {
+  interpretation <- "medium"
+} else {
+  interpretation <- "large"
+}
+
+cat(sprintf("Effect size interpretation: %s\n", interpretation))
+```
+
+### Step 5: Interpret and Report {#sec-two-sample-interpret}
+
+```{r two-sample-final-visual}
+# Create a clean visualization for reporting
+mean_diff <- diff(cattle_summary$mean)
+
+ggplot(cattle_summary, aes(x = supplement, y = mean, fill = supplement)) +
+  geom_col(alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = mean - se * 1.96, ymax = mean + se * 1.96),
+                width = 0.2, linewidth = 1) +
+  geom_text(aes(label = sprintf("%.1f kg", mean)),
+            vjust = -2.5, fontface = "bold", size = 4) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  annotate("segment", x = 1, xend = 2, y = 230, yend = 230,
+           arrow = arrow(ends = "both", length = unit(0.2, "cm"))) +
+  annotate("text", x = 1.5, y = 235,
+           label = sprintf("Difference: %.1f kg\np = %.3f",
+                          mean_diff, cattle_test_welch$p.value),
+           size = 3.5, fontface = "bold") +
+  labs(title = "Weight Gain by Supplement Type",
+       subtitle = "Error bars show 95% confidence intervals",
+       x = "Supplement",
+       y = "Weight Gain (kg)") +
+  ylim(0, 250) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+**Results Summary:**
+
+Beef steers receiving Supplement B gained significantly more weight (M = `r sprintf("%.1f", cattle_summary$mean[2])` kg, SD = `r sprintf("%.1f", cattle_summary$sd[2])`) compared to those receiving Supplement A (M = `r sprintf("%.1f", cattle_summary$mean[1])` kg, SD = `r sprintf("%.1f", cattle_summary$sd[1])`), t(`r sprintf("%.1f", cattle_test_welch$parameter)`) = `r sprintf("%.2f", cattle_test_welch$statistic)`, p = `r sprintf("%.3f", cattle_test_welch$p.value)`, 95% CI [`r sprintf("%.1f", cattle_test_welch$conf.int[1])`, `r sprintf("%.1f", cattle_test_welch$conf.int[2])`], d = `r sprintf("%.2f", abs(cattle_cohen_d$estimate))`. This represents a **`r interpretation`** effect.
+
+**Practical interpretation**: Supplement B produces approximately `r sprintf("%.0f", mean_diff)` kg more weight gain than Supplement A, which could translate to meaningful economic benefits for producers.
+
+# Paired t-Test {#sec-paired}
+
+A **paired t-test** (also called dependent samples t-test) compares means when observations are paired or matched.
+
+**When to use paired t-tests:**
+
+- Before-after measurements on the same individuals
+- Matched pairs (e.g., siblings, litter mates)
+- Repeated measures on the same experimental units
+
+**Key advantage**: Pairing removes between-subject variability, increasing statistical power.
+
+## Why Pairing Matters {#sec-pairing-matters}
+
+When measurements are paired, we're interested in the **differences within pairs**, not the absolute values in each group.
+
+**Example**: Testing a feed supplement by measuring weight gain in the same animals before and after treatment is more powerful than comparing two different groups, because we control for individual variation in baseline weight and genetics.
+
+## Worked Example: Milk Yield Before and After Treatment {#sec-paired-example}
+
+A dairy researcher wants to test whether a new probiotic supplement increases milk yield. They measure milk production in 20 cows before supplementation, then again after 4 weeks on the supplement.
+
+```{r paired-data}
+# Simulate paired data
+set.seed(321)
+
+# Create baseline variation between cows
+cow_baseline <- rnorm(20, mean = 30, sd = 5)
+
+# Before treatment: baseline + random day-to-day variation
+milk_before <- cow_baseline + rnorm(20, mean = 0, sd = 2)
+
+# After treatment: baseline + treatment effect + random variation
+treatment_effect <- 2.5  # True effect = 2.5 kg/day increase
+milk_after <- cow_baseline + treatment_effect + rnorm(20, mean = 0, sd = 2)
+
+# Combine into data frame
+milk_paired <- tibble(
+  cow_id = 1:20,
+  before = milk_before,
+  after = milk_after,
+  difference = after - before
+)
+
+# Long format for plotting
+milk_paired_long <- milk_paired %>%
+  pivot_longer(cols = c(before, after),
+               names_to = "time",
+               values_to = "milk_yield") %>%
+  mutate(time = factor(time, levels = c("before", "after")))
+
+# Summary statistics
+milk_paired_summary <- milk_paired_long %>%
+  group_by(time) %>%
+  summarise(
+    n = n(),
+    mean = mean(milk_yield),
+    sd = sd(milk_yield),
+    se = sd / sqrt(n),
+    .groups = 'drop'
+  )
+
+knitr::kable(milk_paired_summary, digits = 2,
+             caption = "Summary Statistics: Milk Yield Before and After Treatment")
+
+# Summary of differences
+diff_summary <- milk_paired %>%
+  summarise(
+    mean_diff = mean(difference),
+    sd_diff = sd(difference),
+    se_diff = sd_diff / sqrt(n())
+  )
+
+cat(sprintf("\nMean difference (after - before): %.2f kg/day\n", diff_summary$mean_diff))
+cat(sprintf("SD of differences: %.2f kg/day\n", diff_summary$sd_diff))
+```
+
+### Visualizing Paired Data {#sec-paired-visualize}
+
+The key to paired data is visualizing the **connections** between measurements:
+
+```{r paired-visual}
+# Paired plot showing connections
+p1 <- ggplot(milk_paired_long, aes(x = time, y = milk_yield, group = cow_id)) +
+  geom_line(alpha = 0.3, color = "gray50") +
+  geom_point(aes(color = time), size = 2, alpha = 0.7) +
+  stat_summary(aes(group = 1), fun = mean, geom = "line",
+               color = "red", linewidth = 1.5, linetype = "solid") +
+  stat_summary(aes(group = 1), fun = mean, geom = "point",
+               color = "red", size = 4, shape = 18) +
+  scale_color_manual(values = c("steelblue", "orange")) +
+  labs(title = "Milk Yield Before and After Treatment",
+       subtitle = "Lines connect measurements from same cow",
+       x = "",
+       y = "Milk Yield (kg/day)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+# Distribution of differences
+p2 <- ggplot(milk_paired, aes(x = difference)) +
+  geom_histogram(bins = 12, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_vline(xintercept = 0, color = "red", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = diff_summary$mean_diff, color = "darkgreen",
+             linetype = "solid", linewidth = 1) +
+  annotate("text", x = 0, y = 4.5, label = "No change",
+           color = "red", hjust = -0.1, size = 3) +
+  annotate("text", x = diff_summary$mean_diff, y = 4.5,
+           label = sprintf("Mean\ndiff = %.1f", diff_summary$mean_diff),
+           color = "darkgreen", hjust = -0.1, size = 3) +
+  labs(title = "Distribution of Within-Cow Differences",
+       x = "Difference in Milk Yield (kg/day)",
+       y = "Count") +
+  theme_minimal(base_size = 12)
+
+p1 + p2
+```
+
+**Key observation**: Most lines slope upward, indicating that individual cows increased milk production. The distribution of differences is centered above zero.
+
+### Paired vs Unpaired Analysis {#sec-paired-vs-unpaired}
+
+Let's compare what happens if we (incorrectly) treat this as unpaired data:
+
+```{r paired-vs-unpaired}
+# Paired t-test (CORRECT)
+paired_test <- t.test(milk_paired$after, milk_paired$before, paired = TRUE)
+
+# Unpaired t-test (INCORRECT for this design)
+unpaired_test <- t.test(milk_paired$after, milk_paired$before, paired = FALSE)
+
+# Compare results
+cat("PAIRED t-Test (Correct Analysis):\n")
+cat(sprintf("  t(%d) = %.3f, p = %.4f\n",
+            paired_test$parameter, paired_test$statistic, paired_test$p.value))
+cat(sprintf("  95%% CI for difference: [%.2f, %.2f]\n\n",
+            paired_test$conf.int[1], paired_test$conf.int[2]))
+
+cat("UNPAIRED t-Test (Incorrect Analysis):\n")
+cat(sprintf("  t(%.1f) = %.3f, p = %.4f\n",
+            unpaired_test$parameter, unpaired_test$statistic, unpaired_test$p.value))
+cat(sprintf("  95%% CI for difference: [%.2f, %.2f]\n\n",
+            unpaired_test$conf.int[1], unpaired_test$conf.int[2]))
+
+cat("Why the difference?\n")
+cat(sprintf("  Paired test SE: %.3f\n",
+            diff_summary$sd_diff / sqrt(20)))
+cat(sprintf("  Unpaired test SE: %.3f\n",
+            sqrt(var(milk_paired$before)/20 + var(milk_paired$after)/20)))
+cat("  → Paired test has smaller SE (removes between-cow variation)\n")
+```
+
+**Key insight**: The paired test is more powerful because it accounts for the fact that we measured the same cows twice. The unpaired test includes unnecessary between-cow variability, making the standard error larger and the test less sensitive.
+
+::: {.callout-important}
+## Pairing Increases Power
+
+In this example:
+
+- **Paired test**: p = `r sprintf("%.4f", paired_test$p.value)` → Significant at α = 0.05
+- **Unpaired test**: p = `r sprintf("%.4f", unpaired_test$p.value)` → May or may not be significant
+
+The paired test is more powerful because we're comparing each cow to **itself**, removing individual differences in baseline milk production.
+
+**Rule**: If your data are paired by design, you MUST use a paired test!
+:::
+
+### Conduct Paired t-Test {#sec-paired-test}
+
+```{r paired-t-test-detailed}
+# Paired t-test
+paired_result <- t.test(milk_paired$after, milk_paired$before, paired = TRUE)
+
+# Tidy output
+paired_tidy <- tidy(paired_result)
+
+knitr::kable(paired_tidy, digits = 4,
+             caption = "Paired t-Test Results")
+
+# Print interpretation
+cat("\nPaired t-Test Results:\n")
+cat(sprintf("Mean difference: %.2f kg/day\n", paired_result$estimate))
+cat(sprintf("t(%d) = %.3f\n", paired_result$parameter, paired_result$statistic))
+cat(sprintf("P-value: %.4f\n", paired_result$p.value))
+cat(sprintf("95%% CI: [%.2f, %.2f]\n", paired_result$conf.int[1], paired_result$conf.int[2]))
+
+if(paired_result$p.value < 0.05) {
+  cat("\n→ Significant at α = 0.05. Evidence that treatment increases milk yield.\n")
+} else {
+  cat("\n→ Not significant at α = 0.05. Insufficient evidence of treatment effect.\n")
+}
+```
+
+### Effect Size for Paired t-Test {#sec-paired-effect-size}
+
+```{r paired-effect-size}
+# Cohen's d for paired data (based on differences)
+paired_d <- cohen.d(milk_paired$after, milk_paired$before, paired = TRUE)
+
+print(paired_d)
+
+cat(sprintf("\nCohen's d (paired): %.3f\n", paired_d$estimate))
+
+# Interpretation
+d_val <- abs(paired_d$estimate)
+if(d_val < 0.2) {
+  d_interp <- "negligible"
+} else if(d_val < 0.5) {
+  d_interp <- "small"
+} else if(d_val < 0.8) {
+  d_interp <- "medium"
+} else {
+  d_interp <- "large"
+}
+
+cat(sprintf("Effect size interpretation: %s\n", d_interp))
+```
+
+### Assumptions for Paired t-Test {#sec-paired-assumptions}
+
+Paired t-test assumes:
+
+1. **Independence** of pairs (not within pairs)
+2. **Normality** of the differences (not the original measurements)
+
+```{r paired-assumptions-check}
+# Check normality of DIFFERENCES
+ggplot(milk_paired, aes(sample = difference)) +
+  stat_qq(color = "steelblue", size = 2) +
+  stat_qq_line(color = "red", linetype = "dashed") +
+  labs(title = "Q-Q Plot of Differences",
+       subtitle = "Checking normality assumption for paired t-test",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles (Differences)") +
+  theme_minimal(base_size = 12)
+
+# Shapiro-Wilk test on differences
+shapiro_diff <- shapiro.test(milk_paired$difference)
+cat(sprintf("\nShapiro-Wilk test on differences: W = %.4f, p = %.3f\n",
+            shapiro_diff$statistic, shapiro_diff$p.value))
+```
+
+The differences appear approximately normal, so the paired t-test is appropriate.
+
+### Reporting Paired t-Test Results {#sec-paired-report}
+
+**Example write-up:**
+
+> Milk yield was measured in 20 dairy cows before and after 4 weeks of probiotic supplementation. A paired-samples t-test revealed that milk yield increased significantly after treatment (M_after = `r sprintf("%.1f", milk_paired_summary$mean[2])` kg/day, SD = `r sprintf("%.1f", milk_paired_summary$sd[2])`) compared to before treatment (M_before = `r sprintf("%.1f", milk_paired_summary$mean[1])` kg/day, SD = `r sprintf("%.1f", milk_paired_summary$sd[1])`), t(`r paired_result$parameter`) = `r sprintf("%.2f", paired_result$statistic)`, p `r ifelse(paired_result$p.value < 0.001, "< 0.001", sprintf("= %.3f", paired_result$p.value))`, 95% CI [`r sprintf("%.1f", paired_result$conf.int[1])`, `r sprintf("%.1f", paired_result$conf.int[2])`], d = `r sprintf("%.2f", abs(paired_d$estimate))`. The probiotic supplement increased milk production by an average of `r sprintf("%.1f", diff_summary$mean_diff)` kg/day, representing a **`r d_interp`** effect.
+
+# Choosing the Right t-Test {#sec-choosing-test}
+
+Here's a decision flowchart for selecting the appropriate t-test:
+
+```{r test-selection-diagram, echo=FALSE}
+# Create a simple decision tree visualization
+decision_tree <- tibble(
+  step = c("Start", "One Sample", "Two Samples", "Independent", "Paired"),
+  description = c(
+    "How many samples?",
+    "Comparing to a\nknown value?\n\n→ One-sample t-test",
+    "Are the two samples\nindependent?",
+    "Random assignment\nor different subjects?\n\n→ Two-sample t-test",
+    "Same subjects measured\ntwice or matched pairs?\n\n→ Paired t-test"
+  ),
+  x = c(3, 1, 5, 3, 7),
+  y = c(5, 3, 3, 1, 1)
+)
+
+ggplot(decision_tree, aes(x = x, y = y, label = description)) +
+  geom_label(size = 3, fill = c("lightblue", "lightgreen", "lightyellow", "lightcoral", "lightcoral"),
+            alpha = 0.7) +
+  # Arrows
+  annotate("segment", x = 3, xend = 1, y = 4.7, yend = 3.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 0.8) +
+  annotate("segment", x = 3, xend = 5, y = 4.7, yend = 3.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 0.8) +
+  annotate("segment", x = 5, xend = 3, y = 2.7, yend = 1.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 0.8) +
+  annotate("segment", x = 5, xend = 7, y = 2.7, yend = 1.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 0.8) +
+  # Labels on arrows
+  annotate("text", x = 2, y = 4.3, label = "One", size = 3, fontface = "bold") +
+  annotate("text", x = 4, y = 4.3, label = "Two", size = 3, fontface = "bold") +
+  annotate("text", x = 4, y = 2.3, label = "Yes", size = 3, fontface = "bold") +
+  annotate("text", x = 6, y = 2.3, label = "No", size = 3, fontface = "bold") +
+  xlim(0, 8) +
+  ylim(0, 6) +
+  theme_void() +
+  labs(title = "Decision Tree: Choosing the Right t-Test")
+```
+
+## Common Scenarios in Animal Science {#sec-scenarios}
+
+| **Scenario** | **Test Type** | **Example** |
+|-------------|--------------|-------------|
+| Compare sample mean to historical value | One-sample | Is current milk yield different from breed average? |
+| Compare two independent groups | Two-sample (independent) | Feed A vs Feed B in randomly assigned pigs |
+| Compare before and after in same animals | Paired | Weight before and after medication in same cattle |
+| Compare littermates or twins | Paired | Twin calves assigned to different treatments |
+| Compare males vs females | Two-sample (independent) | Growth rate in male vs female lambs |
+| Compare left vs right (same animal) | Paired | Udder health in left vs right quarters |
+
+::: {.callout-warning}
+## Common Mistake: Treating Paired Data as Independent
+
+**Don't** use a two-sample t-test when data are paired! This:
+
+1. Wastes information (ignores pairing)
+2. Reduces power (larger standard error)
+3. May lead to incorrect conclusions
+
+If measurements are connected (same subject, matched pairs, siblings), use a paired test!
+:::
+
+# Practical Considerations {#sec-practical}
+
+## Checking Assumptions in Practice {#sec-checking-assumptions}
+
+### Normality {#sec-normality-practice}
+
+**Visual methods (preferred):**
+
+- **Histograms**: Look for roughly symmetric, bell-shaped distribution
+- **QQ plots**: Points should fall close to the diagonal line
+- **Density plots**: Compare to normal curve overlay
+
+**Formal tests (use with caution):**
+
+- **Shapiro-Wilk test**: `shapiro.test()`
+- **Kolmogorov-Smirnov test**: `ks.test()`
+
+::: {.callout-tip}
+## When Normality is Violated
+
+If data are clearly non-normal:
+
+1. **Transform the data**: Log, square root, or Box-Cox transformation
+2. **Use non-parametric tests**: Wilcoxon rank-sum test (Mann-Whitney U) instead of two-sample t-test
+3. **Bootstrap confidence intervals**: Resample to estimate sampling distribution
+4. **Rely on CLT**: With large samples (n > 30), t-tests are robust to non-normality
+
+**Most common approach**: If n > 30 and no extreme outliers/skewness, proceed with t-test.
+:::
+
+### Equal Variances {#sec-equal-variances-practice}
+
+**Visual methods:**
+
+- Compare SD between groups (ratio < 2 is usually fine)
+- Compare boxplot heights and spreads
+
+**Formal test:**
+
+- **Levene's test**: `car::leveneTest()`
+
+**Default recommendation**: Use **Welch's t-test** (doesn't assume equal variances) as your default. It's robust and performs well even when variances are equal.
+
+### Independence {#sec-independence-practice}
+
+This is the **most important** and **least testable** assumption.
+
+**Violations occur when:**
+
+- Observations are clustered (e.g., multiple measurements per animal)
+- Time series data with autocorrelation
+- Spatial dependence (e.g., neighboring pens)
+- Pseudo-replication (treating subsamples as independent)
+
+**Solutions:**
+
+- Use **mixed models** to account for clustering
+- Aggregate repeated measures appropriately
+- Design studies to ensure independence
+
+::: {.callout-important}
+## Independence Cannot Be Fixed Post-Hoc
+
+Unlike normality or equal variance assumptions, **independence violations cannot be rescued with transformations or alternative tests.** You must design your study correctly from the beginning.
+
+**Example of pseudo-replication**: Taking 5 blood samples from each of 4 cows and analyzing n=20 samples is **wrong**. The samples within each cow are not independent. The true n is 4 cows, not 20 samples.
+:::
+
+## Effect Sizes and Practical Significance {#sec-effect-sizes-practical}
+
+**Statistical significance ≠ Practical significance**
+
+A result can be statistically significant (p < 0.05) but:
+
+- The effect size is tiny
+- The difference is not economically or biologically meaningful
+- The cost of implementation outweighs the benefit
+
+**Always report:**
+
+1. **P-value**: Strength of evidence against H₀
+2. **Confidence interval**: Range of plausible values for the effect
+3. **Effect size**: Standardized measure of magnitude (Cohen's d)
+4. **Means and SDs**: Raw values for practical interpretation
+
+::: {.callout-note}
+## Cohen's d Interpretation (Guidelines)
+
+| **d Value** | **Interpretation** | **Meaning** |
+|-------------|-------------------|-------------|
+| 0.0 - 0.2   | Negligible        | Trivial difference |
+| 0.2 - 0.5   | Small             | Noticeable to researchers |
+| 0.5 - 0.8   | Medium            | Visible to the naked eye |
+| 0.8+        | Large             | Obvious, practically meaningful |
+
+**Remember**: These are rough guidelines. What matters is **context**:
+
+- In medicine, small effects can be life-saving
+- In agriculture, medium effects must be cost-effective
+- In behavior, large effects are rare and important
+:::
+
+## Sample Size and Power Considerations {#sec-sample-size-practical}
+
+**Before conducting your study**, calculate required sample size:
+
+```{r power-example-calculation}
+# Example: Planning a feed trial
+# Expected difference: 0.15 kg/day weight gain
+# Expected SD: 0.20 kg/day
+# Desired power: 0.80
+# Alpha: 0.05
+
+power_calc <- power.t.test(
+  delta = 0.15,
+  sd = 0.20,
+  sig.level = 0.05,
+  power = 0.80,
+  type = "two.sample"
+)
+
+print(power_calc)
+
+cat(sprintf("\nTo detect a difference of %.2f kg/day with 80%% power:\n", 0.15))
+cat(sprintf("  Required sample size: %.0f animals per group\n", ceiling(power_calc$n)))
+cat(sprintf("  Total animals needed: %.0f\n", 2 * ceiling(power_calc$n)))
+```
+
+**Trade-offs:**
+
+- **Smaller effect** → Need larger sample
+- **More variable data** → Need larger sample
+- **Higher power** → Need larger sample
+- **Lower α** → Need larger sample
+
+## Common Mistakes and Pitfalls {#sec-common-mistakes}
+
+### 1. Multiple Comparisons (p-hacking) {#sec-multiple-comparisons}
+
+**Problem**: Running many t-tests increases the chance of false positives.
+
+**Example**: Testing 20 different outcomes. With α = 0.05, you expect 1 false positive even if there are no real effects.
+
+**Solutions:**
+
+- **Bonferroni correction**: Divide α by number of tests (α_adjusted = 0.05 / 20 = 0.0025)
+- **ANOVA** followed by post-hoc tests (covered next week)
+- **Pre-specify** primary outcomes before analysis
+
+### 2. Confusing Statistical and Practical Significance {#sec-stat-vs-practical}
+
+**Problem**: With large samples, tiny effects become "significant"
+
+**Example**: Weight gain differs by 0.5 kg (p = 0.03) but costs $50 more per animal → Not worth it!
+
+**Solution**: Always consider effect size and cost-benefit
+
+### 3. One-Tailed Tests Without Justification {#sec-one-tailed-mistake}
+
+**Problem**: Using one-tailed tests to achieve p < 0.05
+
+**Solution**: Use two-tailed tests by default. Only use one-tailed if:
+
+- You have strong theoretical reason
+- Effect in opposite direction is impossible or meaningless
+- You pre-registered the hypothesis
+
+### 4. Ignoring Assumptions {#sec-ignoring-assumptions}
+
+**Problem**: Running t-tests without checking assumptions
+
+**Solution**: Always check:
+
+- Normality (QQ plots)
+- Equal variances (visual or Levene's test)
+- Independence (by design)
+
+### 5. Treating Paired Data as Independent {#sec-treating-paired-wrong}
+
+**Problem**: Using two-sample t-test for paired data
+
+**Solution**: If same subjects measured twice or matched pairs → Use paired t-test!
+
+## Reporting t-Test Results {#sec-reporting}
+
+**Essential elements:**
+
+1. **Descriptive statistics**: Means, SDs, sample sizes for each group
+2. **Test used**: One-sample, two-sample (Welch's or Student's), or paired
+3. **Test statistic**: t-value and degrees of freedom
+4. **P-value**: Exact value (not just "< 0.05")
+5. **Confidence interval**: For the difference
+6. **Effect size**: Cohen's d
+7. **Interpretation**: In context of the research question
+
+**Example:**
+
+> Milk yield increased significantly after probiotic supplementation (M = 32.5 kg/day, SD = 4.8) compared to baseline (M = 30.1 kg/day, SD = 4.6), t(19) = 4.12, p < 0.001, 95% CI [1.2, 3.6], d = 0.92. This represents a large effect and an average increase of 2.4 kg/day per cow.
+
+# Summary and Key Takeaways {#sec-summary}
+
+## What We Covered {#sec-covered}
+
+1. **Hypothesis testing framework**: Structured approach to evaluating claims about populations
+2. **Type I and Type II errors**: Understanding false positives (α) and false negatives (β)
+3. **Statistical power**: Probability of detecting real effects; influenced by effect size, sample size, α, and variability
+4. **One-sample t-test**: Comparing sample mean to known value
+5. **Two-sample t-test**: Comparing means between independent groups
+6. **Paired t-test**: Comparing means for related/matched observations
+7. **Assumptions**: Normality, equal variances, independence
+8. **Effect sizes**: Cohen's d for standardized effect magnitude
+9. **Practical significance**: Statistical significance doesn't guarantee practical importance
+
+## Key Principles {#sec-principles}
+
+::: {.callout-important}
+## Core Principles of Hypothesis Testing
+
+1. **P-values measure evidence, not truth**: A p-value tells you how compatible your data is with H₀, not whether H₀ is true or false
+
+2. **Effect sizes matter more than p-values**: Always report and interpret effect sizes and confidence intervals
+
+3. **Design determines analysis**: Paired vs independent determines which test to use—this cannot be changed after data collection
+
+4. **Assumptions matter**: Check them, but also understand t-tests are fairly robust (especially with larger samples)
+
+5. **Power drives sample size**: Calculate required sample size BEFORE collecting data
+
+6. **Context is everything**: Statistical significance without practical significance is meaningless
+:::
+
+## Decision Framework {#sec-decision-framework}
+
+When analyzing data:
+
+1. **Identify your research question**: What are you comparing?
+2. **Choose appropriate test**:
+   - One sample? → One-sample t-test
+   - Two independent groups? → Two-sample t-test
+   - Paired/matched data? → Paired t-test
+3. **Check assumptions**: Normality (QQ plots), equal variances (visual or Levene's), independence (by design)
+4. **Conduct test**: Calculate t-statistic and p-value
+5. **Calculate effect size**: Cohen's d for standardized magnitude
+6. **Interpret in context**: Consider both statistical and practical significance
+7. **Report completely**: Means, SDs, n, test statistics, p-values, CIs, effect sizes
+
+## Next Week Preview {#sec-next-week}
+
+**Week 5: Analysis of Variance (ANOVA)**
+
+- Comparing **more than two groups** (extension of t-tests)
+- Understanding variance partitioning (between-group vs within-group)
+- Post-hoc tests (Tukey HSD, Bonferroni)
+- Multiple comparisons problem
+- When to use ANOVA vs multiple t-tests
+
+::: {.callout-note}
+## Coming Full Circle
+
+ANOVA is mathematically equivalent to the t-test when comparing two groups. Next week, we'll see how to generalize hypothesis testing to multiple groups while controlling Type I error rates.
+:::
+
+# Practice Problems {#sec-practice}
+
+## Problem 1: One-Sample Scenario {#sec-practice-1}
+
+A poultry researcher measures egg weight from 30 hens. The breed standard is 62 grams. The sample mean is 64.5 grams with SD = 5.2 grams. Is there evidence that egg weight differs from the breed standard?
+
+**Tasks:**
+
+a) State the null and alternative hypotheses
+b) Conduct a one-sample t-test
+c) Calculate Cohen's d
+d) Interpret the results
+
+```{r practice-1, eval=FALSE}
+# Your code here
+set.seed(999)
+egg_weights <- rnorm(30, mean = 64.5, sd = 5.2)
+
+# a) Hypotheses: H0: μ = 62, H1: μ ≠ 62
+
+# b) Test
+test1 <- t.test(egg_weights, mu = 62)
+print(test1)
+
+# c) Effect size
+d1 <- (mean(egg_weights) - 62) / sd(egg_weights)
+cat(sprintf("Cohen's d: %.3f\n", d1))
+
+# d) Interpret...
+```
+
+## Problem 2: Two-Sample Scenario {#sec-practice-2}
+
+A beef cattle trial compares average daily gain (ADG) for two protein sources. Soybean meal (n=25): M=1.45 kg/day, SD=0.22. Corn gluten (n=25): M=1.38 kg/day, SD=0.19. Is there a significant difference?
+
+**Tasks:**
+
+a) State hypotheses
+b) Check equal variance assumption
+c) Conduct two-sample t-test (Welch's)
+d) Calculate effect size
+e) Provide practical interpretation
+
+## Problem 3: Paired Scenario {#sec-practice-3}
+
+A veterinarian measures body temperature in 15 calves before and after administering an anti-inflammatory drug. Should you use a paired or unpaired test? Why? What are the hypotheses?
+
+## Problem 4: Power Analysis {#sec-practice-4}
+
+You're planning a study to detect a 10% difference in weaning weight (Expected means: 250 kg vs 275 kg, SD = 30 kg). How many calves do you need per group to achieve 80% power with α = 0.05?
+
+```{r practice-4, eval=FALSE}
+# Your code here
+power.t.test(
+  delta = 25,
+  sd = 30,
+  sig.level = 0.05,
+  power = 0.80,
+  type = "two.sample"
+)
+```
+
+## Problem 5: Assumption Checking {#sec-practice-5}
+
+You've collected data from two groups but aren't sure if assumptions are met. What plots would you create? What tests would you run? What would you do if assumptions are violated?
+
+---
+
+# Additional Resources {#sec-resources}
+
+## R Functions Covered {#sec-r-functions}
+
+| **Function** | **Package** | **Purpose** |
+|-------------|------------|-------------|
+| `t.test()` | base | One-sample, two-sample, and paired t-tests |
+| `power.t.test()` | base | Power and sample size calculations |
+| `shapiro.test()` | base | Test normality |
+| `leveneTest()` | car | Test equality of variances |
+| `cohen.d()` | effsize | Calculate Cohen's d effect size |
+| `tidy()` | broom | Tidy statistical output |
+
+## Further Reading {#sec-further-reading}
+
+- **Cumming, G. (2012)**. *Understanding the New Statistics*. Excellent on effect sizes and confidence intervals
+- **Cohen, J. (1988)**. *Statistical Power Analysis for the Behavioral Sciences*. Classic reference on power
+- **Lakens, D. (2013)**. "Calculating and reporting effect sizes to facilitate cumulative science." *Frontiers in Psychology*.
+- **American Statistical Association (2016)**. "Statement on P-values and Statistical Significance."
+
+## Online Resources {#sec-online-resources}
+
+- **R for Data Science (2e)**: https://r4ds.hadley.nz/
+- **Statistical Thinking**: https://www.fharrell.com/
+- **StatQuest Videos** (YouTube): Excellent visual explanations of t-tests and power
+
+---
+
+**End of Week 4 Lecture**
+
+Next week: **Analysis of Variance (ANOVA)** - extending t-tests to multiple groups!

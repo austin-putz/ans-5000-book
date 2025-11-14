@@ -1,0 +1,1047 @@
+---
+title: "Week 9: Statistical Foundations and Study Design"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup, include=FALSE}
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(scales)
+
+# Set theme for all plots
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20250122)
+```
+
+# Introduction: Why Statistics Matter in Animal Science {#sec-intro}
+
+Imagine you're a swine nutritionist testing a new feed additive that claims to improve growth rates. After a 90-day trial, you observe that pigs fed the new additive weigh an average of 5 kg more than the control group. **Is this difference real, or just random variation?** Should you recommend this expensive additive to producers?
+
+Or perhaps you're a beef geneticist comparing two breeding programs. Bulls from Program A seem to produce offspring with slightly better marbling scores. **But is the difference large enough to justify changing breeding protocols?**
+
+These are the types of questions statistics helps us answer. Statistics is fundamentally about **making decisions in the presence of uncertainty**. In animal science, we deal with biological variation constantly—no two animals are exactly alike, even if they're raised identically. Statistics gives us a framework to:
+
+1. **Quantify** patterns and relationships in our data
+2. **Distinguish** real effects from random noise
+3. **Make inferences** about populations based on samples
+4. **Communicate** our findings with appropriate levels of confidence
+
+In this course, we'll build your statistical toolkit step by step, always connecting concepts back to real problems in animal agriculture.
+
+::: {.callout-note}
+## The Big Picture
+
+Statistics won't give you perfect certainty—that's impossible in biology. Instead, it helps you quantify how confident you should be in your conclusions and communicate that uncertainty honestly.
+:::
+
+---
+
+# The Two Statistical Philosophies {#sec-philosophies}
+
+Before diving into specific methods, it's important to understand that there are two major frameworks for thinking about probability and inference: **Frequentist** and **Bayesian** statistics. While this course focuses on frequentist methods (the dominant approach in agricultural sciences), being aware of both perspectives will make you a more sophisticated consumer of research.
+
+## Frequentist Statistics {#sec-frequentist}
+
+The frequentist approach defines **probability as long-run frequency**. If we say "the probability of getting heads is 0.5," we mean that if we flipped a coin infinitely many times, about half would be heads.
+
+### Key Principles
+
+1. **Parameters are fixed but unknown**: The true average weight of pigs on a new diet is a fixed number—we just don't know it. Our job is to estimate it from data.
+
+2. **Probability describes data, not hypotheses**: We calculate "the probability of observing data this extreme if the null hypothesis were true," NOT "the probability that the hypothesis is true."
+
+3. **Repetition is key**: Frequentist inference imagines repeating the same experiment many times. Confidence intervals and p-values only make sense in this framework of repeated sampling.
+
+### Example: Feed Trial
+
+Suppose we test a new feed supplement in pigs. The frequentist asks:
+
+> "If this supplement truly had no effect (null hypothesis), what's the probability we'd observe a difference this large just by chance?"
+
+If that probability is very small (say, p < 0.05), we conclude the data are **incompatible** with the null hypothesis, and we reject it in favor of the alternative (the supplement does have an effect).
+
+::: {.callout-important}
+## Critical Point
+
+A p-value of 0.03 does **NOT** mean "there's a 3% chance the null hypothesis is true." It means "if the null were true, we'd see data this extreme only 3% of the time by chance alone."
+:::
+
+---
+
+## Bayesian Statistics {#sec-bayesian}
+
+The Bayesian approach defines **probability as degree of belief**. It explicitly incorporates prior knowledge and updates that knowledge with data.
+
+### Key Principles
+
+1. **Parameters have probability distributions**: Instead of saying "the true effect is unknown," Bayesians say "our belief about the effect can be described by a probability distribution."
+
+2. **Prior + Data = Posterior**: Bayesian analysis combines:
+   - **Prior**: What we believed before seeing the data
+   - **Likelihood**: What the data tell us
+   - **Posterior**: Updated beliefs after seeing the data
+
+3. **Direct probability statements about hypotheses**: Bayesians can say things like "there's an 85% probability the effect is positive" or "the treatment effect is between 2 and 8 kg with 95% probability."
+
+### Bayes' Theorem
+
+The mathematical foundation of Bayesian statistics is Bayes' Theorem:
+
+$$
+P(\theta | \text{data}) = \frac{P(\text{data} | \theta) \times P(\theta)}{P(\text{data})}
+$$
+
+Where:
+
+- $P(\theta | \text{data})$ = **Posterior**: Our updated belief about parameter $\theta$ after seeing the data
+- $P(\text{data} | \theta)$ = **Likelihood**: How probable our data are under different values of $\theta$
+- $P(\theta)$ = **Prior**: Our belief about $\theta$ before seeing the data
+- $P(\text{data})$ = **Marginal likelihood**: A normalizing constant (probability of data across all possible $\theta$)
+
+### Example: Same Feed Trial, Bayesian Perspective
+
+A Bayesian might start with prior knowledge: "Previous studies suggest feed supplements increase growth by 0-10 kg, with most around 3-5 kg." After seeing the data, they update this prior to a posterior distribution and can make statements like:
+
+> "Based on our data, there's a 92% probability that the supplement increases weight by at least 2 kg, and a 70% probability the increase is between 4 and 8 kg."
+
+---
+
+## Comparing the Approaches
+
+```{r compare-approaches, echo=FALSE}
+tibble(
+  Aspect = c("Definition of Probability",
+             "Parameters",
+             "Prior Knowledge",
+             "Output",
+             "Interpretation"),
+  Frequentist = c("Long-run frequency",
+                  "Fixed, unknown constants",
+                  "Not formally incorporated",
+                  "p-values, confidence intervals",
+                  "Based on hypothetical repetition"),
+  Bayesian = c("Degree of belief",
+               "Random variables with distributions",
+               "Explicitly incorporated via priors",
+               "Posterior distributions, credible intervals",
+               "Direct probability statements")
+) %>%
+  knitr::kable(format = "html") %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+::: {.callout-tip}
+## Why Frequentist in This Course?
+
+Frequentist methods are:
+
+- More commonly used in animal science journals
+- Required by many regulatory bodies (FDA, EPA)
+- Computationally simpler for basic analyses
+- The foundation for most statistical software defaults
+
+However, Bayesian methods are growing in popularity, especially for complex models. Being fluent in frequentist thinking first makes learning Bayesian approaches easier later.
+:::
+
+---
+
+# Understanding P-Values {#sec-pvalues}
+
+P-values are perhaps the most misunderstood concept in statistics. Let's build a proper understanding from the ground up.
+
+## Definition and Meaning {#sec-pvalue-definition}
+
+A **p-value** is defined as:
+
+$$
+p = P(\text{data as extreme or more extreme} \mid H_0 \text{ is true})
+$$
+
+Where:
+
+- $P(\cdot)$ = Probability
+- $\mid$ = "given that" or "conditional on"
+- $H_0$ = The null hypothesis (typically "no effect" or "no difference")
+
+**In plain English**: The p-value is the probability of observing results at least as extreme as what we actually observed, **assuming the null hypothesis is true**.
+
+### Breaking Down the Definition
+
+Let's unpack each part:
+
+1. **"Probability of observing results..."** – We're talking about data, not hypotheses
+2. **"...at least as extreme..."** – Not just exactly what we saw, but anything further from what we'd expect under the null
+3. **"...assuming the null hypothesis is true"** – This is a conditional probability; we're starting with an assumption
+
+::: {.callout-warning}
+## The p-value is NOT:
+
+- ❌ The probability that the null hypothesis is true: $P(H_0 | \text{data})$
+- ❌ The probability that the result occurred by chance
+- ❌ The probability of making a wrong decision
+- ❌ The size or importance of an effect
+- ❌ The probability that replicating the study would give the same result
+:::
+
+## Visualizing What P-Values Mean {#sec-pvalue-visual}
+
+Let's simulate a situation to build intuition. Suppose we're comparing two groups of beef cattle (Control vs Treatment), and in reality, there's **no true difference** between them (null hypothesis is true).
+
+```{r simulate-null-true}
+# Simulation parameters
+n_per_group <- 25
+true_mean <- 600  # kg, both groups
+true_sd <- 40
+
+# Generate ONE sample where null is true
+set.seed(123)
+control <- rnorm(n_per_group, mean = true_mean, sd = true_sd)
+treatment <- rnorm(n_per_group, mean = true_mean, sd = true_sd)
+
+# Combine into data frame
+sample_data <- tibble(
+  weight = c(control, treatment),
+  group = rep(c("Control", "Treatment"), each = n_per_group)
+)
+
+# Visualize
+p1 <- ggplot(sample_data, aes(x = group, y = weight, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6, size = 2) +
+  scale_fill_manual(values = c("Control" = "#E69F00", "Treatment" = "#56B4E9")) +
+  labs(
+    title = "One Sample: Weights Under the Null (No True Difference)",
+    subtitle = sprintf("Control mean: %.1f kg | Treatment mean: %.1f kg",
+                      mean(control), mean(treatment)),
+    y = "Final Weight (kg)",
+    x = "Group"
+  ) +
+  theme(legend.position = "none") +
+  ylim(500, 700)
+
+print(p1)
+
+# Run t-test
+test_result <- t.test(control, treatment)
+cat(sprintf("\nObserved difference: %.1f kg\n", mean(treatment) - mean(control)))
+cat(sprintf("P-value: %.4f\n", test_result$p.value))
+```
+
+Even though the null hypothesis is **true** (both groups have the same mean), we observe a difference just due to random sampling. The p-value tells us how "surprising" this observed difference would be if the null were true.
+
+### The Distribution of P-Values Under the Null
+
+Now, what happens if we repeat this experiment 1,000 times, always with no true difference?
+
+```{r pvalue-distribution}
+# Simulate 1000 experiments where null is true
+n_simulations <- 1000
+
+simulate_study <- function() {
+  control <- rnorm(n_per_group, mean = true_mean, sd = true_sd)
+  treatment <- rnorm(n_per_group, mean = true_mean, sd = true_sd)
+  t.test(control, treatment)$p.value
+}
+
+p_values <- replicate(n_simulations, simulate_study())
+
+# Visualize distribution
+p2 <- tibble(p_value = p_values) %>%
+  ggplot(aes(x = p_value)) +
+  geom_histogram(bins = 20, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_vline(xintercept = 0.05, color = "red", linetype = "dashed", linewidth = 1.2) +
+  annotate("text", x = 0.05, y = 70, label = "α = 0.05",
+           color = "red", hjust = -0.1, size = 5) +
+  labs(
+    title = "Distribution of P-Values When the Null Hypothesis is TRUE",
+    subtitle = sprintf("%d simulations: each time, both groups truly have mean = %d kg",
+                      n_simulations, true_mean),
+    x = "P-value",
+    y = "Count (out of 1,000 studies)"
+  ) +
+  scale_x_continuous(breaks = seq(0, 1, 0.1)) +
+  theme_minimal(base_size = 13)
+
+print(p2)
+
+# Calculate proportion "significant"
+prop_sig <- mean(p_values < 0.05)
+cat(sprintf("\nProportion of p-values < 0.05: %.3f (expected: 0.05)\n", prop_sig))
+cat(sprintf("Out of %d studies where null is TRUE, %d (%.1f%%) would be \"significant\" at p < 0.05\n",
+            n_simulations, sum(p_values < 0.05), 100 * prop_sig))
+```
+
+::: {.callout-important}
+## Critical Insight
+
+When the null hypothesis is **true**, p-values are uniformly distributed between 0 and 1. This means about 5% of studies will produce p < 0.05 purely by chance—this is the **Type I error rate** (false positive rate).
+
+If you use α = 0.05 as your threshold, you're accepting that 5% of the time, you'll incorrectly reject a true null hypothesis.
+:::
+
+---
+
+## Common P-Value Misconceptions {#sec-pvalue-misconceptions}
+
+Let's address the most common misinterpretations with specific examples from animal science.
+
+### Misconception 1: "p = 0.03 means 3% chance null is true"
+
+**WRONG.** The p-value is $P(\text{data} \mid H_0)$, not $P(H_0 \mid \text{data})$.
+
+**Example**: In a swine growth study, you find p = 0.03 when comparing two diets. This means:
+
+- ✅ Correct: "If both diets were truly identical, we'd see a difference this large in only 3% of similar studies, just by chance."
+- ❌ Incorrect: "There's a 3% chance the diets are really the same."
+
+To know $P(H_0 \mid \text{data})$, you'd need to know the **prior probability** that $H_0$ is true—that requires Bayesian analysis.
+
+### Misconception 2: "p = 0.06 means no effect"
+
+**WRONG.** Absence of evidence is not evidence of absence.
+
+**Example**: You test a new probiotic in beef cattle and get p = 0.06 for weight gain.
+
+- ❌ Incorrect: "The probiotic doesn't work."
+- ✅ Correct: "Our data don't provide strong evidence against the null hypothesis. The effect might be real but small, or our sample size might be too small to detect it."
+
+Consider these two scenarios that both give p = 0.06:
+
+```{r absence-of-evidence, fig.width=10, fig.height=4}
+set.seed(456)
+
+# Scenario A: Large sample, small effect
+n_large <- 100
+effect_small <- 3  # kg difference
+cattle_a_control <- rnorm(n_large, mean = 600, sd = 40)
+cattle_a_treat <- rnorm(n_large, mean = 600 + effect_small, sd = 40)
+
+# Scenario B: Small sample, large effect
+n_small <- 15
+effect_large <- 15  # kg difference
+cattle_b_control <- rnorm(n_small, mean = 600, sd = 40)
+cattle_b_treat <- rnorm(n_small, mean = 600 + effect_large, sd = 40)
+
+# T-tests
+p_a <- t.test(cattle_a_treat, cattle_a_control)$p.value
+p_b <- t.test(cattle_b_treat, cattle_b_control)$p.value
+
+# Visualize
+data_a <- tibble(weight = c(cattle_a_control, cattle_a_treat),
+                 group = rep(c("Control", "Probiotic"), each = n_large),
+                 scenario = "A")
+data_b <- tibble(weight = c(cattle_b_control, cattle_b_treat),
+                 group = rep(c("Control", "Probiotic"), each = n_small),
+                 scenario = "B")
+
+plot_a <- ggplot(data_a, aes(x = group, y = weight, fill = group)) +
+  geom_boxplot(alpha = 0.6) +
+  geom_jitter(width = 0.1, alpha = 0.4, size = 1.5) +
+  labs(title = sprintf("Scenario A: Large Sample, Small Effect\nn=%d per group, p=%.3f",
+                       n_large, p_a),
+       y = "Weight (kg)", x = "") +
+  theme(legend.position = "none") +
+  ylim(450, 750)
+
+plot_b <- ggplot(data_b, aes(x = group, y = weight, fill = group)) +
+  geom_boxplot(alpha = 0.6) +
+  geom_jitter(width = 0.1, alpha = 0.4, size = 2) +
+  labs(title = sprintf("Scenario B: Small Sample, Large Effect\nn=%d per group, p=%.3f",
+                       n_small, p_b),
+       y = "Weight (kg)", x = "") +
+  theme(legend.position = "none") +
+  ylim(450, 750)
+
+plot_a + plot_b
+```
+
+Both studies have p ≈ 0.05-0.07, but they tell very different stories! **Always report effect sizes and confidence intervals**, not just p-values.
+
+### Misconception 3: "p < 0.001 means a large/important effect"
+
+**WRONG.** Statistical significance ≠ practical significance.
+
+**Example**: In a massive database of 10,000 pigs, you find that pigs born on Mondays weigh 0.3 kg less at market than pigs born on other days (p < 0.001).
+
+- **Statistically significant**: Yes! With huge sample sizes, even tiny effects become "significant."
+- **Practically significant**: Probably not. A 0.3 kg difference is unlikely to matter economically.
+
+```{r statistical-vs-practical}
+# Simulation: huge sample, tiny effect
+set.seed(789)
+n_huge <- 5000
+tiny_effect <- 0.3  # kg
+
+monday_pigs <- rnorm(n_huge, mean = 280, sd = 20)
+other_pigs <- rnorm(n_huge, mean = 280 + tiny_effect, sd = 20)
+
+test_huge <- t.test(other_pigs, monday_pigs)
+
+cat(sprintf("Sample size: %d per group\n", n_huge))
+cat(sprintf("Mean difference: %.2f kg\n", mean(other_pigs) - mean(monday_pigs)))
+cat(sprintf("P-value: %.2e (highly significant!)\n", test_huge$p.value))
+cat(sprintf("But effect size: %.2f kg (%.1f%% of mean weight)\n",
+            tiny_effect, 100 * tiny_effect / 280))
+```
+
+::: {.callout-tip}
+## Always Ask Two Questions
+
+1. **Is it statistically significant?** (p-value)
+2. **Is it practically significant?** (effect size, confidence intervals, domain knowledge)
+
+A difference can be statistically significant without being biologically or economically meaningful.
+:::
+
+---
+
+## The Arbitrary Nature of p < 0.05 {#sec-threshold}
+
+Where did p < 0.05 come from? It was popularized by statistician R.A. Fisher in the 1920s as a **convenient convention**, not a law of nature. He even cautioned against treating it as a bright-line rule.
+
+### The Problem with Bright Lines
+
+Consider three studies comparing the same feed additive:
+
+- **Study A**: p = 0.049 → "Significant! The additive works!"
+- **Study B**: p = 0.051 → "Not significant. No evidence it works."
+- **Study C**: p = 0.048 → "Significant! Definitely works!"
+
+Does it really make sense that Study A and C lead to completely different conclusions than Study B, when the p-values are nearly identical?
+
+```{r threshold-arbitrary, fig.width=8, fig.height=4}
+# Visualize the arbitrary threshold
+tibble(
+  study = c("A", "B", "C"),
+  p_value = c(0.049, 0.051, 0.048),
+  significant = p_value < 0.05
+) %>%
+  ggplot(aes(x = study, y = p_value, fill = significant)) +
+  geom_col(alpha = 0.7) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red", linewidth = 1) +
+  geom_text(aes(label = sprintf("p = %.3f", p_value)), vjust = -0.5, size = 5) +
+  annotate("text", x = 2, y = 0.05, label = "α = 0.05 threshold",
+           color = "red", vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("TRUE" = "darkgreen", "FALSE" = "gray50"),
+                    labels = c("TRUE" = "Significant", "FALSE" = "Not Significant")) +
+  labs(
+    title = "The Arbitrary Nature of p < 0.05",
+    subtitle = "Should Study B really lead to a completely different conclusion?",
+    x = "Study",
+    y = "P-value",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "top")
+```
+
+### Modern Perspectives
+
+Many scientific fields are moving away from rigid thresholds:
+
+- **Report exact p-values** (e.g., p = 0.03, not just "p < 0.05")
+- **Focus on effect sizes and confidence intervals** more than p-values
+- **Consider p-values as continuous measures** of evidence, not binary decisions
+- Some journals now ban the term "statistically significant" entirely
+
+::: {.callout-note}
+## What We'll Do in This Course
+
+We'll calculate p-values because they're standard in animal science, but we'll **always** interpret them alongside:
+
+- Effect sizes (how big is the difference?)
+- Confidence intervals (what's the range of plausible values?)
+- Practical significance (does the effect size matter in the real world?)
+:::
+
+---
+
+# Study Design: Observational vs Experimental {#sec-study-design}
+
+Not all research is created equal. The **design** of a study fundamentally determines what conclusions you can draw, particularly about **causation**.
+
+## The Gold Standard: Causation vs Association {#sec-causation}
+
+- **Association** (correlation): Two variables change together, but we don't know if one causes the other
+- **Causation**: Changing one variable **causes** changes in the other
+
+The single most important question when reading research: **Can this study establish causation, or only association?**
+
+### Observational Studies {#sec-observational}
+
+In an **observational study**, the researcher simply observes and records data **without manipulating** any variables. You measure what's already happening naturally.
+
+**Examples in animal science:**
+
+1. **Cross-sectional survey**: Measure backfat thickness in pigs across different farms at one point in time
+2. **Cohort study**: Follow beef cattle over time and record which ones develop health issues
+3. **Case-control study**: Compare diet history of cattle with vs without liver abscesses
+
+**Strengths:**
+
+- Can study things we can't (or shouldn't) experimentally manipulate
+- Often cheaper and faster than experiments
+- Reflects real-world conditions
+- Good for exploratory research and hypothesis generation
+
+**Limitations:**
+
+- **Cannot establish causation** (only association)
+- **Confounding variables** can bias results (more on this below)
+- Difficult to control for all alternative explanations
+
+#### Example: Farm Size and Pig Health
+
+Imagine you survey 100 swine farms and find that **larger farms have lower mortality rates**.
+
+**Can you conclude that increasing farm size causes better health outcomes?**
+
+**No!** Many confounding variables could explain this:
+
+- Larger farms might have better veterinary care
+- They might use better biosecurity protocols
+- They might have more experienced managers
+- They might be in regions with different disease pressures
+- Healthier farms might have expanded to become larger (reverse causation!)
+
+```{r observational-example}
+# Simulate observational data with confounding
+set.seed(321)
+n_farms <- 100
+
+# Management quality is a confounder
+management_quality <- rnorm(n_farms, mean = 50, sd = 15)
+
+# Better-managed farms tend to be larger (confounding)
+farm_size <- 500 + 8 * management_quality + rnorm(n_farms, mean = 0, sd = 200)
+
+# Mortality is affected by management quality, NOT farm size directly
+mortality_rate <- 8 - 0.08 * management_quality + rnorm(n_farms, mean = 0, sd = 1.5)
+mortality_rate <- pmax(0, mortality_rate)  # Can't be negative
+
+farm_data <- tibble(
+  farm_id = 1:n_farms,
+  size = farm_size,
+  mortality = mortality_rate,
+  management = management_quality
+)
+
+# Naive analysis (ignoring confounding)
+p3 <- ggplot(farm_data, aes(x = size, y = mortality)) +
+  geom_point(alpha = 0.6, size = 3, color = "steelblue") +
+  geom_smooth(method = "lm", se = TRUE, color = "red", linewidth = 1.2) +
+  labs(
+    title = "Observational Study: Farm Size vs Mortality Rate",
+    subtitle = "Appears that larger farms have lower mortality - but is this causal?",
+    x = "Farm Size (number of sows)",
+    y = "Mortality Rate (%)"
+  )
+
+print(p3)
+
+cor_size_mort <- cor(farm_data$size, farm_data$mortality)
+cat(sprintf("\nCorrelation between farm size and mortality: %.3f\n", cor_size_mort))
+cat("But this is driven by a confounder: management quality!\n")
+```
+
+This is **association, not causation**. To establish that farm size itself affects mortality, you'd need an experimental design.
+
+---
+
+### Experimental Studies {#sec-experimental}
+
+In an **experimental study**, the researcher **actively manipulates** one or more variables (the "treatment" or "intervention") and measures the effect on an outcome.
+
+**Key features:**
+
+- Researcher controls who receives which treatment
+- Ideally uses **randomization** to assign treatments
+- Controls other variables to isolate the effect of the treatment
+- Can establish **causation** (if designed properly)
+
+**Examples in animal science:**
+
+1. **Feed trial**: Randomly assign piglets to Diet A vs Diet B, measure growth
+2. **Drug efficacy trial**: Randomly assign cattle to antibiotic vs placebo, measure recovery
+3. **Breeding experiment**: Randomly assign boars to breeding groups, compare offspring traits
+
+#### Example: Does Lysine Supplementation Improve Growth?
+
+**Study design**: Take 60 pigs, **randomly** assign 30 to a control diet and 30 to a lysine-supplemented diet. Raise them identically otherwise. Measure final weight.
+
+```{r experimental-example}
+# Simulate experimental data
+set.seed(654)
+n_pigs <- 60
+
+# Randomly assign treatment
+pig_data <- tibble(
+  pig_id = 1:n_pigs,
+  treatment = rep(c("Control", "Lysine"), each = n_pigs/2),
+  # Lysine truly increases weight by ~8 kg
+  final_weight = ifelse(treatment == "Control",
+                       rnorm(n_pigs/2, mean = 115, sd = 12),
+                       rnorm(n_pigs/2, mean = 115 + 8, sd = 12))
+)
+
+# Visualize
+p4 <- ggplot(pig_data, aes(x = treatment, y = final_weight, fill = treatment)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5, size = 2.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4, fill = "red") +
+  scale_fill_manual(values = c("Control" = "#E69F00", "Lysine" = "#009E73")) +
+  labs(
+    title = "Experimental Study: Effect of Lysine Supplementation on Pig Growth",
+    subtitle = "Random assignment allows causal inference",
+    y = "Final Weight (kg)",
+    x = "Treatment Group"
+  ) +
+  theme(legend.position = "none")
+
+print(p4)
+
+# Test for difference
+exp_test <- t.test(final_weight ~ treatment, data = pig_data)
+cat(sprintf("\nMean difference: %.2f kg\n",
+            mean(pig_data$final_weight[pig_data$treatment == "Lysine"]) -
+            mean(pig_data$final_weight[pig_data$treatment == "Control"])))
+cat(sprintf("P-value: %.4f\n", exp_test$p.value))
+cat("\nBecause we RANDOMLY assigned treatments, we can conclude:\n")
+cat("Lysine supplementation CAUSES increased growth in pigs.\n")
+```
+
+**Why can we claim causation here?**
+
+Because of **randomization** (discussed in detail in the next section). Random assignment ensures that the two groups are equivalent on average at the start—any difference at the end must be due to the treatment.
+
+---
+
+## Confounding Variables {#sec-confounding}
+
+A **confounding variable** (or confounder) is a variable that:
+
+1. Is associated with the treatment/exposure
+2. Independently affects the outcome
+3. Is not on the causal pathway between treatment and outcome
+
+Confounding creates **spurious associations**—relationships that appear causal but aren't.
+
+### The Classic Example: Ice Cream and Drowning
+
+This non-agricultural example illustrates confounding perfectly:
+
+**Observation**: Ice cream sales are strongly correlated with drowning deaths.
+
+**Conclusion**: Ice cream causes drowning?! Should we ban ice cream to save lives?
+
+**Reality**: Both are caused by a confounder: **temperature/summer season**
+
+- Hot weather → people buy ice cream
+- Hot weather → people go swimming → more drownings
+
+Ice cream and drowning are **associated** but not **causally related**.
+
+```{r confounding-ice-cream, echo=FALSE, fig.width=8, fig.height=4}
+# Simulate ice cream and drowning with temperature as confounder
+months <- 1:12
+temperature <- c(0, 2, 10, 15, 20, 25, 28, 27, 22, 15, 8, 2)  # Celsius
+ice_cream_sales <- 10 + 3 * temperature + rnorm(12, 0, 5)
+drownings <- 2 + 0.4 * temperature + rnorm(12, 0, 1)
+
+confound_data <- tibble(
+  month = factor(month.abb, levels = month.abb),
+  temp = temperature,
+  ice_cream = ice_cream_sales,
+  drowning = drownings
+)
+
+p5 <- ggplot(confound_data, aes(x = ice_cream, y = drowning)) +
+  geom_point(size = 3, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    title = "Ice Cream Sales vs Drowning Deaths",
+    subtitle = "Strong correlation, but temperature is the confounder",
+    x = "Ice Cream Sales (arbitrary units)",
+    y = "Drowning Deaths"
+  )
+
+print(p5)
+```
+
+### Agricultural Example: Pasture Type and Weight Gain
+
+**Scenario**: You visit 20 beef farms. Some use Pasture A (fescue), others use Pasture B (mixed grass). You record average daily gain (ADG) for cattle on each farm.
+
+**Observation**: Cattle on Pasture A have higher ADG.
+
+**Can you conclude Pasture A is better?**
+
+**Probably not!** Possible confounders:
+
+- **Farm quality**: Better-managed farms might choose Pasture A (and also have better nutrition, genetics, health)
+- **Soil quality**: Farms with better soil grow Pasture A, but soil quality also affects other forages
+- **Region**: Pasture A might be used in regions with better climate for cattle
+- **Genetics**: Farms using Pasture A might also use superior genetics
+
+```{r confounding-pasture}
+# Simulate pasture study with confounding
+set.seed(987)
+n_farms <- 20
+
+pasture_data <- tibble(
+  farm = 1:n_farms,
+  pasture_type = rep(c("Fescue", "Mixed Grass"), each = 10)
+) %>%
+  mutate(
+    # Farm quality is confounder: better farms choose fescue
+    farm_quality = ifelse(pasture_type == "Fescue",
+                         rnorm(n_farms/2, mean = 75, sd = 8),
+                         rnorm(n_farms/2, mean = 60, sd = 8)),
+    # ADG depends on farm quality, NOT pasture type!
+    adg = 1.2 + 0.012 * farm_quality + rnorm(n_farms, mean = 0, sd = 0.15)
+  )
+
+# Visualize the confounding
+p6 <- ggplot(pasture_data, aes(x = farm_quality, y = adg, color = pasture_type, shape = pasture_type)) +
+  geom_point(size = 4, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1.2) +
+  scale_color_manual(values = c("Fescue" = "#D55E00", "Mixed Grass" = "#0072B2")) +
+  labs(
+    title = "Confounding Example: Farm Quality Affects Both Pasture Choice and ADG",
+    subtitle = "Better farms choose fescue AND have higher ADG (but pasture isn't the cause)",
+    x = "Farm Quality Score",
+    y = "Average Daily Gain (kg/day)",
+    color = "Pasture Type",
+    shape = "Pasture Type"
+  ) +
+  theme(legend.position = "top")
+
+print(p6)
+
+# Naive comparison
+pasture_data %>%
+  group_by(pasture_type) %>%
+  summarise(mean_adg = mean(adg), .groups = 'drop') %>%
+  knitr::kable(digits = 3, col.names = c("Pasture Type", "Mean ADG (kg/day)"))
+```
+
+The fescue group has higher ADG, but it's because better farms choose fescue—not because fescue itself is superior.
+
+::: {.callout-warning}
+## How to Address Confounding
+
+**In observational studies:**
+
+- Statistical adjustment (multiple regression, matching, stratification)
+- Careful measurement of potential confounders
+- Acknowledge limitations in conclusions
+
+**In experimental studies:**
+
+- **Randomization** (the gold standard—discussed next!)
+- Blocking/stratification
+- Standardizing all other conditions
+:::
+
+---
+
+# Randomized Controlled Trials (RCTs) {#sec-rcts}
+
+The **randomized controlled trial (RCT)** is the gold standard for establishing causation. It's an experimental design where:
+
+1. Participants (animals) are **randomly assigned** to treatment groups
+2. One group receives the intervention, another serves as a **control**
+3. All other conditions are kept as similar as possible
+4. Outcomes are measured and compared
+
+## Why Randomization is Powerful {#sec-randomization}
+
+**Random assignment** ensures that treatment groups are **balanced** on all variables—both measured and unmeasured—**on average**.
+
+This is crucial because:
+
+- You can't measure every potential confounder
+- You don't always know what the confounders are
+- Randomization balances them automatically (in expectation)
+
+### Mathematical Intuition
+
+When you randomly assign $n$ animals to groups, every animal has an equal probability of being in any group. This means:
+
+$$
+E[\text{Confounder}_{\text{Treatment}}] = E[\text{Confounder}_{\text{Control}}]
+$$
+
+Where $E[\cdot]$ denotes expected value (average across many repetitions).
+
+**In plain English**: On average, the treatment and control groups will have the same distribution of age, weight, genetics, health status, etc.—even if you don't measure these variables!
+
+---
+
+## Key Features of RCTs {#sec-rct-features}
+
+### 1. Random Assignment
+
+Not "haphazard" or "arbitrary"—**random** using a chance mechanism (coin flip, random number generator, etc.).
+
+**Example**: 60 pigs, 30 to each group
+
+```{r randomization-example}
+set.seed(2025)
+
+# Start with 60 pigs with various characteristics
+pigs <- tibble(
+  pig_id = 1:60,
+  initial_weight = rnorm(60, mean = 25, sd = 4),
+  age_days = round(runif(60, min = 50, max = 70)),
+  sex = sample(c("Male", "Female"), 60, replace = TRUE),
+  litter = sample(1:15, 60, replace = TRUE)
+)
+
+# RANDOMLY assign to treatment
+pigs <- pigs %>%
+  mutate(treatment = sample(rep(c("Control", "Probiotic"), each = 30)))
+
+# Check balance
+pigs %>%
+  group_by(treatment) %>%
+  summarise(
+    n = n(),
+    mean_weight = mean(initial_weight),
+    mean_age = mean(age_days),
+    prop_male = mean(sex == "Male"),
+    .groups = 'drop'
+  ) %>%
+  knitr::kable(digits = 2,
+               col.names = c("Treatment", "N", "Mean Weight (kg)",
+                            "Mean Age (days)", "Proportion Male"))
+```
+
+Notice how the groups are similar on all measured characteristics—that's randomization working!
+
+### 2. Control Group
+
+The control group provides the **counterfactual**: what would have happened without the treatment?
+
+Types of controls:
+
+- **Negative control**: No treatment (or placebo)
+- **Positive control**: Standard treatment (if testing a new alternative)
+- **Multiple controls**: Compare several treatments
+
+### 3. Blinding (when possible)
+
+**Blinding** means keeping the treatment assignment hidden to reduce bias:
+
+- **Single-blind**: Animals (or caretakers) don't know which group receives which treatment
+- **Double-blind**: Neither caretakers nor researchers analyzing data know
+
+**Example**: In a drug trial for cattle, identical-looking pills (one with drug, one placebo) prevent the farm workers from treating groups differently.
+
+**Note**: Blinding isn't always possible in animal science (e.g., you can't hide which diet an animal is eating), but controlling for observer bias is still important.
+
+### 4. Standardization
+
+Keep all other conditions **identical** between groups:
+
+- Same housing
+- Same feeding schedule
+- Same environmental conditions
+- Same outcome measurement procedures
+
+---
+
+## Example RCT: Feed Additive Trial in Swine {#sec-rct-example}
+
+**Research question**: Does a novel feed additive improve average daily gain (ADG) in growing pigs?
+
+**Design**:
+
+- **Population**: 120 pigs (60-day-old, weaned)
+- **Randomization**: Randomly assign 60 to control diet, 60 to additive diet
+- **Control**: Standard corn-soybean diet
+- **Treatment**: Same diet + 0.5% additive
+- **Blinding**: Farm workers don't know which pens get which diet (feed is labeled A/B)
+- **Standardization**: All pigs housed in identical pens, same schedule, same health protocols
+- **Duration**: 90 days
+- **Outcome**: Average daily gain (kg/day)
+
+```{r rct-swine-example}
+set.seed(111)
+
+# Simulate RCT data
+rct_pigs <- tibble(
+  pig_id = 1:120,
+  # Randomize first
+  treatment = sample(rep(c("Control", "Additive"), each = 60)),
+  # Baseline characteristics are balanced (due to randomization)
+  initial_weight = rnorm(120, mean = 20, sd = 3),
+  # Outcome: additive truly improves ADG by 0.05 kg/day
+  adg = ifelse(treatment == "Control",
+              rnorm(60, mean = 0.75, sd = 0.10),
+              rnorm(60, mean = 0.75 + 0.05, sd = 0.10))
+)
+
+# Visualize
+p7 <- ggplot(rct_pigs, aes(x = treatment, y = adg, fill = treatment)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 5, fill = "white", color = "black") +
+  scale_fill_manual(values = c("Control" = "#E69F00", "Additive" = "#56B4E9")) +
+  labs(
+    title = "RCT Results: Feed Additive Effect on Average Daily Gain",
+    subtitle = "White diamond = group mean",
+    y = "Average Daily Gain (kg/day)",
+    x = "Treatment Group"
+  ) +
+  theme(legend.position = "none")
+
+print(p7)
+
+# Statistical test
+rct_test <- t.test(adg ~ treatment, data = rct_pigs)
+effect_size <- mean(rct_pigs$adg[rct_pigs$treatment == "Additive"]) -
+               mean(rct_pigs$adg[rct_pigs$treatment == "Control"])
+
+cat(sprintf("\nControl mean ADG: %.3f kg/day\n",
+            mean(rct_pigs$adg[rct_pigs$treatment == "Control"])))
+cat(sprintf("Additive mean ADG: %.3f kg/day\n",
+            mean(rct_pigs$adg[rct_pigs$treatment == "Additive"])))
+cat(sprintf("Difference: %.3f kg/day\n", effect_size))
+cat(sprintf("95%% CI: [%.3f, %.3f]\n", rct_test$conf.int[1], rct_test$conf.int[2]))
+cat(sprintf("P-value: %.4f\n", rct_test$p.value))
+cat("\n✓ Because of RANDOM ASSIGNMENT, we can conclude:\n")
+cat("  The additive CAUSES a ~0.05 kg/day increase in growth rate.\n")
+```
+
+---
+
+## Limitations of RCTs {#sec-rct-limitations}
+
+Despite being the gold standard, RCTs have limitations:
+
+1. **Cost**: Experiments are expensive and time-consuming
+2. **Ethics**: Some treatments can't be tested experimentally (e.g., exposing animals to disease)
+3. **Practicality**: Long-term outcomes (years) may be infeasible
+4. **External validity**: Controlled conditions may not reflect real-world settings
+5. **Sample size**: May need large numbers to detect small effects
+
+**When RCTs aren't possible**, observational studies remain valuable—but we must be cautious about causal claims and carefully consider confounding.
+
+---
+
+# Summary and Key Takeaways {#sec-summary}
+
+Congratulations! You've completed the foundational week of statistical thinking. Let's review the key concepts:
+
+## Main Concepts
+
+::: {.callout-tip icon=false}
+## 1. Two Statistical Philosophies
+
+- **Frequentist**: Probability as long-run frequency; focus on $P(\text{data} \mid H_0)$
+- **Bayesian**: Probability as degree of belief; focus on $P(H_0 \mid \text{data})$
+- This course uses frequentist methods (standard in animal science)
+:::
+
+::: {.callout-tip icon=false}
+## 2. P-Values Are Widely Misunderstood
+
+- **Definition**: $p = P(\text{data as extreme or more} \mid H_0 \text{ true})$
+- **NOT** the probability the null hypothesis is true
+- **NOT** the size or importance of an effect
+- p < 0.05 is an arbitrary convention, not a law of nature
+- **Always report effect sizes and confidence intervals** alongside p-values
+:::
+
+::: {.callout-tip icon=false}
+## 3. Study Design Determines What You Can Conclude
+
+- **Observational studies**: Can show association, NOT causation (confounding!)
+- **Experimental studies**: Can establish causation (if designed properly)
+- **Confounding variables** create spurious associations in observational data
+:::
+
+::: {.callout-tip icon=false}
+## 4. Randomization is Powerful
+
+- **RCTs** are the gold standard for causal inference
+- Random assignment balances confounders automatically (on average)
+- Control groups provide the counterfactual
+- But RCTs have limitations (cost, ethics, practicality)
+:::
+
+---
+
+## Looking Ahead
+
+Next week, we'll move from **big-picture philosophy** to **practical tools**: how to describe and summarize data using descriptive statistics and exploratory data analysis. We'll learn to:
+
+- Calculate and interpret measures of central tendency and variability
+- Visualize distributions effectively
+- Identify outliers and unusual patterns
+- Create publication-quality summary tables
+
+These foundational skills will prepare us for inferential statistics (hypothesis testing, confidence intervals, regression) in subsequent weeks.
+
+---
+
+## Reflection Questions
+
+Before next week's class, think about:
+
+1. Find a recent paper in your area of animal science. Is it observational or experimental? If observational, what are potential confounders?
+
+2. Look at the p-values reported in the paper. Are effect sizes and confidence intervals also reported? If not, what information is missing?
+
+3. If the paper claims causation, is that claim justified by the study design?
+
+---
+
+## Additional Resources
+
+### Recommended Reading
+
+- **ASA Statement on P-values and Statistical Significance** (2016) – required reading
+- **Greenland et al. (2016)**: "Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations" – comprehensive list of common errors
+- **Ioannidis (2005)**: "Why Most Published Research Findings Are False" – provocative but important
+
+### Videos
+
+- **StatQuest** by Josh Starmer (YouTube): "P-values, clearly explained"
+- **"Dance of the p-values"** (YouTube): Visual demonstration of p-value behavior
+
+### Books
+
+- **The Lady Tasting Tea** by David Salsburg – history of statistics, very readable
+- **Naked Statistics** by Charles Wheelan – conceptual introduction, no equations
+
+---
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+
+*End of Week 1: Statistical Foundations and Study Design*

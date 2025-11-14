@@ -1,0 +1,20 @@
+# Special Data Formats and Course Wrap-up
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Read data from SAS, SPSS, and Stata files
+2. Work with Excel files for reading and writing
+3. Use helpful packages like `janitor` and `lubridate`
+4. Apply the complete data science workflow
+5. Create reproducible analysis pipelines
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Section**: [Part 2: Introduction to Statistics](part2-ch01-statistical_foundations.qmd)

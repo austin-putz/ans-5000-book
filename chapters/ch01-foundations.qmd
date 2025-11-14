@@ -1,0 +1,866 @@
+# Foundations of Data Science & Best Practices
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Define data science and understand its key components
+2. Describe the data science workflow from data collection to communication
+3. Explain why statistics is essential for data science
+4. Distinguish between observational and experimental study designs
+5. Compare different programming languages for data science (R, Python, Julia)
+6. Understand when to use (and avoid) Excel for data analysis
+7. Organize data science projects with proper folder structure and naming conventions
+8. Apply best practices for data formatting, column naming, and documentation
+9. Understand database basics and the difference between long and wide data formats
+10. Recognize the role of version control (Git/GitHub) in reproducible research
+11. Get started with R, RStudio, and Quarto
+12. Understand career paths and skills needed for data science
+
+---
+
+## What is Data Science?
+
+### Definition and Scope
+
+**Data Science** is the interdisciplinary field that uses scientific methods, processes, algorithms, and systems to extract knowledge and insights from structured and unstructured data.
+
+Data science combines:
+
+- **Computer Science**: Programming, algorithms, data structures
+- **Statistics/Mathematics**: Probability, inference, modeling
+- **Domain Expertise**: Subject matter knowledge (in our case, animal science!)
+
+::: {.callout-note}
+## Data Science vs Statistics vs Machine Learning
+
+- **Statistics**: Focuses on inference and understanding relationships
+- **Machine Learning**: Emphasizes prediction and automation
+- **Data Science**: Encompasses both, plus data engineering, visualization, and communication
+:::
+
+### The Data Science Workflow
+
+Every data science project follows a similar workflow:
+
+```{mermaid}
+flowchart LR
+    A[Collect] --> B[Clean]
+    B --> C[Explore]
+    C --> D[Analyze]
+    D --> E[Communicate]
+    E -.-> A
+```
+
+1. **Collect**: Import or gather data from various sources
+2. **Clean**: Handle missing values, fix errors, standardize formats
+3. **Explore**: Visualize and summarize to understand patterns
+4. **Analyze**: Apply statistical methods or models
+5. **Communicate**: Present findings clearly to stakeholders
+
+This workflow is **iterative**—you'll often cycle back to earlier steps as you learn more about your data.
+
+---
+
+## Why Statistics Matters
+
+While Part 1 focuses on data manipulation and visualization, **statistics** (Part 2 of this course) is essential because it allows us to:
+
+- **Quantify uncertainty**: How confident are we in our findings?
+- **Make inferences**: Can we generalize from a sample to a population?
+- **Test hypotheses**: Is this treatment effect real or due to chance?
+- **Build models**: What factors predict our outcome of interest?
+
+::: {.callout-important}
+## Data Science Without Statistics is Dangerous
+
+Beautiful visualizations and complex models are useless if we don't understand:
+
+- Whether our sample is representative
+- Whether differences are statistically significant
+- Whether our assumptions are violated
+- Whether our conclusions are justified
+:::
+
+We'll preview some statistical concepts here, but Part 2 will dive deep into hypothesis testing, ANOVA, regression, and more.
+
+---
+
+## Study Design: Observational vs Experimental
+
+Understanding study design is crucial for interpreting data correctly.
+
+### Observational Studies
+
+In **observational studies**, researchers observe without manipulating variables.
+
+**Characteristics**:
+
+- No treatment assignment by researcher
+- Cannot control for all confounding variables
+- Can show **associations** but not **causation**
+
+**Examples**:
+
+- Surveying farmers about feeding practices and milk production
+- Tracking health outcomes in animals over time
+- Comparing herds that naturally differ in management
+
+**Advantages**: Often cheaper, faster, and more ethical
+
+**Disadvantages**: Confounding variables make causal inference difficult
+
+### Experimental Studies
+
+In **experimental studies**, researchers actively manipulate variables (treatments).
+
+**Characteristics**:
+
+- Researcher assigns treatments
+- Randomization balances confounders
+- Can establish **causation** (under proper design)
+
+**Examples**:
+
+- Feed trial: Randomly assign calves to different diets
+- Drug efficacy: Randomly assign animals to treatment vs placebo
+- Breeding trial: Randomly assign mating pairs
+
+**Advantages**: Can establish cause-and-effect
+
+**Disadvantages**: Can be expensive, time-consuming, or unethical
+
+::: {.callout-tip}
+## Gold Standard: Randomized Controlled Trials (RCTs)
+
+The strongest experimental design involves:
+
+1. **Randomization**: Random assignment to treatment/control
+2. **Control group**: Baseline for comparison
+3. **Replication**: Multiple subjects per treatment
+4. **Blinding**: When possible, subjects/observers don't know treatment
+
+We'll explore RCTs in detail in Part 2, Week 1.
+:::
+
+---
+
+## Programming Languages for Data Science
+
+Data science can be done in many languages. Let's compare the three most popular:
+
+### R
+
+[**R**](https://www.r-project.org/) is a programming language designed specifically for statistical computing and graphics.
+
+**Strengths**:
+
+- Excellent for statistics and data visualization
+- Huge ecosystem of packages (CRAN, Bioconductor)
+- Strong in academia, especially biological/agricultural sciences
+- Free and open-source
+- RStudio IDE is fantastic
+- Quarto for reproducible reports
+
+**Weaknesses**:
+
+- Slower than compiled languages for some tasks
+- Inconsistent syntax (though tidyverse helps!)
+- Steeper learning curve for general programming
+
+**Best for**: Statistical analysis, data visualization, academic research
+
+### Python
+
+[**Python**](https://www.python.org/) is a general-purpose programming language with strong data science libraries.
+
+**Strengths**:
+
+- Versatile (web dev, automation, machine learning, data science)
+- Huge community and job market
+- Excellent for machine learning (scikit-learn, TensorFlow, PyTorch)
+- Pandas for data manipulation
+- Clean, readable syntax
+
+**Weaknesses**:
+
+- Data visualization not as elegant as R's ggplot2
+- Statistical methods less comprehensive than R
+- Multiple competing tools for the same task
+
+**Best for**: Machine learning, automation, production systems, general programming
+
+### Julia
+
+[**Julia**](https://julialang.org/) is a newer language designed for high-performance numerical computing.
+
+**Strengths**:
+
+- Fast (C-like speed with Python-like syntax)
+- Designed for scientific computing
+- Easy to write high-performance code
+- Multiple dispatch system is powerful
+
+**Weaknesses**:
+
+- Smaller ecosystem than R or Python
+- Less mature tooling
+- Smaller community
+- Fewer learning resources
+
+**Best for**: High-performance computing, complex simulations, numerical optimization
+
+### Which Should You Learn?
+
+**For animal science and agricultural research, we recommend starting with R** because:
+
+- Most statistics textbooks and courses use R
+- Superior data visualization with ggplot2
+- Excellent for reproducible research with Quarto
+- Strong community in biological sciences
+- Easier for non-programmers to learn
+
+**But**: Python is valuable for machine learning and automation. Many data scientists know both!
+
+---
+
+## Why Avoid Excel for Analysis?
+
+Microsoft Excel is ubiquitous and useful for simple tasks, but **problematic for data analysis**.
+
+### Problems with Excel
+
+1. **Not Reproducible**:
+   - Point-and-click operations aren't documented
+   - Can't easily share analysis steps
+   - Hard to audit or replicate
+
+2. **Error-Prone**:
+   - Easy to accidentally modify data
+   - No validation of formulas
+   - Copy-paste errors are common
+
+3. **Limited Capabilities**:
+   - Poor for large datasets (1M row limit)
+   - Limited statistical functions
+   - Visualization options are restrictive
+
+4. **Automatic Conversions** (notorious):
+   - Converts gene names to dates (SEPT1 → Sep-1)
+   - Changes scientific notation unpredictably
+   - Alters leading zeros
+
+5. **Version Control Nightmare**:
+   - Binary format, can't use Git effectively
+   - Multiple versions proliferate (`analysis_final_v3_FINAL.xlsx`)
+
+::: {.callout-warning}
+## Excel Has Cost Researchers Dearly
+
+- Economics paper retracted due to Excel error (Reinhart-Rogoff, 2013)
+- Thousands of genomics papers have errors from Excel gene name conversions
+- COVID-19 cases lost in UK due to Excel row limit (2020)
+:::
+
+### When Excel is Okay
+
+Excel is fine for:
+
+- Initial data entry (but export to CSV immediately!)
+- Quick visual inspection of small datasets
+- Sharing final results with non-technical collaborators
+- Simple calculations that don't need to be reproduced
+
+### The Better Approach
+
+Use **R + Quarto** for analysis because:
+
+- Every step is documented in code
+- Analysis is fully reproducible
+- Easy to update when data changes
+- Version control with Git
+- Professional, publication-quality output
+
+---
+
+## Project Organization: Folder Structure
+
+Consistent project organization makes collaboration easier and reduces errors.
+
+### Recommended Folder Structure
+
+```
+project_name/
+│
+├── data/
+│   ├── raw/              # Original, untouched data
+│   ├── processed/        # Cleaned data ready for analysis
+│   └── README.md         # Metadata documentation
+│
+├── code/
+│   ├── 01_import.R       # Data import and initial cleaning
+│   ├── 02_clean.R        # Data cleaning
+│   ├── 03_analyze.R      # Statistical analysis
+│   └── 04_visualize.R    # Create plots
+│
+├── output/
+│   ├── figures/          # Plots and visualizations
+│   ├── tables/           # Summary tables
+│   └── reports/          # Rendered Quarto documents
+│
+├── docs/                 # Documentation, notes
+│
+├── project_name.Rproj    # RStudio project file
+└── README.md             # Project overview
+```
+
+::: {.callout-tip}
+## Key Principles
+
+1. **Never modify raw data**: Keep originals untouched in `data/raw/`
+2. **Number your scripts**: Use prefixes like `01_`, `02_` for execution order
+3. **Separate data from code**: Don't mix data files and scripts
+4. **Document everything**: README files explain what's what
+5. **Use relative paths**: R Projects make this easy
+:::
+
+---
+
+## File Naming Conventions
+
+Good file names are:
+
+- **Machine-readable**: No spaces, special characters
+- **Human-readable**: Descriptive, not cryptic
+- **Sortable**: Use ISO dates (YYYY-MM-DD), leading zeros
+
+### Examples
+
+::: {.panel-tabset}
+
+## Bad Names
+
+```
+my data.xlsx
+final.R
+fig1.png
+analysis version 2 (old).R
+report_10_1_23.docx
+```
+
+Problems: spaces, not descriptive, ambiguous dates, "final" lies
+
+## Good Names
+
+```
+pig_weights_2024-11-14.csv
+01_import_data.R
+02_clean_data.R
+figure_01_weight_by_treatment.png
+report_feed_trial_2024-11-14.html
+```
+
+Benefits: ISO dates, descriptive, machine-readable, sortable
+
+:::
+
+### Naming Best Practices
+
+```r
+# Use underscores or hyphens (not spaces)
+pig_growth_data.csv      # good
+pig-growth-data.csv      # good
+pig growth data.csv      # bad
+
+# Use ISO 8601 dates: YYYY-MM-DD
+data_2024-11-14.csv      # good
+data_11-14-24.csv        # ambiguous
+data_Nov_14_2024.csv     # not sortable
+
+# Include important metadata
+cattle_weights_iowa_2024.csv       # good
+data.csv                           # too vague
+
+# Use leading zeros for sorting
+file_01.R, file_02.R, file_10.R    # good
+file_1.R, file_2.R, file_10.R      # file_10.R sorts before file_2.R!
+```
+
+---
+
+## Data Best Practices
+
+### Column Naming
+
+Good column names are crucial for analysis.
+
+**Rules**:
+
+1. **No spaces**: Use `snake_case` or `camelCase`
+2. **No special characters**: Avoid `#`, `$`, `%`, `@`, etc.
+3. **Start with letters**: Not numbers or symbols
+4. **Be descriptive**: `body_weight_kg` not `bw`
+5. **Use consistent units**: `weight_kg`, `height_cm`, `temp_c`
+6. **Lowercase preferred**: Easier to type, less error-prone
+
+::: {.panel-tabset}
+
+## Bad Column Names
+
+```
+Animal #
+Body Weight (kg)
+Date-of-Birth
+treatment$group
+2024_weight
+```
+
+## Good Column Names
+
+```
+animal_id
+body_weight_kg
+date_of_birth
+treatment_group
+weight_2024_kg
+```
+
+:::
+
+### Data Format: CSV vs Excel
+
+| Format | Pros | Cons | When to Use |
+|--------|------|------|-------------|
+| **CSV** | Plain text, universal, version control friendly, fast | No formatting, one sheet only | **Preferred for analysis data** |
+| **Excel (.xlsx)** | Multiple sheets, formatting, formulas | Binary format, Excel errors, version control issues | Data entry, sharing with non-technical users |
+
+::: {.callout-important}
+## Golden Rule
+
+**Always export to CSV for analysis**, even if data was entered in Excel.
+
+```r
+# In R, read CSV files with:
+library(readr)
+data <- read_csv("data/raw/animal_weights.csv")
+```
+:::
+
+### Tidy Data Principles
+
+**Tidy data** (Hadley Wickham) has a consistent structure that makes analysis easier:
+
+1. Each variable is a column
+2. Each observation is a row
+3. Each type of observational unit is a table
+
+**Example**:
+
+::: {.panel-tabset}
+
+## Tidy Format
+
+| animal_id | date       | weight_kg | treatment |
+|-----------|------------|-----------|-----------|
+| A01       | 2024-01-01 | 250       | Control   |
+| A01       | 2024-02-01 | 275       | Control   |
+| A02       | 2024-01-01 | 245       | Treatment |
+| A02       | 2024-02-01 | 285       | Treatment |
+
+## Messy Format (Wide)
+
+| animal_id | treatment | weight_jan | weight_feb |
+|-----------|-----------|------------|------------|
+| A01       | Control   | 250        | 275        |
+| A02       | Treatment | 245        | 285        |
+
+:::
+
+The tidy format is easier to filter, group, and plot. We'll learn to reshape data in Week 7.
+
+---
+
+## Database Basics
+
+### Long vs Wide Format
+
+Data can be organized in two ways:
+
+**Long Format** (Tidy):
+
+- Each row is one observation
+- Multiple rows per subject
+- Better for analysis and plotting
+
+**Wide Format**:
+
+- Each row is one subject
+- Multiple columns for repeated measures
+- More compact, easier for humans to read
+
+We'll use **tidyr** (Week 7) to convert between formats.
+
+### Relational Databases
+
+In complex projects, data often exists in multiple related tables.
+
+**Example**: Feed trial study
+
+**Table 1: animals**
+
+| animal_id | birth_date | breed    | farm_id |
+|-----------|------------|----------|---------|
+| A001      | 2023-05-10 | Angus    | F01     |
+| A002      | 2023-05-12 | Holstein | F02     |
+
+**Table 2: weights**
+
+| animal_id | date       | weight_kg |
+|-----------|------------|-----------|
+| A001      | 2024-01-01 | 250       |
+| A001      | 2024-02-01 | 275       |
+| A002      | 2024-01-01 | 320       |
+
+**Table 3: farms**
+
+| farm_id | farm_name     | state |
+|---------|---------------|-------|
+| F01     | Smith Ranch   | IA    |
+| F02     | Johnson Dairy | WI    |
+
+These tables are linked by **keys** (`animal_id`, `farm_id`). We'll learn to join them in Week 7.
+
+---
+
+## Metadata: Document Your Data
+
+**Metadata** is "data about data"—it explains what your data means.
+
+### Create a Data Dictionary
+
+Every dataset should have a README or data dictionary:
+
+```markdown
+# Pig Growth Trial Data Dictionary
+
+**File**: pig_weights_2024.csv
+**Date Created**: 2024-11-14
+**Author**: Dr. Jane Smith
+**Description**: Weekly weights for 100 pigs in feed trial
+
+## Variables
+
+- `pig_id`: Unique identifier (P001-P100)
+- `treatment`: Feed type (A, B, or Control)
+- `date`: Date of measurement (YYYY-MM-DD)
+- `weight_kg`: Body weight in kilograms
+- `pen`: Pen number (1-10, 10 pigs per pen)
+
+## Notes
+
+- Missing weights indicate pig was sick that week
+- Treatment A = high protein diet
+- Treatment B = standard diet with supplements
+- Control = standard commercial diet
+```
+
+This documentation is **crucial** for:
+
+- Collaborators understanding your data
+- Future you remembering what you did
+- Journal reviewers checking your work
+
+---
+
+## Version Control: Git and GitHub
+
+### Why Version Control?
+
+Without version control, you end up with:
+
+```
+analysis.R
+analysis_final.R
+analysis_final2.R
+analysis_final_FINAL.R
+analysis_final_FINAL_v2_USE_THIS_ONE.R
+```
+
+**Version control** tracks changes over time so you have:
+
+```
+analysis.R  (with full change history)
+```
+
+### Git
+
+[**Git**](https://git-scm.com/) is the most popular version control system.
+
+**What Git does**:
+
+- Tracks all changes to files over time
+- Allows you to revert to previous versions
+- Shows who changed what and when
+- Enables branching for experiments
+- Facilitates collaboration
+
+**Basic Git workflow**:
+
+```bash
+git add file.R        # Stage changes
+git commit -m "Updated analysis"  # Save snapshot
+git push              # Upload to GitHub
+```
+
+### GitHub
+
+[**GitHub**](https://github.com/) is a cloud platform for hosting Git repositories.
+
+**Benefits**:
+
+- Backup your code online
+- Collaborate with others
+- Share code publicly or privately
+- Track issues and projects
+- Host websites (GitHub Pages)
+
+::: {.callout-note}
+## We'll Use Git Lightly in This Course
+
+Version control is important, but can be overwhelming for beginners. We'll introduce basic concepts, but won't require mastery.
+
+As you become more serious about data science, invest time in learning Git properly!
+:::
+
+---
+
+## Introduction to R, RStudio, and Quarto
+
+### What is R?
+
+[**R**](https://www.r-project.org/) is a free, open-source programming language designed for statistical computing and graphics.
+
+**Install R**:
+
+1. Go to [https://www.r-project.org/](https://www.r-project.org/)
+2. Click "download R"
+3. Choose a CRAN mirror (any US mirror works)
+4. Download for your operating system (Windows, Mac, Linux)
+
+### What is RStudio?
+
+[**RStudio**](https://posit.co/downloads/) (now called Posit) is an Integrated Development Environment (IDE) for R—it makes R much easier to use.
+
+**Install RStudio**:
+
+1. Go to [https://posit.co/downloads/](https://posit.co/downloads/)
+2. Download RStudio Desktop (free version)
+3. Install (requires R to be installed first)
+
+::: {.callout-important}
+## Install Order Matters!
+
+1. Install **R** first
+2. Then install **RStudio**
+:::
+
+### What is Quarto?
+
+[**Quarto**](https://quarto.org/) is an open-source publishing system that lets you combine code, text, and output in a single document.
+
+**Why Quarto?**
+
+- Write analysis and explanation together
+- Code runs automatically when rendered
+- Outputs to HTML, PDF, Word, slides, etc.
+- Reproducible reports with one click
+- Successor to R Markdown with more features
+
+**Quarto is included in RStudio**, no separate installation needed!
+
+### Your First R Session
+
+Open RStudio and try some basic commands in the **Console**:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# R as a calculator
+2 + 2
+10 * 5
+sqrt(16)
+
+# Create variables
+x <- 5
+y <- 10
+x + y
+
+# Create a vector
+weights <- c(250, 275, 290, 310)
+weights
+
+# Calculate mean
+mean(weights)
+```
+
+Congratulations, you've written R code!
+
+---
+
+## What Does It Take to Be a Data Scientist?
+
+### Core Skills
+
+1. **Programming**: R or Python for data manipulation
+2. **Statistics**: Hypothesis testing, regression, experimental design
+3. **Visualization**: Communicating patterns clearly
+4. **Domain Knowledge**: Understanding the field (animal science!)
+5. **Communication**: Explaining technical results to non-technical audiences
+
+### Useful Additional Skills
+
+- **SQL**: Querying databases
+- **Machine Learning**: Predictive modeling
+- **Cloud Computing**: AWS, Google Cloud, Azure
+- **Command Line**: Bash scripting
+- **Version Control**: Git/GitHub
+
+### Career Paths
+
+Data science skills open many doors:
+
+- **Research Scientist**: University or industry R&D
+- **Data Analyst**: Descriptive analytics, reporting
+- **Data Scientist**: Predictive modeling, machine learning
+- **Bioinformatician**: Genomics and computational biology
+- **Quantitative Geneticist**: Breeding programs, genomic selection
+- **Statistical Consultant**: Supporting researchers
+
+::: {.callout-tip}
+## You Don't Need to Master Everything!
+
+Start with the fundamentals (this course), then specialize based on your interests and career goals.
+
+Every data scientist started as a beginner!
+:::
+
+---
+
+## Summary
+
+This chapter introduced the foundations of data science:
+
+- **Data science** combines programming, statistics, and domain expertise
+- The **data science workflow** is iterative: collect → clean → explore → analyze → communicate
+- **Study design matters**: experimental studies can establish causation, observational studies show associations
+- **R** is excellent for statistics and visualization; Python for machine learning; Julia for speed
+- **Avoid Excel** for analysis; use R + Quarto for reproducibility
+- **Organize projects** with consistent folder structure and naming conventions
+- **Data best practices**: tidy format, good column names, CSV for analysis, metadata documentation
+- **Version control** (Git/GitHub) tracks changes and enables collaboration
+- **R, RStudio, and Quarto** are our tools for reproducible analysis
+
+---
+
+## Homework Assignment
+
+### Assignment: Getting Started with Data Science
+
+**Due**: Before Week 2
+
+#### Part 1: Installation (30 points)
+
+1. Install R from [https://www.r-project.org/](https://www.r-project.org/)
+2. Install RStudio from [https://posit.co/downloads/](https://posit.co/downloads/)
+3. Install the tidyverse package in R:
+   ```r
+   install.packages("tidyverse")
+   ```
+4. Take a screenshot of RStudio with the message showing tidyverse installed successfully
+
+#### Part 2: Project Setup (30 points)
+
+1. Create a new RStudio Project called "ans500_firstname_lastname"
+2. Within the project folder, create the following subfolders:
+   - data/raw
+   - data/processed
+   - code
+   - output/figures
+3. Create a README.md file describing the project
+4. Take screenshots of your folder structure
+
+#### Part 3: First Quarto Document (40 points)
+
+Create a Quarto document called `week1_homework.qmd` with:
+
+1. **YAML header** with title, author, and date
+2. **Introduction section** explaining:
+   - What is data science?
+   - Why are you taking this course?
+   - What do you hope to learn?
+3. **R code chunk** that:
+   - Creates a vector of animal weights (make up 10 values)
+   - Calculates the mean and standard deviation
+   - Creates a simple histogram
+4. **Reflection section** (200-300 words) on:
+   - One thing that surprised you about data science
+   - How you currently manage data (Excel? Paper? Other?)
+   - What bad habits you might need to break
+
+**Render to HTML** and submit both `.qmd` and `.html` files.
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 1 Homework: Foundations of Data Science"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    code-fold: false
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Installation (30%)**: All software installed, tidyverse working
+- **Project Setup (30%)**: Proper folder structure, README created
+- **Quarto Document (40%)**:
+  - Code runs without errors (10%)
+  - Proper formatting and organization (10%)
+  - Thoughtful reflection (20%)
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 1-3: Introduction, Data Visualization, Workflow Basics
+- [Quarto Getting Started](https://quarto.org/docs/get-started/hello/rstudio.html)
+
+### Optional Reading
+
+- Wickham, H. (2014). "Tidy Data." *Journal of Statistical Software*, 59(10). [Link](https://www.jstatsoft.org/article/view/v059i10)
+- Wilson, G. et al. (2017). "Good enough practices in scientific computing." *PLOS Computational Biology*. [Link](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510)
+
+### Videos
+
+- "What is Data Science?" by StatQuest
+- "Introduction to R and RStudio" by RStudio
+
+### Cheat Sheets
+
+- [RStudio IDE Cheat Sheet](https://rstudio.github.io/cheatsheets/rstudio-ide.pdf)
+- [R Markdown (Quarto predecessor) Cheat Sheet](https://rstudio.github.io/cheatsheets/rmarkdown.pdf)
+
+---
+
+**Next Chapter**: [Getting Started with R, RStudio, and Reading Data](part1-ch02-r_rstudio_reading_data.qmd)

@@ -1,0 +1,1356 @@
+---
+title: "Week 13: Analysis of Variance (ANOVA)"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup}
+#| include: false
+
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(car)
+library(emmeans)
+library(effectsize)
+library(pwr)
+library(multcomp)
+
+# Set default theme
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20251112)
+```
+
+# Introduction {#sec-intro}
+
+You're a cattle nutritionist comparing four different feed formulations for finishing steers. After a 90-day trial with 15 steers per feed type, you've measured average daily gain (ADG) for each animal. Now you need to determine: **Do these feed formulations produce different growth rates?**
+
+Your first instinct might be to run t-tests comparing all pairs of feeds:
+- Feed A vs Feed B
+- Feed A vs Feed C
+- Feed A vs Feed D
+- Feed B vs Feed C
+- Feed B vs Feed D
+- Feed C vs Feed D
+
+That's **6 t-tests** for just 4 groups! But this approach has a critical problem: each test carries a 5% false positive rate, and these errors **accumulate**. By the time you've run 6 tests, your chance of finding at least one "significant" result by pure chance has jumped to about 26%.
+
+This is where **Analysis of Variance (ANOVA)** comes in. ANOVA allows us to test for differences among multiple groups with a **single test**, maintaining control over our Type I error rate.
+
+**Key Questions We'll Address:**
+
+- Why does running multiple t-tests inflate our error rate?
+- How does ANOVA partition variance to test group differences?
+- What's the connection between ANOVA and linear regression?
+- How do we check ANOVA assumptions?
+- When ANOVA is significant, which specific groups differ?
+- What are Type I, II, and III sums of squares, and why do they matter?
+
+By the end of this lecture, you'll be able to conduct one-way ANOVA using modern R approaches (`lm()` and `car::Anova()`), check assumptions, perform post-hoc tests, and calculate effect sizes.
+
+::: {.callout-note}
+## Building on Previous Weeks
+
+We've already covered:
+
+- **Week 1**: P-values and the logic of hypothesis testing
+- **Week 2**: Descriptive statistics and visualizing group differences
+- **Week 3**: Sampling distributions and the Central Limit Theorem
+- **Week 4**: t-tests for comparing one or two groups
+
+This week, we **extend** t-tests to handle **three or more groups** and preview the connection to regression (Weeks 7-8).
+:::
+
+# The Multiple Comparisons Problem {#sec-multiple-comparisons}
+
+## Why Not Just Run Multiple t-Tests? {#sec-why-not-t-tests}
+
+Let's simulate what happens when we run multiple pairwise t-tests on groups that actually have **no real differences**:
+
+```{r simulate-multiple-tests}
+# Simulate 5 groups with NO true differences (all μ = 100, σ = 15)
+set.seed(123)
+n_per_group <- 20
+n_groups <- 5
+
+# Create data where H0 is TRUE (all groups have same mean)
+groups_data <- tibble(
+  group = rep(LETTERS[1:n_groups], each = n_per_group),
+  value = rnorm(n_per_group * n_groups, mean = 100, sd = 15)
+)
+
+# Visualize
+ggplot(groups_data, aes(x = group, y = value, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+  geom_hline(yintercept = 100, linetype = "dashed", color = "red", linewidth = 1) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Five Groups with NO True Differences",
+       subtitle = "All groups sampled from same distribution (μ = 100, σ = 15)",
+       x = "Group",
+       y = "Value") +
+  theme(legend.position = "none")
+```
+
+These groups look slightly different due to random sampling, but they were all drawn from the **same population**. Now let's run all possible pairwise t-tests:
+
+```{r pairwise-t-tests}
+# All pairwise comparisons
+group_pairs <- combn(LETTERS[1:n_groups], 2, simplify = FALSE)
+
+# Run t-tests
+pairwise_results <- map_dfr(group_pairs, function(pair) {
+  group1_data <- groups_data %>% filter(group == pair[1]) %>% pull(value)
+  group2_data <- groups_data %>% filter(group == pair[2]) %>% pull(value)
+
+  test <- t.test(group1_data, group2_data)
+
+  tibble(
+    comparison = paste(pair[1], "vs", pair[2]),
+    t_stat = test$statistic,
+    p_value = test$p.value,
+    significant = p_value < 0.05
+  )
+})
+
+knitr::kable(pairwise_results, digits = 4, align = 'lccc',
+             caption = "Pairwise t-Tests for Five Groups (H₀ is TRUE)")
+
+# How many false positives?
+n_comparisons <- nrow(pairwise_results)
+n_false_positives <- sum(pairwise_results$significant)
+
+cat(sprintf("\nNumber of comparisons: %d\n", n_comparisons))
+cat(sprintf("Number of 'significant' results: %d (%.1f%%)\n",
+            n_false_positives, 100 * n_false_positives / n_comparisons))
+```
+
+## Family-Wise Error Rate {#sec-family-wise-error}
+
+When we run multiple tests, we need to distinguish between:
+
+- **Per-comparison error rate**: The α level for a single test (typically 0.05)
+- **Family-wise error rate (FWER)**: The probability of making **at least one** Type I error across all tests
+
+The probability of making **no Type I errors** in *k* independent tests is:
+
+$$P(\text{no Type I errors}) = (1 - \alpha)^k$$
+
+Therefore, the probability of making **at least one** Type I error is:
+
+$$\text{FWER} = 1 - (1 - \alpha)^k$$
+
+Let's calculate this for different numbers of comparisons:
+
+```{r fwer-calculation}
+# Calculate FWER for different numbers of groups
+n_groups_range <- 2:10
+comparisons <- choose(n_groups_range, 2)  # Number of pairwise comparisons
+alpha <- 0.05
+
+fwer_data <- tibble(
+  n_groups = n_groups_range,
+  n_comparisons = comparisons,
+  fwer = 1 - (1 - alpha)^comparisons,
+  fwer_percent = fwer * 100
+)
+
+knitr::kable(fwer_data, digits = 1, align = 'cccc',
+             col.names = c("Groups", "Comparisons", "FWER", "FWER (%)"),
+             caption = "Family-Wise Error Rate Growth with Multiple Comparisons")
+
+# Visualize
+ggplot(fwer_data, aes(x = n_groups, y = fwer_percent)) +
+  geom_line(linewidth = 1.2, color = "darkred") +
+  geom_point(size = 3, color = "darkred") +
+  geom_hline(yintercept = 5, linetype = "dashed", color = "steelblue") +
+  annotate("text", x = 8, y = 7, label = "Per-test α = 5%", color = "steelblue") +
+  scale_x_continuous(breaks = 2:10) +
+  labs(title = "Family-Wise Error Rate Explodes with Multiple Groups",
+       subtitle = "Probability of at least one false positive when all null hypotheses are true",
+       x = "Number of Groups",
+       y = "Family-Wise Error Rate (%)") +
+  theme_minimal(base_size = 12)
+```
+
+**Key insight**: With just 5 groups (10 comparisons), the FWER jumps to **40%**! This means we have a 40% chance of declaring at least one comparison "significant" even when no true differences exist.
+
+::: {.callout-important}
+## ANOVA: The Solution
+
+**ANOVA provides a single omnibus test** that asks: "Is there *any* difference among these groups?"
+
+By conducting one test at α = 0.05, we maintain a 5% false positive rate regardless of how many groups we're comparing.
+
+If ANOVA is significant, *then* we conduct post-hoc tests with appropriate adjustments to identify which specific groups differ.
+:::
+
+## When to Use ANOVA vs t-Tests {#sec-when-anova}
+
+**Use t-tests when:**
+- Comparing exactly 2 groups
+- One-sample or paired designs
+
+**Use ANOVA when:**
+- Comparing 3 or more groups
+- Testing for *any* difference among groups
+- Want to control family-wise error rate
+
+```{r decision-tree, echo=FALSE, fig.height=4}
+# Simple decision tree visualization
+decision_data <- tibble(
+  label = c("How many\ngroups?", "t-test", "ANOVA\n+\nPost-hoc tests"),
+  x = c(2, 1, 3),
+  y = c(3, 1, 1),
+  box_type = c("question", "test", "test")
+)
+
+ggplot(decision_data, aes(x = x, y = y, label = label)) +
+  geom_label(aes(fill = box_type), size = 4, label.size = 1, alpha = 0.7) +
+  annotate("segment", x = 2, xend = 1, y = 2.7, yend = 1.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 1) +
+  annotate("segment", x = 2, xend = 3, y = 2.7, yend = 1.5,
+           arrow = arrow(length = unit(0.3, "cm")), linewidth = 1) +
+  annotate("text", x = 1.5, y = 2.3, label = "Two", fontface = "bold", size = 4) +
+  annotate("text", x = 2.5, y = 2.3, label = "Three+", fontface = "bold", size = 4) +
+  scale_fill_manual(values = c("question" = "lightyellow", "test" = "lightblue")) +
+  xlim(0.5, 3.5) +
+  ylim(0.5, 3.5) +
+  theme_void() +
+  theme(legend.position = "none") +
+  labs(title = "Decision Tree: t-Test vs ANOVA")
+```
+
+# One-Way ANOVA: Theory and Intuition {#sec-anova-theory}
+
+## The Core Idea: Partitioning Variance {#sec-variance-partition}
+
+ANOVA works by **partitioning total variance** into two components:
+
+1. **Between-group variance**: Variability of group means around the overall mean
+2. **Within-group variance**: Variability of individual observations around their group means
+
+If the between-group variance is **much larger** than the within-group variance, this suggests the groups differ.
+
+### Visual Intuition {#sec-visual-intuition}
+
+Let's create two scenarios to build intuition:
+
+```{r anova-intuition}
+# Scenario 1: Large between-group differences (H0 is FALSE)
+scenario1 <- tibble(
+  group = rep(c("A", "B", "C"), each = 20),
+  value = c(rnorm(20, 80, 10), rnorm(20, 100, 10), rnorm(20, 120, 10))
+)
+
+# Scenario 2: Small between-group differences (H0 is TRUE)
+scenario2 <- tibble(
+  group = rep(c("A", "B", "C"), each = 20),
+  value = c(rnorm(20, 98, 15), rnorm(20, 100, 15), rnorm(20, 102, 15))
+)
+
+# Calculate group means
+scenario1_means <- scenario1 %>%
+  group_by(group) %>%
+  summarise(mean_val = mean(value), .groups = 'drop')
+
+scenario2_means <- scenario2 %>%
+  group_by(group) %>%
+  summarise(mean_val = mean(value), .groups = 'drop')
+
+# Overall means
+overall_mean1 <- mean(scenario1$value)
+overall_mean2 <- mean(scenario2$value)
+
+# Plot Scenario 1
+p1 <- ggplot(scenario1, aes(x = group, y = value, color = group)) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+  geom_hline(yintercept = overall_mean1, linetype = "dashed",
+             color = "black", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", size = 5, shape = 18, color = "darkred") +
+  stat_summary(fun = mean, geom = "point", size = 4, shape = 18,
+               aes(color = group)) +
+  scale_color_brewer(palette = "Set1") +
+  annotate("text", x = 3.3, y = overall_mean1, label = "Overall\nmean",
+           size = 3, hjust = 0) +
+  labs(title = "Scenario 1: Large Between-Group Variance",
+       subtitle = "Group means far from overall mean → F will be large",
+       x = "Group", y = "Value") +
+  theme(legend.position = "none")
+
+# Plot Scenario 2
+p2 <- ggplot(scenario2, aes(x = group, y = value, color = group)) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+  geom_hline(yintercept = overall_mean2, linetype = "dashed",
+             color = "black", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", size = 5, shape = 18, color = "darkred") +
+  stat_summary(fun = mean, geom = "point", size = 4, shape = 18,
+               aes(color = group)) +
+  scale_color_brewer(palette = "Set1") +
+  annotate("text", x = 3.3, y = overall_mean2, label = "Overall\nmean",
+           size = 3, hjust = 0) +
+  labs(title = "Scenario 2: Small Between-Group Variance",
+       subtitle = "Group means close to overall mean → F will be small",
+       x = "Group", y = "Value") +
+  theme(legend.position = "none")
+
+p1 + p2
+```
+
+**Key observation**:
+- **Scenario 1**: Group means (colored diamonds) are far from overall mean (black line) → large between-group variance
+- **Scenario 2**: Group means are close to overall mean → small between-group variance
+
+## The F-Statistic {#sec-f-statistic}
+
+The F-statistic is the ratio of between-group variance to within-group variance:
+
+$$F = \frac{\text{Between-group variance (MS}_{\text{between}}\text{)}}{\text{Within-group variance (MS}_{\text{within}}\text{)}}$$
+
+Where:
+- **MS** = Mean Square (variance estimate)
+- A large F-ratio suggests group means differ more than expected by chance
+- F follows an F-distribution with df₁ (between) and df₂ (within)
+
+::: {.callout-note}
+## Connection to t-Test
+
+When comparing exactly two groups, ANOVA is mathematically equivalent to a t-test:
+
+$$F = t^2$$
+
+ANOVA with 2 groups will give the same p-value as a two-sample t-test!
+:::
+
+## ANOVA Table Components {#sec-anova-table}
+
+The ANOVA table summarizes the variance partitioning:
+
+| Source | Sum of Squares (SS) | df | Mean Square (MS) | F | p-value |
+|--------|--------------------|----|-----------------|---|---------|
+| Between | SS_between | k - 1 | SS_between / df_between | MS_between / MS_within | P(F > F_obs) |
+| Within | SS_within | N - k | SS_within / df_within | | |
+| Total | SS_total | N - 1 | | | |
+
+Where:
+- **k** = number of groups
+- **N** = total sample size
+- **SS_between**: Sum of squared differences between group means and overall mean
+- **SS_within**: Sum of squared differences between observations and their group means
+- **df** = degrees of freedom
+
+Let's calculate ANOVA for our two scenarios:
+
+```{r anova-scenarios}
+# Fit models
+model1 <- lm(value ~ group, data = scenario1)
+model2 <- lm(value ~ group, data = scenario2)
+
+# ANOVA tables using car::Anova (Type II)
+cat("Scenario 1: Large Between-Group Variance\n")
+cat("==========================================\n")
+Anova(model1, type = "II")
+
+cat("\n\nScenario 2: Small Between-Group Variance\n")
+cat("==========================================\n")
+Anova(model2, type = "II")
+```
+
+**Interpretation**:
+- **Scenario 1**: F = `r sprintf("%.1f", Anova(model1, type = "II")$"F value"[1])`, p < 0.001 → Strong evidence of group differences
+- **Scenario 2**: F = `r sprintf("%.2f", Anova(model2, type = "II")$"F value"[1])`, p = `r sprintf("%.3f", Anova(model2, type = "II")$"Pr(>F)"[1])` → No evidence of group differences
+
+# ANOVA as a Linear Model {#sec-anova-lm}
+
+## Why Use `lm()` Instead of `aov()`? {#sec-why-lm}
+
+In R, you can fit ANOVA using either `aov()` or `lm()`. **We'll use `lm()` because:**
+
+1. **More flexible**: Same framework works for t-tests, ANOVA, and regression
+2. **Prepares for regression**: Weeks 7-8 will use `lm()` for continuous predictors
+3. **Modern approach**: Works seamlessly with `car::Anova()`, `emmeans`, and other packages
+4. **Better diagnostics**: Standard regression diagnostic plots apply
+
+::: {.callout-tip}
+## ANOVA IS Regression
+
+One-way ANOVA is actually a special case of **linear regression** where the predictor is categorical. R internally converts group labels to dummy variables.
+
+This connection will become clearer in Weeks 7-8!
+:::
+
+## Fitting ANOVA with `lm()` {#sec-fitting-lm}
+
+Let's work through a complete example using the cattle feed trial scenario:
+
+```{r feed-trial-data}
+# Simulate feed trial data
+# 4 feed types, 15 steers per feed, 90-day trial measuring average daily gain (kg)
+set.seed(456)
+
+feed_data <- tibble(
+  steer_id = 1:60,
+  feed_type = factor(rep(c("A", "B", "C", "D"), each = 15)),
+  # Simulated ADG with true differences:
+  # A: 1.45, B: 1.55, C: 1.50, D: 1.70 kg/day
+  adg_kg = c(
+    rnorm(15, mean = 1.45, sd = 0.18),  # Feed A
+    rnorm(15, mean = 1.55, sd = 0.18),  # Feed B
+    rnorm(15, mean = 1.50, sd = 0.18),  # Feed C
+    rnorm(15, mean = 1.70, sd = 0.18)   # Feed D
+  )
+)
+
+# Summary statistics
+feed_summary <- feed_data %>%
+  group_by(feed_type) %>%
+  summarise(
+    n = n(),
+    mean_adg = mean(adg_kg),
+    sd_adg = sd(adg_kg),
+    se_adg = sd_adg / sqrt(n),
+    .groups = 'drop'
+  )
+
+knitr::kable(feed_summary, digits = 3, align = 'lcccc',
+             col.names = c("Feed", "n", "Mean ADG", "SD", "SE"),
+             caption = "Summary Statistics: Average Daily Gain by Feed Type")
+```
+
+### Step 1: Visualize the Data {#sec-visualize-data}
+
+**Always visualize before testing!**
+
+```{r feed-visualization}
+# Create comprehensive visualization
+p1 <- ggplot(feed_data, aes(x = feed_type, y = adg_kg, fill = feed_type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5, size = 2) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+               fill = "darkred", color = "darkred") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Average Daily Gain by Feed Type",
+       subtitle = "Diamonds show group means",
+       x = "Feed Type",
+       y = "Average Daily Gain (kg/day)") +
+  theme(legend.position = "none")
+
+p2 <- ggplot(feed_summary, aes(x = feed_type, y = mean_adg, fill = feed_type)) +
+  geom_col(alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = mean_adg - se_adg * 1.96,
+                    ymax = mean_adg + se_adg * 1.96),
+                width = 0.2, linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", mean_adg)),
+            vjust = -3, fontface = "bold", size = 3.5) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Mean ADG with 95% Confidence Intervals",
+       x = "Feed Type",
+       y = "Mean ADG (kg/day)") +
+  ylim(0, 2) +
+  theme(legend.position = "none")
+
+p1 + p2
+```
+
+**Visual assessment**: Feed D appears to produce the highest gain, while Feed A appears lowest. But are these differences statistically significant?
+
+### Step 2: Fit the Linear Model {#sec-fit-model}
+
+```{r fit-feed-model}
+# Fit ANOVA as a linear model
+feed_model <- lm(adg_kg ~ feed_type, data = feed_data)
+
+# Model summary
+summary(feed_model)
+```
+
+**Key points from summary:**
+- R-squared: Proportion of variance explained by feed type
+- Coefficients show differences from reference group (Feed A)
+- But we want the ANOVA table...
+
+### Step 3: ANOVA Table with `car::Anova()` {#sec-car-anova}
+
+```{r anova-table-feed}
+# ANOVA table using car package (Type II SS)
+library(car)
+feed_anova <- Anova(feed_model, type = "II")
+
+print(feed_anova)
+
+# Extract F and p-value
+f_stat <- feed_anova$`F value`[1]
+p_val <- feed_anova$`Pr(>F)`[1]
+
+cat(sprintf("\nANOVA Results: F(%d, %d) = %.2f, p %s\n",
+            feed_anova$Df[1], feed_anova$Df[2], f_stat,
+            ifelse(p_val < 0.001, "< 0.001", sprintf("= %.4f", p_val))))
+```
+
+::: {.callout-important}
+## What This ANOVA Tells Us
+
+A significant F-test (p < 0.05) tells us:
+
+✓ **There IS evidence that at least one feed type differs from the others**
+
+✗ **It does NOT tell us which specific feeds differ**
+
+To identify specific differences, we need **post-hoc tests** (covered in Section 7).
+:::
+
+# Type I, II, and III Sums of Squares {#sec-ss-types}
+
+## Why This Matters {#sec-why-ss-matters}
+
+When you have **balanced designs** (equal sample sizes), all methods give the same results. But with **unbalanced designs** (common in real research!), the choice matters.
+
+**Key differences:**
+
+- **Type I (Sequential)**: Tests each term **after** previous terms in the formula (order-dependent)
+- **Type II (Marginal)**: Tests each term **after** all others (recommended for one-way ANOVA)
+- **Type III (Orthogonal)**: Tests each term **adjusted for** all others (common in SAS, SPSS)
+
+::: {.callout-note}
+## Recommendation for One-Way ANOVA
+
+For **one-way ANOVA** (single factor), Type II and Type III give identical results.
+
+**Use `car::Anova(model, type = "II")` as your default.**
+
+Type II/III differences become important with multiple factors or interactions (beyond this course).
+:::
+
+## Demonstrating the Difference {#sec-demonstrate-ss}
+
+Let's create an **unbalanced** version of our feed trial and compare methods:
+
+```{r unbalanced-design}
+# Create unbalanced design
+set.seed(789)
+feed_data_unbal <- tibble(
+  feed_type = c(rep("A", 12), rep("B", 15), rep("C", 18), rep("D", 15)),
+  adg_kg = c(
+    rnorm(12, mean = 1.45, sd = 0.18),
+    rnorm(15, mean = 1.55, sd = 0.18),
+    rnorm(18, mean = 1.50, sd = 0.18),
+    rnorm(15, mean = 1.70, sd = 0.18)
+  )
+) %>%
+  mutate(feed_type = factor(feed_type))
+
+# Sample sizes
+feed_data_unbal %>%
+  count(feed_type) %>%
+  knitr::kable(col.names = c("Feed Type", "n"),
+               caption = "Unbalanced Design Sample Sizes")
+
+# Fit model
+model_unbal <- lm(adg_kg ~ feed_type, data = feed_data_unbal)
+
+# Compare Type I, II, and III
+cat("Type I (Sequential) Sums of Squares:\n")
+cat("=====================================\n")
+print(anova(model_unbal))  # Base R uses Type I
+
+cat("\n\nType II Sums of Squares:\n")
+cat("========================\n")
+print(Anova(model_unbal, type = "II"))
+
+cat("\n\nType III Sums of Squares:\n")
+cat("=========================\n")
+print(Anova(model_unbal, type = "III"))
+```
+
+**For one-way ANOVA**, Type II and Type III are identical. Type I may differ slightly with unbalanced designs.
+
+**Bottom line**: For this course (one-way ANOVA), always use:
+
+```r
+car::Anova(model, type = "II")
+```
+
+# ANOVA Assumptions and Diagnostics {#sec-assumptions}
+
+ANOVA makes three key assumptions:
+
+1. **Independence**: Observations are independent (addressed by study design)
+2. **Normality**: Residuals are normally distributed
+3. **Homogeneity of variance**: Equal variance across groups
+
+## Important: Test Residuals, Not Raw Data! {#sec-residuals-not-raw}
+
+::: {.callout-warning}
+## Common Mistake
+
+Don't test normality of raw data within each group. Instead, test normality of **residuals** from the model.
+
+**Why?** ANOVA assumes that deviations from group means are normally distributed, not that each group is normal independently.
+:::
+
+## Diagnostic Plots {#sec-diagnostic-plots}
+
+The `lm()` object provides four standard diagnostic plots:
+
+```{r diagnostic-plots}
+# Create diagnostic plots
+par(mfrow = c(2, 2))
+plot(feed_model, which = 1:4)
+par(mfrow = c(1, 1))
+```
+
+**Interpreting diagnostic plots:**
+
+1. **Residuals vs Fitted**: Should show random scatter (no pattern)
+   - Pattern suggests non-constant variance or non-linearity
+
+2. **Normal Q-Q**: Points should follow the diagonal line
+   - Deviations suggest non-normality
+
+3. **Scale-Location**: Should show random scatter
+   - Tests homogeneity of variance (constant spread)
+
+4. **Residuals vs Leverage**: Identifies influential points
+   - Points outside Cook's distance contours are influential
+
+## Assumption Checks {#sec-assumption-checks}
+
+### 1. Independence {#sec-check-independence}
+
+**Cannot be tested statistically** - depends on study design.
+
+**Violations occur when:**
+- Repeated measures on same subjects (use mixed models)
+- Clustered data (animals in same pen, fields, etc.)
+- Time series (autocorrelation)
+
+**Solution**: Design study properly or use appropriate models (mixed models, GEE).
+
+### 2. Normality of Residuals {#sec-check-normality}
+
+**Visual check: Q-Q plot**
+
+```{r qq-plot-detailed}
+# Extract residuals
+feed_residuals <- residuals(feed_model)
+
+# Q-Q plot
+ggplot(tibble(residuals = feed_residuals), aes(sample = residuals)) +
+  stat_qq(color = "steelblue", size = 2) +
+  stat_qq_line(color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Normal Q-Q Plot of Residuals",
+       subtitle = "Points should fall close to the line",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal(base_size = 12)
+```
+
+**Formal test: Shapiro-Wilk**
+
+```{r shapiro-test}
+shapiro_result <- shapiro.test(feed_residuals)
+
+cat(sprintf("Shapiro-Wilk Test for Normality\n"))
+cat(sprintf("W = %.4f, p-value = %.4f\n",
+            shapiro_result$statistic, shapiro_result$p.value))
+
+if(shapiro_result$p.value > 0.05) {
+  cat("→ No evidence against normality (p > 0.05)\n")
+} else {
+  cat("→ Some evidence against normality (p < 0.05)\n")
+  cat("  Consider: transformation, non-parametric test, or rely on robustness\n")
+}
+```
+
+::: {.callout-note}
+## ANOVA is Robust to Normality Violations
+
+With moderate to large sample sizes and no extreme skewness, ANOVA is fairly robust to violations of normality, especially with balanced designs.
+
+**If violated**:
+- Try transformations (log, square root, Box-Cox)
+- Use Kruskal-Wallis test (non-parametric alternative)
+- Bootstrap confidence intervals
+:::
+
+### 3. Homogeneity of Variance {#sec-check-variance}
+
+**Visual check: Boxplots**
+
+```{r variance-boxplot}
+ggplot(feed_data, aes(x = feed_type, y = adg_kg)) +
+  geom_boxplot(aes(fill = feed_type), alpha = 0.5) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1),
+               geom = "errorbar", width = 0.3, linewidth = 1, color = "darkred") +
+  stat_summary(fun = mean, geom = "point", size = 3, color = "darkred") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Checking Homogeneity of Variance",
+       subtitle = "Red bars show mean ± SD; similar heights suggest equal variances",
+       x = "Feed Type",
+       y = "Average Daily Gain (kg/day)") +
+  theme(legend.position = "none")
+```
+
+**Formal test: Levene's Test**
+
+```{r levene-test}
+levene_result <- leveneTest(feed_model)
+
+print(levene_result)
+
+cat(sprintf("\nLevene's Test: F(%d, %d) = %.3f, p = %.4f\n",
+            levene_result$Df[1], levene_result$Df[2],
+            levene_result$`F value`[1], levene_result$`Pr(>F)`[1]))
+
+if(levene_result$`Pr(>F)`[1] > 0.05) {
+  cat("→ No evidence of unequal variances (p > 0.05)\n")
+} else {
+  cat("→ Evidence of unequal variances (p < 0.05)\n")
+  cat("  Consider: Welch's ANOVA (oneway.test) or transformation\n")
+}
+```
+
+**Rule of thumb**: If the ratio of largest to smallest SD is < 2, you're usually fine.
+
+```{r variance-ratio}
+sd_ratio <- max(feed_summary$sd_adg) / min(feed_summary$sd_adg)
+cat(sprintf("Ratio of largest to smallest SD: %.2f\n", sd_ratio))
+
+if(sd_ratio < 2) {
+  cat("→ Ratio < 2, variances similar enough for standard ANOVA\n")
+} else {
+  cat("→ Ratio ≥ 2, consider Welch's ANOVA\n")
+}
+```
+
+## What to Do If Assumptions Are Violated {#sec-violations}
+
+### Unequal Variances → Welch's ANOVA {#sec-welch-anova}
+
+```{r welch-anova}
+# Welch's one-way test (doesn't assume equal variances)
+welch_result <- oneway.test(adg_kg ~ feed_type, data = feed_data)
+
+print(welch_result)
+
+cat(sprintf("\nWelch's ANOVA: F(%.2f, %.2f) = %.3f, p = %.4f\n",
+            welch_result$parameter[1], welch_result$parameter[2],
+            welch_result$statistic, welch_result$p.value))
+```
+
+### Non-Normality → Kruskal-Wallis Test {#sec-kruskal-wallis}
+
+```{r kruskal-wallis}
+# Kruskal-Wallis (non-parametric alternative to ANOVA)
+kruskal_result <- kruskal.test(adg_kg ~ feed_type, data = feed_data)
+
+print(kruskal_result)
+
+cat(sprintf("\nKruskal-Wallis: χ²(%d) = %.3f, p = %.4f\n",
+            kruskal_result$parameter,
+            kruskal_result$statistic,
+            kruskal_result$p.value))
+```
+
+**Note**: Kruskal-Wallis tests for differences in **distributions**, not just means. If significant, use Dunn's test for post-hoc comparisons.
+
+# Post-Hoc Tests: Which Groups Differ? {#sec-post-hoc}
+
+A significant ANOVA tells us "at least one group differs" but not **which pairs** of groups differ. Post-hoc tests address this.
+
+## The Multiple Comparisons Problem Returns {#sec-post-hoc-problem}
+
+If ANOVA is significant, you might be tempted to run all pairwise t-tests. But this brings back the multiple comparisons problem!
+
+**Solution**: Post-hoc tests that **adjust p-values** to control family-wise error rate.
+
+## Common Post-Hoc Methods {#sec-post-hoc-methods}
+
+| **Method** | **Use When** | **Control Level** |
+|-----------|-------------|------------------|
+| **Tukey HSD** | All pairwise comparisons | Balanced or unbalanced |
+| **Bonferroni** | Small number of comparisons | Conservative, any design |
+| **Dunnett's** | Comparing to a control group | Specific control comparison |
+| **Scheffe** | Complex contrasts | Most conservative |
+| **No adjustment** | DON'T DO THIS | Inflates Type I error |
+
+::: {.callout-tip}
+## Recommended: Tukey HSD
+
+**Tukey's Honestly Significant Difference** is the most commonly used post-hoc test. It:
+- Controls family-wise error rate at α
+- Works well with balanced and unbalanced designs
+- Tests all pairwise comparisons
+:::
+
+## Post-Hoc Tests Using `emmeans` {#sec-emmeans-package}
+
+The `emmeans` (estimated marginal means) package provides a modern, flexible framework for post-hoc tests:
+
+```{r emmeans-post-hoc}
+library(emmeans)
+
+# Step 1: Compute estimated marginal means
+feed_emm <- emmeans(feed_model, ~ feed_type)
+
+print(feed_emm)
+
+# Step 2: Pairwise comparisons with Tukey adjustment
+feed_pairs_tukey <- pairs(feed_emm, adjust = "tukey")
+
+print(feed_pairs_tukey)
+
+# Clean summary
+feed_pairs_tukey_df <- as.data.frame(feed_pairs_tukey)
+
+knitr::kable(feed_pairs_tukey_df, digits = 4, align = 'lcccc',
+             caption = "Tukey HSD Post-Hoc Comparisons")
+```
+
+**Interpretation**:
+- **estimate**: Difference in means (Feed 1 - Feed 2)
+- **SE**: Standard error of the difference
+- **t.ratio**: Test statistic
+- **p.value**: Adjusted p-value (controls FWER)
+
+Which comparisons are significant (p < 0.05)?
+
+```{r significant-pairs}
+sig_pairs <- feed_pairs_tukey_df %>%
+  filter(p.value < 0.05) %>%
+  dplyr::select(contrast, estimate, p.value)
+
+if(nrow(sig_pairs) > 0) {
+  cat("Significant pairwise differences:\n")
+  knitr::kable(sig_pairs, digits = 4,
+               caption = "Significant Pairs (Tukey-adjusted p < 0.05)")
+} else {
+  cat("No significant pairwise differences after Tukey adjustment.\n")
+}
+```
+
+## Comparing Adjustment Methods {#sec-compare-adjustments}
+
+Let's compare Tukey vs Bonferroni vs no adjustment:
+
+```{r compare-adjustments}
+# Different adjustments
+pairs_none <- pairs(feed_emm, adjust = "none")
+pairs_bonf <- pairs(feed_emm, adjust = "bonferroni")
+pairs_tukey <- pairs(feed_emm, adjust = "tukey")
+
+# Extract p-values
+comparison_df <- tibble(
+  Comparison = as.character(feed_pairs_tukey_df$contrast),
+  `No Adjust` = summary(pairs_none)$p.value,
+  Bonferroni = summary(pairs_bonf)$p.value,
+  Tukey = summary(pairs_tukey)$p.value
+)
+
+knitr::kable(comparison_df, digits = 4, align = 'lccc',
+             caption = "P-values Under Different Adjustment Methods")
+```
+
+**Observation**:
+- **No adjustment** gives smallest p-values (most "discoveries") but inflates Type I error
+- **Bonferroni** is most conservative (largest p-values)
+- **Tukey** is in between and recommended for pairwise comparisons
+
+## Visualizing Post-Hoc Results {#sec-visualize-post-hoc}
+
+### Compact Letter Display {#sec-cld}
+
+A compact letter display shows which groups differ using letters:
+
+```{r cld}
+# Compact letter display
+feed_cld <- cld(feed_emm, Letters = letters, adjust = "tukey")
+
+print(feed_cld)
+
+# Visualize with letters
+feed_cld_df <- as.data.frame(feed_cld)
+
+ggplot(feed_cld_df, aes(x = feed_type, y = emmean, fill = feed_type)) +
+  geom_col(alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL),
+                width = 0.2, linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", emmean)),
+            vjust = -2.5, fontface = "bold", size = 4) +
+  geom_text(aes(label = .group), vjust = -4.5, size = 5, fontface = "bold") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Post-Hoc Results: Tukey HSD",
+       subtitle = "Groups sharing a letter are not significantly different",
+       x = "Feed Type",
+       y = "Estimated Marginal Mean ADG (kg/day)") +
+  ylim(0, 2) +
+  theme(legend.position = "none")
+```
+
+**Reading the plot**:
+- Groups with **different letters** are significantly different
+- Groups with **same letter** are not significantly different
+
+### Pairwise Comparison Plot {#sec-pairwise-plot}
+
+```{r pairwise-plot}
+# Pairwise comparison plot
+plot(feed_pairs_tukey) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Pairwise Comparisons with 95% Confidence Intervals",
+       subtitle = "Intervals not crossing zero indicate significant differences",
+       x = "Difference in Mean ADG (kg/day)")
+```
+
+## Alternative: Using TukeyHSD() {#sec-tukeyhsd-function}
+
+For comparison, here's the traditional approach using `aov()` and `TukeyHSD()`:
+
+```{r tukeyhsd-traditional}
+# Fit with aov() (alternative to lm)
+feed_aov <- aov(adg_kg ~ feed_type, data = feed_data)
+
+# Tukey HSD
+tukey_traditional <- TukeyHSD(feed_aov)
+
+print(tukey_traditional)
+
+# Visualize
+plot(tukey_traditional, las = 1, col = "steelblue")
+```
+
+**Note**: Both approaches (`emmeans` and `TukeyHSD`) give equivalent results. We recommend `emmeans` for its flexibility and integration with `lm()`.
+
+# Effect Sizes for ANOVA {#sec-effect-sizes}
+
+Just like with t-tests, **statistical significance doesn't tell us about practical importance**. Effect sizes quantify the magnitude of group differences.
+
+## Eta-Squared (η²) {#sec-eta-squared}
+
+**Eta-squared** is the proportion of total variance explained by the grouping variable:
+
+$$\eta^2 = \frac{SS_{between}}{SS_{total}}$$
+
+```{r eta-squared}
+library(effectsize)
+
+# Calculate eta-squared
+eta_sq <- eta_squared(feed_model)
+
+print(eta_sq)
+
+cat(sprintf("\nEta-squared: %.3f (%.1f%% of variance explained)\n",
+            eta_sq$Eta2[1], eta_sq$Eta2[1] * 100))
+```
+
+## Omega-Squared (ω²) {#sec-omega-squared}
+
+**Omega-squared** is a less biased estimate of effect size (adjusts for sample size):
+
+$$\omega^2 = \frac{SS_{between} - (k-1)MS_{within}}{SS_{total} + MS_{within}}$$
+
+```{r omega-squared}
+# Calculate omega-squared
+omega_sq <- omega_squared(feed_model)
+
+print(omega_sq)
+
+cat(sprintf("\nOmega-squared: %.3f\n", omega_sq$Omega2[1]))
+```
+
+**Interpretation**: ω² is typically slightly smaller than η² and is preferred for reporting.
+
+## Effect Size Guidelines {#sec-effect-size-guidelines}
+
+**Cohen's (1988) benchmarks for η² and ω²:**
+
+| **Effect Size** | **η² / ω²** | **Interpretation** |
+|----------------|------------|-------------------|
+| Small          | 0.01       | 1% of variance explained |
+| Medium         | 0.06       | 6% of variance explained |
+| Large          | 0.14       | 14% of variance explained |
+
+```{r interpret-effect}
+omega_val <- omega_sq$Omega2[1]
+
+if(omega_val < 0.01) {
+  effect_interp <- "negligible"
+} else if(omega_val < 0.06) {
+  effect_interp <- "small"
+} else if(omega_val < 0.14) {
+  effect_interp <- "medium"
+} else {
+  effect_interp <- "large"
+}
+
+cat(sprintf("Effect size interpretation: %s\n", effect_interp))
+```
+
+::: {.callout-important}
+## Always Report Effect Sizes
+
+When reporting ANOVA results, include:
+
+1. F-statistic and p-value
+2. Effect size (η² or ω²)
+3. Descriptive statistics (means, SDs)
+4. Post-hoc results if significant
+
+**Example**: Feed type significantly affected ADG, F(3, 56) = 12.45, p < 0.001, ω² = 0.35. Post-hoc tests revealed Feed D produced significantly higher gain than all other feeds.
+:::
+
+# Practical Considerations {#sec-practical}
+
+## Unbalanced Designs {#sec-unbalanced}
+
+Unbalanced designs (unequal sample sizes across groups) are common in practice due to:
+- Attrition (animals get sick, die, removed)
+- Unequal recruitment
+- Practical constraints
+
+**Consequences**:
+- Type I, II, III SS can differ
+- Slightly reduced power
+- Post-hoc tests still work
+
+**Recommendation**: Use Type II SS with `car::Anova(model, type = "II")`
+
+## Power and Sample Size {#sec-power-sample-size}
+
+### Power Analysis for ANOVA {#sec-power-anova}
+
+Before conducting a study, calculate required sample size:
+
+```{r power-anova}
+library(pwr)
+
+# Power analysis for one-way ANOVA
+# Effect size f (Cohen's f):
+# f = 0.10 (small), 0.25 (medium), 0.40 (large)
+
+# Scenario: Want to detect medium effect (f = 0.25)
+# 4 groups, α = 0.05, power = 0.80
+
+power_result <- pwr.anova.test(
+  k = 4,              # Number of groups
+  f = 0.25,           # Effect size (medium)
+  sig.level = 0.05,   # Alpha
+  power = 0.80        # Desired power
+)
+
+print(power_result)
+
+cat(sprintf("\nRequired sample size: %.0f per group\n", ceiling(power_result$n)))
+cat(sprintf("Total sample size needed: %.0f\n", 4 * ceiling(power_result$n)))
+```
+
+**Note**: Cohen's f is related to η² by:
+
+$$f = \sqrt{\frac{\eta^2}{1 - \eta^2}}$$
+
+### Power Curves {#sec-power-curves}
+
+```{r power-curves}
+# Calculate power for different sample sizes and effect sizes
+power_data <- expand_grid(
+  n_per_group = seq(10, 50, by = 5),
+  effect_size = c(0.10, 0.25, 0.40)
+) %>%
+  mutate(
+    effect_label = case_when(
+      effect_size == 0.10 ~ "Small (f = 0.10)",
+      effect_size == 0.25 ~ "Medium (f = 0.25)",
+      effect_size == 0.40 ~ "Large (f = 0.40)"
+    ),
+    power = map2_dbl(n_per_group, effect_size, ~ {
+      pwr.anova.test(k = 4, n = .x, f = .y, sig.level = 0.05)$power
+    })
+  )
+
+ggplot(power_data, aes(x = n_per_group, y = power, color = effect_label)) +
+  geom_line(linewidth = 1.2) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "gray40") +
+  annotate("text", x = 45, y = 0.82, label = "Target: 80% power", size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "Statistical Power for One-Way ANOVA",
+       subtitle = "4 groups, α = 0.05",
+       x = "Sample Size per Group",
+       y = "Power",
+       color = "Effect Size") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  theme(legend.position = "bottom")
+```
+
+## Common Mistakes and Pitfalls {#sec-common-mistakes}
+
+### 1. Running Multiple t-Tests Instead of ANOVA {#sec-mistake-1}
+
+**Problem**: Inflates Type I error rate
+
+**Solution**: Use ANOVA first, then post-hoc tests if significant
+
+### 2. Testing Groups Within Raw Data {#sec-mistake-2}
+
+**Problem**: Normality/variance tests on each group separately
+
+**Solution**: Check assumptions on **residuals** from the model
+
+### 3. Ignoring Post-Hoc Adjustments {#sec-mistake-3}
+
+**Problem**: Using `adjust = "none"` in post-hoc tests
+
+**Solution**: Always use adjustment (Tukey, Bonferroni, etc.)
+
+### 4. Reporting Only P-values {#sec-mistake-4}
+
+**Problem**: No effect sizes or descriptive statistics
+
+**Solution**: Report means, SDs, effect sizes, and confidence intervals
+
+### 5. Treating ANOVA as Proof of Causation {#sec-mistake-5}
+
+**Problem**: Correlation vs causation confusion
+
+**Solution**: Only randomized experiments support causal claims
+
+## Reporting ANOVA Results {#sec-reporting-results}
+
+### Example Write-Up {#sec-example-writeup}
+
+> A one-way ANOVA was conducted to compare average daily gain across four feed formulations (A, B, C, D) in finishing steers (n = 15 per group). Assumptions of normality and homogeneity of variance were met (Levene's test: p = 0.68).
+>
+> Feed type significantly affected ADG, F(3, 56) = 12.45, p < 0.001, ω² = 0.35, indicating a large effect. Mean ADG was 1.45 kg/day (SD = 0.18) for Feed A, 1.55 kg/day (SD = 0.17) for Feed B, 1.50 kg/day (SD = 0.19) for Feed C, and 1.70 kg/day (SD = 0.16) for Feed D.
+>
+> Tukey HSD post-hoc tests revealed that Feed D produced significantly higher ADG than all other feeds (all p < 0.01). No significant differences were found among Feeds A, B, and C (all p > 0.20).
+
+### APA-Style Table {#sec-apa-table}
+
+```{r apa-table}
+# Create publication-ready table
+anova_table <- tibble(
+  Source = c("Feed Type", "Residual"),
+  SS = c(feed_anova$`Sum Sq`[1], feed_anova$`Sum Sq`[2]),
+  df = c(feed_anova$Df[1], feed_anova$Df[2]),
+  MS = c(SS[1]/df[1], SS[2]/df[2]),
+  F = c(feed_anova$`F value`[1], NA),
+  p = c(feed_anova$`Pr(>F)`[1], NA)
+)
+
+knitr::kable(anova_table, digits = c(0, 3, 0, 3, 2, 4),
+             col.names = c("Source", "SS", "df", "MS", "F", "p"),
+             caption = "ANOVA Table for Feed Type Effect on Average Daily Gain",
+             align = 'lccccc')
+```
+
+# Summary and Key Takeaways {#sec-summary}
+
+## What We Covered {#sec-covered}
+
+1. **Multiple comparisons problem**: Running multiple t-tests inflates Type I error rate
+2. **ANOVA logic**: Partitions variance into between-group and within-group components
+3. **F-statistic**: Ratio of between to within variance; large F suggests group differences
+4. **Linear model approach**: Using `lm()` and `car::Anova()` provides flexibility and connects to regression
+5. **Type II/III SS**: Important for unbalanced designs; use Type II for one-way ANOVA
+6. **Assumptions**: Independence, normality of residuals, homogeneity of variance
+7. **Post-hoc tests**: Tukey HSD, Bonferroni, and others for identifying specific group differences
+8. **Effect sizes**: η² and ω² quantify proportion of variance explained
+9. **Power analysis**: Plan sample sizes before data collection
+
+## Key Principles {#sec-principles}
+
+::: {.callout-important}
+## Core Principles of ANOVA
+
+1. **ANOVA controls FWER**: Single test for multiple groups maintains α = 0.05
+
+2. **Significant F means "at least one difference"**: Doesn't tell you which groups differ
+
+3. **Always use post-hoc tests**: If ANOVA is significant, conduct adjusted pairwise comparisons
+
+4. **Check residuals, not groups**: Assumptions apply to model residuals
+
+5. **Report effect sizes**: Statistical significance ≠ practical importance
+
+6. **Use modern tools**: `lm()` + `car::Anova()` + `emmeans` is the recommended workflow
+:::
+
+## ANOVA Decision Framework {#sec-decision-framework}
+
+**Step-by-step workflow:**
+
+1. **Visualize data**: Boxplots, violin plots, means with error bars
+2. **Fit model**: `model <- lm(outcome ~ group, data = df)`
+3. **Run ANOVA**: `car::Anova(model, type = "II")`
+4. **Check assumptions**: Diagnostic plots, Levene's test, Q-Q plot
+5. **If significant**: Conduct post-hoc tests with `emmeans`
+6. **Calculate effect size**: `omega_squared(model)`
+7. **Report completely**: F-statistic, p-value, effect size, means, SDs, post-hoc results
+
+## R Functions Summary {#sec-r-functions}
+
+| **Function** | **Package** | **Purpose** |
+|-------------|------------|-------------|
+| `lm()` | base | Fit linear model (ANOVA) |
+| `Anova()` | car | ANOVA table with Type II/III SS |
+| `emmeans()` | emmeans | Estimated marginal means |
+| `pairs()` | emmeans | Post-hoc pairwise comparisons |
+| `cld()` | emmeans | Compact letter display |
+| `leveneTest()` | car | Test homogeneity of variance |
+| `eta_squared()` | effectsize | Effect size (η²) |
+| `omega_squared()` | effectsize | Effect size (ω²) |
+| `pwr.anova.test()` | pwr | Power analysis |
+| `oneway.test()` | base | Welch's ANOVA |
+| `kruskal.test()` | base | Non-parametric alternative |
+
+## Connection to Regression (Preview) {#sec-regression-preview}
+
+::: {.callout-note}
+## ANOVA is Regression!
+
+One-way ANOVA is actually **linear regression** with a categorical predictor. R converts your factor into dummy variables behind the scenes.
+
+**Coming in Weeks 7-8**: We'll see how ANOVA and regression are unified under the general linear model framework. Everything you learned this week applies directly to regression!
+:::
+
+## Next Week Preview {#sec-next-week}
+
+**Week 6: Categorical Data Analysis**
+
+- Chi-square tests (goodness-of-fit, independence)
+- Fisher's exact test
+- Risk ratios and odds ratios
+- 2×2 contingency tables
+- Moving from continuous to categorical outcomes
+
+# Practice Problems {#sec-practice}
+
+## Problem 1: Beef Breed Comparison {#sec-practice-1}
+
+A rancher wants to compare weight gain across three beef breeds. Here's the data:
+
+```{r practice-1-data}
+breed_data <- tibble(
+  breed = rep(c("Angus", "Hereford", "Simmental"), each = 12),
+  weight_gain_kg = c(
+    rnorm(12, mean = 320, sd = 35),
+    rnorm(12, mean = 305, sd = 32),
+    rnorm(12, mean = 340, sd = 38)
+  )
+)
+```
+
+**Tasks:**
+
+a) Visualize the data with boxplots
+b) Fit a linear model and run ANOVA
+c) Check assumptions (diagnostic plots, Levene's test)
+d) If significant, conduct Tukey HSD post-hoc tests
+e) Calculate omega-squared effect size
+f) Write a results paragraph
+
+## Problem 2: Unbalanced Design {#sec-practice-2}
+
+You have data on milk yield from four dairy management systems, but with unequal sample sizes:
+
+- System A: n = 15
+- System B: n = 12
+- System C: n = 18
+- System D: n = 10
+
+**Tasks:**
+
+a) Explain why this is an unbalanced design
+b) Which type of sums of squares should you use?
+c) How would you handle this in your analysis?
+
+## Problem 3: Power Analysis {#sec-practice-3}
+
+You're planning a study to compare five feeding regimens. Based on pilot data, you expect a medium effect size (f = 0.25).
+
+**Tasks:**
+
+a) Calculate required sample size per group for 80% power
+b) Calculate required sample size for 90% power
+c) If you can only recruit 20 animals per group, what power will you have?
+
+```{r practice-3-solution, eval=FALSE}
+# Your code here
+library(pwr)
+
+# Part a
+pwr.anova.test(k = 5, f = 0.25, sig.level = 0.05, power = 0.80)
+
+# Part b
+pwr.anova.test(k = 5, f = 0.25, sig.level = 0.05, power = 0.90)
+
+# Part c
+pwr.anova.test(k = 5, n = 20, f = 0.25, sig.level = 0.05)
+```
+
+## Problem 4: Assumption Violations {#sec-practice-4}
+
+Your ANOVA shows:
+- Levene's test: p = 0.02 (unequal variances)
+- Shapiro-Wilk on residuals: p = 0.35 (normality OK)
+
+**Questions:**
+
+a) Which assumption is violated?
+b) What are two ways to address this?
+c) Write the R code for an alternative analysis
+
+## Problem 5: Interpretation {#sec-practice-5}
+
+You conduct ANOVA on 4 groups (n = 20 each) and get:
+- F(3, 76) = 2.15, p = 0.10
+- Omega-squared = 0.04
+
+**Questions:**
+
+a) Is the overall ANOVA significant?
+b) Should you conduct post-hoc tests? Why or why not?
+c) What is the effect size interpretation?
+d) If you had gotten p = 0.03, would post-hoc tests be guaranteed to find significant pairs?
+
+---
+
+# Additional Resources {#sec-resources}
+
+## Recommended Reading {#sec-reading}
+
+- **Maxwell & Delaney (2004)**. *Designing Experiments and Analyzing Data*. Comprehensive ANOVA coverage
+- **Gelman & Hill (2007)**. *Data Analysis Using Regression and Multilevel/Hierarchical Models*. Modern perspective
+- **Keppel & Wickens (2004)**. *Design and Analysis: A Researcher's Handbook*. Classic experimental design text
+
+## Online Resources {#sec-online}
+
+- **UCLA Statistical Consulting**: https://stats.oarc.ucla.edu/r/
+- **R Graphics Cookbook**: https://r-graphics.org/
+- **emmeans package vignette**: Excellent guide to post-hoc tests
+
+## Papers on Type I/II/III SS {#sec-papers-ss}
+
+- **Langsrud (2003)**. "ANOVA for unbalanced data: Use Type II instead of Type III sums of squares"
+- **Shaw & Mitchell-Olds (1993)**. "ANOVA for unbalanced data: An overview"
+
+---
+
+**End of Week 5 Lecture**
+
+Next week: **Categorical Data Analysis** - moving from continuous outcomes to counts and proportions!

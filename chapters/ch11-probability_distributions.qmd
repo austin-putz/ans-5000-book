@@ -1,0 +1,1367 @@
+---
+title: "Week 11: Probability Distributions and Introduction to Inference"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup, include=FALSE}
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(scales)
+library(gt)
+
+# Set theme for all plots
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20250122)
+```
+
+# Introduction: From Description to Inference {#sec-intro}
+
+In the first two weeks, we learned to **describe** data: calculating means, standard deviations, creating visualizations, and understanding distributions. But animal scientists rarely just describe their sample—we want to make **inferences** about the broader population.
+
+Imagine you're testing a new feed additive in dairy cattle. You can't test every dairy cow in the world, so you select a sample of 50 cows, randomly assign 25 to each treatment, and measure milk production. Your key questions are:
+
+1. **What is the true effect** of the additive on all dairy cows (the population)?
+2. **How confident** can we be in our sample-based estimate?
+3. **How much would our results vary** if we repeated the experiment with different cows?
+
+These are questions of **statistical inference**, and they all rely on understanding **probability distributions**.
+
+This week, we bridge the gap between descriptive and inferential statistics by exploring:
+
+- The **normal distribution** (the most important distribution in statistics)
+- The **Central Limit Theorem** (why sample means are approximately normal)
+- **Sampling distributions** (how statistics vary across samples)
+- **Standard error** (quantifying uncertainty in estimates)
+- **Confidence intervals** (giving a range of plausible values)
+
+::: {.callout-note}
+## The Big Picture
+
+Probability distributions are the foundation of statistical inference. They allow us to:
+
+1. **Model** biological variation mathematically
+2. **Quantify** uncertainty in our estimates
+3. **Make probabilistic statements** about populations based on samples
+4. **Design studies** with appropriate sample sizes
+
+Master this material, and the rest of statistics will make much more sense!
+:::
+
+---
+
+# The Normal Distribution {#sec-normal}
+
+The **normal distribution** (also called the Gaussian distribution) is the most important probability distribution in statistics. Many biological measurements approximately follow a normal distribution, and even when they don't, **averages** of measurements often do (thanks to the Central Limit Theorem).
+
+## Properties of the Normal Distribution {#sec-normal-properties}
+
+A normal distribution is characterized by:
+
+1. **Symmetric** bell-shaped curve
+2. **Defined by two parameters**:
+   - $\mu$ (mu): The population mean (center of the distribution)
+   - $\sigma$ (sigma): The population standard deviation (spread of the distribution)
+3. **Notation**: $X \sim N(\mu, \sigma^2)$ means "X follows a normal distribution with mean $\mu$ and variance $\sigma^2$"
+
+### Mathematical Formula
+
+The probability density function (PDF) of the normal distribution is:
+
+$$
+f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{1}{2}\left(\frac{x-\mu}{\sigma}\right)^2}
+$$
+
+**Don't worry about memorizing this formula!** R will do all calculations for us. What matters is understanding the properties.
+
+### Key Properties
+
+```{r normal-properties, fig.width=10, fig.height=6}
+# Generate normal distributions with different parameters
+x <- seq(-10, 20, length.out = 500)
+
+# Different means, same SD
+dist1 <- dnorm(x, mean = 0, sd = 2)
+dist2 <- dnorm(x, mean = 5, sd = 2)
+dist3 <- dnorm(x, mean = 10, sd = 2)
+
+# Same mean, different SDs
+dist4 <- dnorm(x, mean = 5, sd = 1)
+dist5 <- dnorm(x, mean = 5, sd = 2)
+dist6 <- dnorm(x, mean = 5, sd = 3)
+
+# Create data frames for plotting
+df_means <- bind_rows(
+  tibble(x = x, density = dist1, distribution = "N(0, 2²)"),
+  tibble(x = x, density = dist2, distribution = "N(5, 2²)"),
+  tibble(x = x, density = dist3, distribution = "N(10, 2²)")
+)
+
+df_sds <- bind_rows(
+  tibble(x = x, density = dist4, distribution = "N(5, 1²)"),
+  tibble(x = x, density = dist5, distribution = "N(5, 2²)"),
+  tibble(x = x, density = dist6, distribution = "N(5, 3²)")
+)
+
+p1 <- ggplot(df_means, aes(x = x, y = density, color = distribution)) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Effect of Changing Mean (μ)",
+    subtitle = "Same spread (σ = 2), different centers",
+    x = "Value",
+    y = "Density",
+    color = "Distribution"
+  ) +
+  theme(legend.position = "top")
+
+p2 <- ggplot(df_sds, aes(x = x, y = density, color = distribution)) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Effect of Changing Standard Deviation (σ)",
+    subtitle = "Same center (μ = 5), different spreads",
+    x = "Value",
+    y = "Density",
+    color = "Distribution"
+  ) +
+  theme(legend.position = "top")
+
+p1 / p2
+```
+
+::: {.callout-tip}
+## Key Insight
+
+- **Changing μ shifts** the distribution left or right
+- **Changing σ changes** the spread (wider or narrower)
+- The area under the entire curve always equals 1 (total probability = 100%)
+:::
+
+---
+
+## The Empirical Rule (68-95-99.7 Rule) {#sec-empirical-rule}
+
+For any normal distribution:
+
+- Approximately **68%** of values fall within **1 SD** of the mean ($\mu \pm 1\sigma$)
+- Approximately **95%** of values fall within **2 SD** of the mean ($\mu \pm 2\sigma$)
+- Approximately **99.7%** of values fall within **3 SD** of the mean ($\mu \pm 3\sigma$)
+
+This rule is incredibly useful for quick mental calculations!
+
+```{r empirical-rule-viz, fig.width=10, fig.height=6}
+# Create visualization of empirical rule
+mu <- 500  # Mean birth weight (kg) for beef calves
+sigma <- 40
+
+x_vals <- seq(mu - 4*sigma, mu + 4*sigma, length.out = 500)
+y_vals <- dnorm(x_vals, mean = mu, sd = sigma)
+
+# Create shaded regions
+df_norm <- tibble(x = x_vals, y = y_vals)
+
+# Base plot
+p <- ggplot(df_norm, aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "darkblue")
+
+# Add shaded regions
+p <- p +
+  # 1 SD (68%)
+  geom_area(data = df_norm %>% filter(x >= mu - sigma & x <= mu + sigma),
+            aes(x = x, y = y), fill = "darkgreen", alpha = 0.3) +
+  # 2 SD (95%)
+  geom_area(data = df_norm %>% filter(x >= mu - 2*sigma & x <= mu + 2*sigma),
+            aes(x = x, y = y), fill = "orange", alpha = 0.2) +
+  # 3 SD (99.7%)
+  geom_area(data = df_norm %>% filter(x >= mu - 3*sigma & x <= mu + 3*sigma),
+            aes(x = x, y = y), fill = "purple", alpha = 0.15)
+
+# Add vertical lines
+p <- p +
+  geom_vline(xintercept = mu, linetype = "solid", color = "red", linewidth = 1) +
+  geom_vline(xintercept = mu + c(-1, 1) * sigma, linetype = "dashed",
+             color = "darkgreen", linewidth = 0.8) +
+  geom_vline(xintercept = mu + c(-2, 2) * sigma, linetype = "dashed",
+             color = "orange", linewidth = 0.8) +
+  geom_vline(xintercept = mu + c(-3, 3) * sigma, linetype = "dashed",
+             color = "purple", linewidth = 0.8)
+
+# Add annotations
+p <- p +
+  annotate("text", x = mu, y = max(y_vals) * 1.05, label = "μ = 500",
+           color = "red", fontface = "bold", size = 5) +
+  annotate("text", x = mu, y = max(y_vals) * 0.5, label = "68%",
+           color = "darkgreen", fontface = "bold", size = 6) +
+  annotate("text", x = mu + 1.5*sigma, y = max(y_vals) * 0.3, label = "95%",
+           color = "orange", fontface = "bold", size = 5) +
+  annotate("text", x = mu + 2.5*sigma, y = max(y_vals) * 0.15, label = "99.7%",
+           color = "purple", fontface = "bold", size = 4)
+
+p + labs(
+  title = "The Empirical Rule for Normal Distributions",
+  subtitle = "Birth weights of beef calves: μ = 500 kg, σ = 40 kg",
+  x = "Birth Weight (kg)",
+  y = "Probability Density"
+)
+```
+
+### Example Application
+
+**Question**: If birth weights are normally distributed with mean 500 kg and SD 40 kg, what range contains 95% of birth weights?
+
+**Answer**: Using the empirical rule:
+
+$$
+\mu \pm 2\sigma = 500 \pm 2(40) = 500 \pm 80 = [420, 580] \text{ kg}
+$$
+
+```{r empirical-rule-example}
+# Calculate exactly
+mu <- 500
+sigma <- 40
+
+cat("Empirical Rule: 95% of birth weights fall within:\n")
+cat(sprintf("  [%.0f, %.0f] kg\n", mu - 2*sigma, mu + 2*sigma))
+cat("\nThis means:\n")
+cat(sprintf("  - About 95%% of calves weigh between %.0f and %.0f kg at birth\n",
+            mu - 2*sigma, mu + 2*sigma))
+cat(sprintf("  - Only ~2.5%% weigh less than %.0f kg\n", mu - 2*sigma))
+cat(sprintf("  - Only ~2.5%% weigh more than %.0f kg\n", mu + 2*sigma))
+```
+
+---
+
+## Working with the Normal Distribution in R {#sec-normal-r}
+
+R provides four functions for working with the normal distribution:
+
+1. **`dnorm()`**: Probability **d**ensity function (height of the curve)
+2. **`pnorm()`**: Cumulative distribution function (**p**robability below a value)
+3. **`qnorm()`**: **Q**uantile function (inverse of `pnorm()`)
+4. **`rnorm()`**: **R**andom number generation
+
+### `rnorm()`: Generate Random Normal Values
+
+```{r rnorm-example}
+# Generate 10 random values from N(100, 15²)
+set.seed(123)
+random_values <- rnorm(n = 10, mean = 100, sd = 15)
+
+cat("10 random values from N(100, 15²):\n")
+print(round(random_values, 1))
+
+# Generate 1000 values and visualize
+large_sample <- rnorm(n = 1000, mean = 100, sd = 15)
+
+ggplot(tibble(x = large_sample), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = 100, linetype = "dashed", color = "darkgreen", linewidth = 1) +
+  labs(
+    title = "1000 Random Values from N(100, 15²)",
+    subtitle = "Histogram + density overlay | Green line = mean",
+    x = "Value",
+    y = "Density"
+  )
+```
+
+### `pnorm()`: Calculate Probabilities (Area Under Curve)
+
+**Question**: What proportion of values in N(100, 15) are less than 110?
+
+```{r pnorm-example, fig.width=10, fig.height=5}
+# Calculate probability
+prob <- pnorm(q = 110, mean = 100, sd = 15)
+
+cat(sprintf("P(X ≤ 110) = %.4f (%.2f%%)\n", prob, prob * 100))
+
+# Visualize
+x <- seq(50, 150, length.out = 500)
+y <- dnorm(x, mean = 100, sd = 15)
+
+df_viz <- tibble(x = x, y = y)
+
+ggplot(df_viz, aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "darkblue") +
+  geom_area(data = df_viz %>% filter(x <= 110),
+            aes(x = x, y = y), fill = "red", alpha = 0.4) +
+  geom_vline(xintercept = 110, linetype = "dashed", color = "red", linewidth = 1) +
+  annotate("text", x = 110, y = max(y) * 0.8,
+           label = sprintf("P(X ≤ 110) = %.2f%%", prob * 100),
+           hjust = -0.1, size = 5, color = "red") +
+  labs(
+    title = "Using pnorm(): Calculate Area to the Left",
+    subtitle = "N(100, 15) distribution",
+    x = "Value",
+    y = "Density"
+  )
+```
+
+### More `pnorm()` Examples
+
+```{r pnorm-examples}
+# Example 1: P(X > 115)
+prob_above <- 1 - pnorm(115, mean = 100, sd = 15)
+# OR use lower.tail = FALSE
+prob_above2 <- pnorm(115, mean = 100, sd = 15, lower.tail = FALSE)
+
+cat("Example 1: What proportion of values are ABOVE 115?\n")
+cat(sprintf("  P(X > 115) = %.4f (%.2f%%)\n\n", prob_above, prob_above * 100))
+
+# Example 2: P(90 < X < 110)
+prob_between <- pnorm(110, mean = 100, sd = 15) - pnorm(90, mean = 100, sd = 15)
+
+cat("Example 2: What proportion fall BETWEEN 90 and 110?\n")
+cat(sprintf("  P(90 < X < 110) = %.4f (%.2f%%)\n\n", prob_between, prob_between * 100))
+
+# Example 3: Application to pig weights
+# Pig market weights: N(120, 12²) kg
+# Pigs below 100 kg get a price penalty
+
+prob_penalty <- pnorm(100, mean = 120, sd = 12)
+
+cat("Example 3: Pig market weights N(120, 12²)\n")
+cat(sprintf("  Proportion below 100 kg (penalty): %.4f (%.2f%%)\n",
+            prob_penalty, prob_penalty * 100))
+```
+
+### `qnorm()`: Find Values from Probabilities
+
+**Inverse question**: What weight cuts off the bottom 10% of pigs?
+
+```{r qnorm-example}
+# Find the 10th percentile (bottom 10%)
+cutoff_10 <- qnorm(p = 0.10, mean = 120, sd = 12)
+
+cat("Question: What weight cuts off the bottom 10% of pigs?\n")
+cat(sprintf("Answer: %.2f kg\n\n", cutoff_10))
+cat("Interpretation: 10% of pigs weigh less than this value\n")
+
+# Other useful quantiles
+q25 <- qnorm(0.25, mean = 120, sd = 12)  # Q1
+q50 <- qnorm(0.50, mean = 120, sd = 12)  # Median
+q75 <- qnorm(0.75, mean = 120, sd = 12)  # Q3
+
+cat("\nQuartiles of pig weights N(120, 12²):\n")
+cat(sprintf("  Q1 (25th percentile): %.2f kg\n", q25))
+cat(sprintf("  Q2 (50th percentile/median): %.2f kg\n", q50))
+cat(sprintf("  Q3 (75th percentile): %.2f kg\n", q75))
+```
+
+---
+
+# Z-Scores and Standardization {#sec-zscores}
+
+A **z-score** (or standard score) tells us **how many standard deviations** a value is from the mean. It's a way of standardizing values from different distributions.
+
+## The Z-Score Formula
+
+For a value $x$ from a distribution with mean $\mu$ and standard deviation $\sigma$:
+
+$$
+z = \frac{x - \mu}{\sigma}
+$$
+
+**Interpretation**:
+
+- $z = 0$: The value equals the mean
+- $z = 1$: The value is 1 SD above the mean
+- $z = -2$: The value is 2 SD below the mean
+- $z > 3$ or $z < -3$: Unusual/outlier (beyond 99.7% of values)
+
+## Example: Birth Weights in Beef Cattle
+
+```{r zscore-example}
+# Population parameters
+mu_birth <- 40  # kg
+sigma_birth <- 5
+
+# Individual calf weights
+calf_weights <- c(35, 40, 42, 48, 52, 30)
+
+# Calculate z-scores
+z_scores <- (calf_weights - mu_birth) / sigma_birth
+
+# Create summary table
+tibble(
+  `Calf ID` = 1:6,
+  `Weight (kg)` = calf_weights,
+  `Z-score` = round(z_scores, 2),
+  Interpretation = case_when(
+    z_scores < -2 ~ "Unusually light (< -2 SD)",
+    z_scores < -1 ~ "Below average",
+    z_scores < 1 ~ "Near average",
+    z_scores < 2 ~ "Above average",
+    TRUE ~ "Unusually heavy (> 2 SD)"
+  )
+) %>%
+  gt() %>%
+  tab_header(
+    title = "Birth Weights and Z-scores",
+    subtitle = sprintf("Population: μ = %.0f kg, σ = %.0f kg", mu_birth, sigma_birth)
+  ) %>%
+  data_color(
+    columns = `Z-score`,
+    colors = scales::col_numeric(
+      palette = c("red", "yellow", "lightgreen", "yellow", "red"),
+      domain = c(-3, 3)
+    )
+  )
+```
+
+## The Standard Normal Distribution {#sec-standard-normal}
+
+When we calculate z-scores, we're **standardizing** the distribution to have:
+
+- Mean = 0
+- Standard deviation = 1
+
+This is called the **standard normal distribution**, denoted $N(0, 1)$ or $Z \sim N(0, 1)$.
+
+```{r standard-normal, fig.width=10, fig.height=6}
+# Compare original and standardized distributions
+x_original <- seq(25, 55, length.out = 500)
+y_original <- dnorm(x_original, mean = 40, sd = 5)
+
+z_values <- seq(-3, 3, length.out = 500)
+y_standard <- dnorm(z_values, mean = 0, sd = 1)
+
+p_orig <- ggplot(tibble(x = x_original, y = y_original), aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "darkblue") +
+  geom_vline(xintercept = 40, linetype = "dashed", color = "red") +
+  labs(
+    title = "Original: N(40, 5²)",
+    subtitle = "Birth weights in kg",
+    x = "Weight (kg)",
+    y = "Density"
+  )
+
+p_std <- ggplot(tibble(x = z_values, y = y_standard), aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "darkgreen") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Standardized: N(0, 1)",
+    subtitle = "Z-scores (standard normal)",
+    x = "Z-score",
+    y = "Density"
+  )
+
+p_orig + p_std
+```
+
+### Why Standardize?
+
+Standardization allows us to:
+
+1. **Compare** values from different distributions (e.g., compare a pig's weight to a cow's weight)
+2. **Use standard normal tables** (historically important, less so now with computers)
+3. **Identify outliers** consistently (|z| > 2 or 3)
+4. **Calculate probabilities** easily
+
+```{r standardization-benefit}
+# Compare animals from different species
+pig_weight <- 110  # kg
+pig_mean <- 120
+pig_sd <- 12
+
+cow_weight <- 550  # kg
+cow_mean <- 600
+cow_sd <- 50
+
+# Calculate z-scores
+z_pig <- (pig_weight - pig_mean) / pig_sd
+z_cow <- (cow_weight - cow_mean) / cow_sd
+
+cat("Question: Which animal is further below average for its species?\n\n")
+cat("Pig:\n")
+cat(sprintf("  Weight: %.0f kg (population mean: %.0f kg, SD: %.0f kg)\n",
+            pig_weight, pig_mean, pig_sd))
+cat(sprintf("  Z-score: %.2f\n\n", z_pig))
+
+cat("Cow:\n")
+cat(sprintf("  Weight: %.0f kg (population mean: %.0f kg, SD: %.0f kg)\n",
+            cow_weight, cow_mean, cow_sd))
+cat(sprintf("  Z-score: %.2f\n\n", z_cow))
+
+if (abs(z_pig) > abs(z_cow)) {
+  cat("Answer: The pig is further below average (more unusual) for its species.\n")
+} else {
+  cat("Answer: The cow is further below average (more unusual) for its species.\n")
+}
+```
+
+---
+
+# The Central Limit Theorem {#sec-clt}
+
+The **Central Limit Theorem (CLT)** is one of the most important theorems in statistics. It explains why normal distributions are so prevalent and why we can use normal-based methods even when our data aren't perfectly normal.
+
+## Statement of the Central Limit Theorem
+
+::: {.callout-important}
+## Central Limit Theorem
+
+For a population with mean $\mu$ and standard deviation $\sigma$, if we:
+
+1. Take **random samples** of size $n$ from the population
+2. Calculate the **sample mean** $\bar{x}$ for each sample
+3. Repeat this process many times
+
+Then the **distribution of sample means** ($\bar{x}$) will be approximately normal with:
+
+- Mean: $\mu_{\bar{x}} = \mu$ (same as population mean)
+- Standard deviation: $\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}$ (called the **standard error**)
+
+**The amazing part**: This is true **regardless of the shape of the original population distribution**, as long as $n$ is "large enough" (typically $n \geq 30$).
+:::
+
+## Demonstrating the CLT with Simulation {#sec-clt-simulation}
+
+Let's prove the CLT works using simulation. We'll start with a decidedly **non-normal** population (uniform distribution) and show that sample means become normal.
+
+### Population: Uniform Distribution
+
+```{r clt-setup, fig.width=10, fig.height=5}
+# Population: uniformly distributed pig birth weights between 20 and 60 kg
+# This is NOT normal (flat distribution)
+set.seed(42)
+
+population_size <- 100000
+population <- runif(population_size, min = 20, max = 60)
+
+pop_mean <- mean(population)
+pop_sd <- sd(population)
+
+ggplot(tibble(weight = population), aes(x = weight)) +
+  geom_histogram(bins = 50, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_vline(xintercept = pop_mean, linetype = "dashed",
+             color = "red", linewidth = 1.2) +
+  annotate("text", x = pop_mean + 2, y = 4000,
+           label = sprintf("μ = %.1f\nσ = %.1f", pop_mean, pop_sd),
+           hjust = 0, size = 5, color = "red") +
+  labs(
+    title = "Population Distribution: Uniform (NOT Normal)",
+    subtitle = "Birth weights uniformly distributed between 20 and 60 kg",
+    x = "Weight (kg)",
+    y = "Count"
+  )
+```
+
+### Sampling Distribution for Different Sample Sizes
+
+Now let's draw many samples of different sizes and plot the distribution of sample means:
+
+```{r clt-demo, fig.width=12, fig.height=8}
+# Function to simulate sampling distribution
+simulate_sampling_dist <- function(pop, n_samples, sample_size) {
+  replicate(n_samples, mean(sample(pop, size = sample_size, replace = TRUE)))
+}
+
+# Simulate for different sample sizes
+n_samples <- 1000
+
+sample_means_n5 <- simulate_sampling_dist(population, n_samples, 5)
+sample_means_n10 <- simulate_sampling_dist(population, n_samples, 10)
+sample_means_n30 <- simulate_sampling_dist(population, n_samples, 30)
+sample_means_n100 <- simulate_sampling_dist(population, n_samples, 100)
+
+# Expected standard error
+se_n5 <- pop_sd / sqrt(5)
+se_n10 <- pop_sd / sqrt(10)
+se_n30 <- pop_sd / sqrt(30)
+se_n100 <- pop_sd / sqrt(100)
+
+# Create plots
+df_n5 <- tibble(mean = sample_means_n5, n = "n = 5")
+df_n10 <- tibble(mean = sample_means_n10, n = "n = 10")
+df_n30 <- tibble(mean = sample_means_n30, n = "n = 30")
+df_n100 <- tibble(mean = sample_means_n100, n = "n = 100")
+
+df_all <- bind_rows(df_n5, df_n10, df_n30, df_n100) %>%
+  mutate(n = factor(n, levels = c("n = 5", "n = 10", "n = 30", "n = 100")))
+
+ggplot(df_all, aes(x = mean)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "darkgreen", alpha = 0.6, color = "white") +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = pop_mean, linetype = "dashed",
+             color = "blue", linewidth = 1) +
+  facet_wrap(~n, ncol = 2, scales = "free_y") +
+  labs(
+    title = "Central Limit Theorem in Action",
+    subtitle = "Distribution of sample means for different sample sizes (1000 samples each)",
+    x = "Sample Mean Weight (kg)",
+    y = "Density"
+  ) +
+  theme(strip.text = element_text(size = 12, face = "bold"))
+```
+
+### Summary Statistics of Sampling Distributions
+
+```{r clt-summary}
+# Calculate statistics for each sampling distribution
+summary_clt <- tibble(
+  `Sample Size (n)` = c(5, 10, 30, 100),
+  `Mean of Sample Means` = c(mean(sample_means_n5), mean(sample_means_n10),
+                             mean(sample_means_n30), mean(sample_means_n100)),
+  `SD of Sample Means (observed)` = c(sd(sample_means_n5), sd(sample_means_n10),
+                                      sd(sample_means_n30), sd(sample_means_n100)),
+  `Standard Error (theoretical)` = c(se_n5, se_n10, se_n30, se_n100)
+)
+
+summary_clt %>%
+  gt() %>%
+  tab_header(
+    title = "Central Limit Theorem: Observed vs Theoretical",
+    subtitle = sprintf("Population: μ = %.2f, σ = %.2f", pop_mean, pop_sd)
+  ) %>%
+  fmt_number(columns = -`Sample Size (n)`, decimals = 3) %>%
+  tab_source_note("Standard Error (SE) = σ / √n") %>%
+  tab_source_note("Notice: Observed SD ≈ Theoretical SE") %>%
+  tab_style(
+    style = cell_fill(color = "lightyellow"),
+    locations = cells_body(columns = `Standard Error (theoretical)`)
+  )
+```
+
+::: {.callout-tip}
+## Key Observations from the CLT
+
+1. **Mean stays the same**: The mean of sample means equals the population mean (40 kg)
+2. **Spread decreases**: As $n$ increases, the spread of sample means decreases (SE = $\sigma/\sqrt{n}$)
+3. **Shape becomes normal**: Even though the population was uniform, sample means become approximately normal, especially for $n \geq 30$
+4. **Observed ≈ Theoretical**: The observed SD of sample means matches the theoretical standard error
+:::
+
+## Why the CLT Matters
+
+The Central Limit Theorem is profound because it:
+
+1. **Justifies using normal distributions** for inference, even when data aren't perfectly normal
+2. **Explains why sample means are reliable**: Larger samples → smaller standard error → more precise estimates
+3. **Underpins t-tests, ANOVA, regression**: All assume sampling distributions are approximately normal
+4. **Guides sample size decisions**: Tells us how much precision improves with larger $n$
+
+---
+
+# Sampling Distributions {#sec-sampling-distributions}
+
+A **sampling distribution** is the distribution of a statistic (like the mean, median, or standard deviation) calculated from many repeated samples of the same size from a population.
+
+## Three Types of Distributions: Don't Confuse Them!
+
+::: {.callout-warning}
+## Three Different Distributions
+
+1. **Population distribution**: Distribution of all values in the entire population
+2. **Sample distribution**: Distribution of values in **one** sample
+3. **Sampling distribution**: Distribution of a **statistic** (e.g., mean) calculated from many repeated samples
+
+**Most common confusion**: Mixing up the sample distribution with the sampling distribution!
+:::
+
+### Visual Comparison
+
+```{r three-distributions, fig.width=12, fig.height=8}
+# Population
+set.seed(999)
+population <- rnorm(100000, mean = 550, sd = 60)
+
+# One sample
+one_sample <- sample(population, size = 40)
+
+# Many sample means
+n_samples <- 1000
+sample_means <- replicate(n_samples, mean(sample(population, size = 40)))
+
+# Create plots
+p_pop <- ggplot(tibble(x = sample(population, 10000)), aes(x = x)) +
+  geom_histogram(bins = 50, fill = "purple", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = mean(population), color = "red",
+             linetype = "dashed", linewidth = 1.2) +
+  labs(
+    title = "1. Population Distribution",
+    subtitle = sprintf("All animals: μ = 550, σ = 60\n(showing 10,000 for visualization)"),
+    x = "Weight (kg)",
+    y = "Count"
+  )
+
+p_sample <- ggplot(tibble(x = one_sample), aes(x = x)) +
+  geom_histogram(bins = 15, fill = "steelblue", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = mean(one_sample), color = "red",
+             linetype = "dashed", linewidth = 1.2) +
+  labs(
+    title = "2. One Sample Distribution",
+    subtitle = sprintf("One sample: n = 40, x̄ = %.1f, s = %.1f",
+                      mean(one_sample), sd(one_sample)),
+    x = "Weight (kg)",
+    y = "Count"
+  )
+
+p_sampling <- ggplot(tibble(x = sample_means), aes(x = x)) +
+  geom_histogram(bins = 30, fill = "darkgreen", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = mean(sample_means), color = "red",
+             linetype = "dashed", linewidth = 1.2) +
+  labs(
+    title = "3. Sampling Distribution of the Mean",
+    subtitle = sprintf("1000 samples of n=40 each:\nMean of x̄'s = %.1f, SD(x̄) = %.2f",
+                      mean(sample_means), sd(sample_means)),
+    x = "Sample Mean Weight (kg)",
+    y = "Count"
+  )
+
+p_pop / p_sample / p_sampling +
+  plot_annotation(
+    title = "Three Different Distributions: Know the Difference!",
+    theme = theme(plot.title = element_text(size = 16, face = "bold"))
+  )
+```
+
+---
+
+# Standard Error vs Standard Deviation {#sec-se-vs-sd}
+
+This distinction is crucial and often confused.
+
+## Definitions
+
+::: {.callout-important}
+## Standard Deviation vs Standard Error
+
+**Standard Deviation (SD or $s$)**:
+
+- Measures **variability in the data itself**
+- Describes the spread of individual observations
+- Formula: $s = \sqrt{\frac{\sum(x_i - \bar{x})^2}{n-1}}$
+- **Does not decrease with larger sample size** (it estimates the population SD)
+
+**Standard Error (SE)**:
+
+- Measures **variability in the sample mean** (or other statistic)
+- Describes how much the sample mean varies from sample to sample
+- Formula: $SE = \frac{s}{\sqrt{n}}$ (for the mean)
+- **Decreases with larger sample size**: More data → more precise estimate
+:::
+
+## Visualizing the Difference
+
+```{r se-vs-sd, fig.width=12, fig.height=6}
+# Simulate samples of different sizes
+set.seed(123)
+pop_mean <- 600
+pop_sd <- 50
+
+# Small sample
+n_small <- 10
+sample_small <- rnorm(n_small, mean = pop_mean, sd = pop_sd)
+se_small <- sd(sample_small) / sqrt(n_small)
+
+# Large sample
+n_large <- 100
+sample_large <- rnorm(n_large, mean = pop_mean, sd = pop_sd)
+se_large <- sd(sample_large) / sqrt(n_large)
+
+# Print results
+cat("Small Sample (n = 10):\n")
+cat(sprintf("  Mean: %.2f kg\n", mean(sample_small)))
+cat(sprintf("  SD: %.2f kg (measures spread of individual weights)\n", sd(sample_small)))
+cat(sprintf("  SE: %.2f kg (measures uncertainty in the mean)\n\n", se_small))
+
+cat("Large Sample (n = 100):\n")
+cat(sprintf("  Mean: %.2f kg\n", mean(sample_large)))
+cat(sprintf("  SD: %.2f kg (similar to small sample - estimates population SD)\n", sd(sample_large)))
+cat(sprintf("  SE: %.2f kg (much smaller - mean is more precise!)\n", se_large))
+
+# Visualize
+p1 <- ggplot(tibble(x = sample_small), aes(x = x)) +
+  geom_histogram(bins = 8, fill = "steelblue", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = mean(sample_small), color = "red", linewidth = 1.2) +
+  geom_segment(aes(x = mean(sample_small) - sd(sample_small),
+                   xend = mean(sample_small) + sd(sample_small),
+                   y = 0, yend = 0),
+               color = "purple", linewidth = 2, arrow = arrow(ends = "both", length = unit(0.2, "cm"))) +
+  annotate("text", x = mean(sample_small), y = 1.5,
+           label = sprintf("SD = %.1f", sd(sample_small)),
+           color = "purple", fontface = "bold") +
+  labs(title = "Small Sample (n=10)",
+       subtitle = sprintf("Mean = %.1f, SE = %.2f", mean(sample_small), se_small),
+       x = "Weight (kg)", y = "Count")
+
+p2 <- ggplot(tibble(x = sample_large), aes(x = x)) +
+  geom_histogram(bins = 20, fill = "darkgreen", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = mean(sample_large), color = "red", linewidth = 1.2) +
+  geom_segment(aes(x = mean(sample_large) - sd(sample_large),
+                   xend = mean(sample_large) + sd(sample_large),
+                   y = 0, yend = 0),
+               color = "purple", linewidth = 2, arrow = arrow(ends = "both", length = unit(0.2, "cm"))) +
+  annotate("text", x = mean(sample_large), y = 8,
+           label = sprintf("SD = %.1f", sd(sample_large)),
+           color = "purple", fontface = "bold") +
+  labs(title = "Large Sample (n=100)",
+       subtitle = sprintf("Mean = %.1f, SE = %.2f", mean(sample_large), se_large),
+       x = "Weight (kg)", y = "Count")
+
+p1 + p2
+```
+
+## How SE Decreases with Sample Size
+
+```{r se-sample-size, fig.width=10, fig.height=6}
+# Show how SE decreases as n increases
+pop_sd <- 50
+sample_sizes <- c(5, 10, 20, 30, 50, 100, 200, 500)
+standard_errors <- pop_sd / sqrt(sample_sizes)
+
+df_se <- tibble(
+  n = sample_sizes,
+  SE = standard_errors
+)
+
+ggplot(df_se, aes(x = n, y = SE)) +
+  geom_line(linewidth = 1.2, color = "darkblue") +
+  geom_point(size = 4, color = "red") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  annotate("text", x = 250, y = pop_sd / sqrt(30),
+           label = "SE = σ / √n",
+           size = 6, color = "darkblue", fontface = "bold") +
+  labs(
+    title = "Standard Error Decreases with Sample Size",
+    subtitle = "Population SD = 50 kg",
+    x = "Sample Size (n)",
+    y = "Standard Error (kg)"
+  ) +
+  theme_minimal(base_size = 13)
+
+# Show specific values
+df_se %>%
+  gt() %>%
+  tab_header(
+    title = "Standard Error by Sample Size",
+    subtitle = "Population σ = 50 kg"
+  ) %>%
+  fmt_number(columns = SE, decimals = 2) %>%
+  cols_label(n = "Sample Size", SE = "Standard Error (kg)")
+```
+
+::: {.callout-tip}
+## When to Report SD vs SE
+
+**Report SD when**:
+
+- Describing the **variability in your sample** or population
+- Example: "Pig weights ranged from 100 to 140 kg, with mean 120 kg (SD = 12 kg)"
+
+**Report SE when**:
+
+- Describing **uncertainty in an estimate** (usually the mean)
+- Example: "Mean pig weight was 120 kg (SE = 1.7 kg)"
+- Or better yet, report a **confidence interval** (next section!)
+
+**Best practice**: Report both! E.g., "Mean = 120 kg (SD = 12, SE = 1.7, n = 50)"
+:::
+
+---
+
+# Introduction to Confidence Intervals {#sec-confidence-intervals}
+
+A **confidence interval (CI)** provides a **range of plausible values** for a population parameter (like the mean) based on sample data.
+
+## Concept and Interpretation
+
+A **95% confidence interval** for the population mean is calculated as:
+
+$$
+\bar{x} \pm 1.96 \times SE
+$$
+
+Where:
+
+- $\bar{x}$ = sample mean
+- $SE = s / \sqrt{n}$ = standard error of the mean
+- 1.96 = critical value from the standard normal distribution (for 95% confidence)
+
+### What Does "95% Confidence" Mean?
+
+::: {.callout-important}
+## Correct Interpretation
+
+"If we repeated this study many times and calculated a 95% CI each time, **about 95% of those intervals would contain the true population mean**."
+
+**NOT**: "There's a 95% probability that the true mean is in this specific interval."
+
+The true mean either is or isn't in the interval—we just don't know which. The 95% refers to the **procedure**, not a specific interval.
+:::
+
+## Calculating a Confidence Interval
+
+### Example: Beef Cattle Finishing Weights
+
+```{r ci-example}
+# Sample data: finishing weights of 35 beef cattle
+set.seed(456)
+n <- 35
+weights <- rnorm(n, mean = 580, sd = 60)
+
+# Calculate statistics
+xbar <- mean(weights)
+s <- sd(weights)
+se <- s / sqrt(n)
+
+# 95% CI using z = 1.96 (we'll use t-distribution properly in Week 4)
+ci_lower <- xbar - 1.96 * se
+ci_upper <- xbar + 1.96 * se
+
+cat("Sample Statistics:\n")
+cat(sprintf("  n = %d cattle\n", n))
+cat(sprintf("  Mean weight: %.2f kg\n", xbar))
+cat(sprintf("  SD: %.2f kg\n", s))
+cat(sprintf("  SE: %.2f kg\n\n", se))
+
+cat("95% Confidence Interval:\n")
+cat(sprintf("  [%.2f, %.2f] kg\n\n", ci_lower, ci_upper))
+
+cat("Interpretation:\n")
+cat("We are 95% confident that the true mean finishing weight\n")
+cat(sprintf("of the population is between %.1f and %.1f kg.\n", ci_lower, ci_upper))
+```
+
+## Visualizing Confidence Intervals
+
+```{r ci-visualization, fig.width=10, fig.height=6}
+# Create visualization
+ci_data <- tibble(
+  estimate = xbar,
+  ci_lower = ci_lower,
+  ci_upper = ci_upper
+)
+
+ggplot(ci_data, aes(x = 1, y = estimate)) +
+  geom_point(size = 5, color = "red") +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper),
+                width = 0.2, linewidth = 1.2, color = "blue") +
+  geom_hline(yintercept = 580, linetype = "dashed", color = "darkgreen", linewidth = 1) +
+  annotate("text", x = 1.3, y = xbar,
+           label = sprintf("x̄ = %.1f kg", xbar),
+           color = "red", size = 5, fontface = "bold") +
+  annotate("text", x = 1.3, y = ci_lower,
+           label = sprintf("Lower: %.1f", ci_lower),
+           color = "blue", size = 4) +
+  annotate("text", x = 1.3, y = ci_upper,
+           label = sprintf("Upper: %.1f", ci_upper),
+           color = "blue", size = 4) +
+  annotate("text", x = 1.3, y = 580,
+           label = "True mean = 580",
+           color = "darkgreen", size = 4, hjust = 0) +
+  labs(
+    title = "95% Confidence Interval for Mean Weight",
+    subtitle = "Blue bars show range of plausible values for population mean",
+    y = "Weight (kg)",
+    x = ""
+  ) +
+  coord_cartesian(ylim = c(550, 610)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+## What Does "95%" Mean? A Simulation
+
+Let's demonstrate what "95% confidence" actually means by simulating 100 studies:
+
+```{r ci-simulation, fig.width=10, fig.height=8}
+# Simulate 100 studies
+set.seed(789)
+n_studies <- 100
+n_per_study <- 35
+true_mean <- 580
+true_sd <- 60
+
+# Function to calculate CI for one study
+calc_ci <- function(study_id) {
+  sample_data <- rnorm(n_per_study, mean = true_mean, sd = true_sd)
+  xbar <- mean(sample_data)
+  se <- sd(sample_data) / sqrt(n_per_study)
+
+  tibble(
+    study = study_id,
+    estimate = xbar,
+    ci_lower = xbar - 1.96 * se,
+    ci_upper = xbar + 1.96 * se,
+    captures_true = ci_lower <= true_mean & ci_upper >= true_mean
+  )
+}
+
+# Run simulation
+ci_results <- map_df(1:n_studies, calc_ci)
+
+# Count how many capture the true mean
+n_captured <- sum(ci_results$captures_true)
+capture_rate <- mean(ci_results$captures_true)
+
+cat(sprintf("Out of %d studies:\n", n_studies))
+cat(sprintf("  %d CIs (%.1f%%) captured the true mean\n", n_captured, capture_rate * 100))
+cat(sprintf("  %d CIs (%.1f%%) did NOT capture the true mean\n",
+            n_studies - n_captured, (1 - capture_rate) * 100))
+cat("\nThis is very close to the expected 95%!\n")
+
+# Visualize (show first 50 for clarity)
+ggplot(ci_results %>% slice(1:50),
+       aes(x = study, y = estimate, color = captures_true)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0) +
+  geom_hline(yintercept = true_mean, linetype = "dashed",
+             color = "darkgreen", linewidth = 1.2) +
+  scale_color_manual(values = c("TRUE" = "blue", "FALSE" = "red"),
+                     labels = c("TRUE" = "Captures true mean", "FALSE" = "Misses true mean")) +
+  annotate("text", x = 45, y = true_mean + 15,
+           label = sprintf("True mean = %.0f kg", true_mean),
+           color = "darkgreen", fontface = "bold", size = 4) +
+  labs(
+    title = "95% Confidence Intervals from 50 Simulated Studies",
+    subtitle = sprintf("Red intervals (%.0f%%) miss the true mean - this is expected!",
+                      (1 - capture_rate) * 100),
+    x = "Study Number",
+    y = "Mean Weight (kg)",
+    color = ""
+  ) +
+  theme(legend.position = "top")
+```
+
+## Factors Affecting CI Width
+
+Three factors determine how wide a confidence interval is:
+
+1. **Sample size ($n$)**: Larger $n$ → narrower CI (more precision)
+2. **Variability ($\sigma$)**: More variable data → wider CI (less precision)
+3. **Confidence level**: Higher confidence (e.g., 99% vs 95%) → wider CI (trade precision for confidence)
+
+```{r ci-width-factors, fig.width=12, fig.height=6}
+# Demonstrate effect of sample size
+true_mean <- 120
+true_sd <- 15
+sample_sizes <- c(10, 30, 50, 100, 200)
+
+ci_by_n <- map_df(sample_sizes, function(n) {
+  set.seed(123)
+  sample_data <- rnorm(n, mean = true_mean, sd = true_sd)
+  xbar <- mean(sample_data)
+  se <- sd(sample_data) / sqrt(n)
+
+  tibble(
+    n = n,
+    estimate = xbar,
+    ci_lower = xbar - 1.96 * se,
+    ci_upper = xbar + 1.96 * se,
+    width = ci_upper - ci_lower
+  )
+})
+
+# Plot
+ggplot(ci_by_n, aes(x = factor(n), y = estimate)) +
+  geom_point(size = 4, color = "red") +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper),
+                width = 0.2, linewidth = 1.2, color = "blue") +
+  geom_hline(yintercept = true_mean, linetype = "dashed",
+             color = "darkgreen", linewidth = 1) +
+  geom_text(aes(label = sprintf("Width: %.1f", width)),
+            vjust = -1, size = 3.5) +
+  labs(
+    title = "Effect of Sample Size on Confidence Interval Width",
+    subtitle = "Larger samples → narrower CIs → more precise estimates",
+    x = "Sample Size (n)",
+    y = "Weight (kg)"
+  )
+```
+
+---
+
+# Comprehensive Example: Dairy Milk Production {#sec-comprehensive-example}
+
+Let's apply everything we've learned to a realistic animal science scenario.
+
+## Scenario
+
+A dairy researcher wants to estimate the average daily milk production of a new Holstein strain. She samples 40 cows and records their daily production.
+
+```{r dairy-example-data}
+# Generate realistic data
+set.seed(2025)
+n_cows <- 40
+milk_production <- rnorm(n_cows, mean = 35, sd = 6)  # liters per day
+
+# Calculate summary statistics
+xbar <- mean(milk_production)
+s <- sd(milk_production)
+se <- s / sqrt(n_cows)
+
+# Show first 10 observations
+head(milk_production, 10) %>%
+  round(1) %>%
+  matrix(nrow = 2, byrow = TRUE) %>%
+  as_tibble(.name_repair = "minimal") %>%
+  setNames(paste("Cow", 1:5)) %>%
+  mutate(Row = c("1-5", "6-10"), .before = 1) %>%
+  gt() %>%
+  tab_header(title = "Daily Milk Production (liters)",
+             subtitle = "First 10 cows (n = 40 total)")
+```
+
+## Step 1: Descriptive Statistics
+
+```{r dairy-descriptive}
+# Comprehensive summary
+summary_stats <- tibble(
+  Statistic = c("Sample size", "Mean", "Standard Deviation", "Standard Error",
+                "Minimum", "Q1", "Median", "Q3", "Maximum", "Range"),
+  Value = c(n_cows, xbar, s, se, min(milk_production),
+            quantile(milk_production, 0.25), median(milk_production),
+            quantile(milk_production, 0.75), max(milk_production),
+            max(milk_production) - min(milk_production))
+)
+
+summary_stats %>%
+  gt() %>%
+  tab_header(title = "Summary Statistics: Daily Milk Production") %>%
+  fmt_number(columns = Value, rows = 2:10, decimals = 2) %>%
+  fmt_number(columns = Value, rows = 1, decimals = 0) %>%
+  tab_source_note("All values in liters per day (except n)")
+```
+
+## Step 2: Visualize the Data
+
+```{r dairy-viz, fig.width=12, fig.height=5}
+p1 <- ggplot(tibble(production = milk_production), aes(x = production)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 12,
+                 fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = xbar, linetype = "dashed",
+             color = "darkgreen", linewidth = 1.2) +
+  annotate("text", x = xbar + 1, y = 0.06,
+           label = sprintf("Mean = %.1f L", xbar),
+           color = "darkgreen", hjust = 0, size = 4) +
+  labs(title = "Distribution of Daily Milk Production",
+       x = "Liters per Day", y = "Density")
+
+p2 <- ggplot(tibble(production = milk_production), aes(x = "", y = production)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.6, outlier.color = "red", outlier.size = 3) +
+  geom_jitter(width = 0.1, alpha = 0.5, size = 2, color = "darkblue") +
+  stat_summary(fun = mean, geom = "point", shape = 23,
+               size = 4, fill = "red", color = "black") +
+  labs(title = "Boxplot with Individual Points",
+       y = "Liters per Day", x = "") +
+  theme(axis.text.x = element_blank())
+
+p1 + p2
+```
+
+## Step 3: Check Normality (for inference)
+
+```{r dairy-normality, fig.width=10, fig.height=5}
+# Q-Q plot to assess normality
+qqnorm(milk_production, main = "Q-Q Plot: Assessing Normality",
+       pch = 19, col = "steelblue", cex = 1.5)
+qqline(milk_production, col = "red", lwd = 2)
+
+cat("\nAssessment: Points fall approximately along the line,\n")
+cat("suggesting the data are reasonably normal.\n")
+cat("This supports using normal-based inference methods.\n")
+```
+
+## Step 4: Calculate Confidence Interval
+
+```{r dairy-ci}
+# 95% Confidence Interval
+ci_lower <- xbar - 1.96 * se
+ci_upper <- xbar + 1.96 * se
+
+cat("95% Confidence Interval for Mean Daily Production:\n")
+cat(sprintf("  [%.2f, %.2f] liters per day\n\n", ci_lower, ci_upper))
+
+cat("Interpretation:\n")
+cat("We are 95% confident that the true mean daily milk production\n")
+cat(sprintf("for this Holstein strain is between %.1f and %.1f liters.\n\n", ci_lower, ci_upper))
+
+cat("In practical terms:\n")
+cat(sprintf("  Best estimate (mean): %.1f liters/day\n", xbar))
+cat(sprintf("  Margin of error: ±%.1f liters (1.96 × SE)\n", 1.96 * se))
+cat(sprintf("  Variability among cows (SD): %.1f liters\n", s))
+```
+
+## Step 5: Standardize Observations (Z-scores)
+
+```{r dairy-zscores}
+# Calculate z-scores
+z_scores <- (milk_production - xbar) / s
+
+# Identify unusual observations
+unusual <- abs(z_scores) > 2
+
+# Create table of extreme cows
+extreme_cows <- tibble(
+  Cow_ID = which(unusual),
+  Production = milk_production[unusual],
+  Z_score = z_scores[unusual],
+  Classification = ifelse(z_scores[unusual] > 0, "High producer", "Low producer")
+) %>%
+  arrange(desc(abs(Z_score)))
+
+if (nrow(extreme_cows) > 0) {
+  cat("Cows with unusual production (|z| > 2):\n")
+  extreme_cows %>%
+    gt() %>%
+    fmt_number(columns = c(Production, Z_score), decimals = 2) %>%
+    tab_header(title = "Outlier Analysis") %>%
+    data_color(
+      columns = Z_score,
+      colors = scales::col_numeric(
+        palette = c("blue", "white", "red"),
+        domain = c(-3, 3)
+      )
+    )
+} else {
+  cat("No cows with unusual production (all |z| < 2)\n")
+}
+```
+
+---
+
+# Summary and Key Takeaways {#sec-summary}
+
+Congratulations! This week we've built the bridge from descriptive to inferential statistics.
+
+::: {.callout-tip icon=false}
+## Main Concepts Covered
+
+### 1. The Normal Distribution
+
+- Bell-shaped, symmetric, defined by $\mu$ and $\sigma$
+- Empirical rule: 68-95-99.7% within 1, 2, 3 SD
+- R functions: `dnorm()`, `pnorm()`, `qnorm()`, `rnorm()`
+- Many biological traits are approximately normal
+
+### 2. Z-Scores and Standardization
+
+- $z = (x - \mu) / \sigma$ measures distance from mean in SD units
+- Allows comparison across different distributions
+- Standard normal: $N(0, 1)$
+- Useful for identifying outliers (|z| > 2 or 3)
+
+### 3. The Central Limit Theorem
+
+- Sample means are approximately normal, regardless of population distribution
+- Mean of $\bar{x}$: $\mu$
+- SD of $\bar{x}$ (standard error): $\sigma / \sqrt{n}$
+- Larger samples → better approximation
+- Foundation for most inferential procedures
+
+### 4. Sampling Distributions
+
+- Distribution of a statistic across many samples
+- Different from population distribution and sample distribution
+- Describes how much estimates vary due to sampling
+
+### 5. Standard Error vs Standard Deviation
+
+- **SD**: Variability in the data ($s$)
+- **SE**: Uncertainty in the estimate ($s / \sqrt{n}$)
+- SE decreases with larger $n$; SD does not
+
+### 6. Confidence Intervals
+
+- Range of plausible values for population parameter
+- 95% CI: $\bar{x} \pm 1.96 \times SE$
+- Interpretation: "95% of such intervals would capture the true mean"
+- Wider CI = more uncertainty; narrower CI = more precision
+:::
+
+---
+
+## Looking Ahead
+
+Next week, we'll use these foundational concepts to perform **hypothesis testing**:
+
+- Null and alternative hypotheses
+- Type I and Type II errors
+- One-sample and two-sample t-tests
+- P-values in the context of sampling distributions
+- Making decisions with confidence
+
+With your understanding of sampling distributions and confidence intervals, hypothesis testing will make much more sense!
+
+---
+
+## Reflection Questions
+
+Before next week, consider:
+
+1. Find a paper in your field. Do the authors report confidence intervals? If so, how do they interpret them?
+
+2. Think about a measurement you collect (e.g., animal weights, feed intake, milk yield). What would you estimate the population mean and SD to be? How large a sample would you need for SE < 5% of the mean?
+
+3. Simulate your own CLT demonstration: Start with a non-normal distribution (e.g., exponential or uniform) and verify that sample means become normal.
+
+---
+
+## Additional Resources
+
+### R Packages
+
+- **`distributional`**: Modern tools for working with probability distributions
+- **`ggdist`**: Visualizing distributions and uncertainty
+- **`infer`**: Tidy framework for statistical inference
+
+### Recommended Reading
+
+- **"OpenIntro Statistics"** (free online) - Chapters 3-4 on probability and distributions
+- **"The Lady Tasting Tea"** by David Salsburg - History of the CLT and its importance
+- **"Seeing Theory"**: Interactive visualizations of probability and statistics (https://seeing-theory.brown.edu/)
+
+### Videos
+
+- **StatQuest**: "Normal Distribution, Clearly Explained" and "Central Limit Theorem"
+- **3Blue1Brown**: "But what is the Central Limit Theorem?" (YouTube)
+
+---
+
+## Practice Problems
+
+Try these on your own:
+
+1. **Cattle weights** are N(650, 80²) kg. What proportion weigh:
+   - Less than 600 kg?
+   - Between 640 and 700 kg?
+   - More than 750 kg?
+
+2. **Sample means**: If you take samples of n=25 from the population in #1, what are the mean and SE of the sampling distribution?
+
+3. **Confidence intervals**: A sample of 50 pigs has mean weight 110 kg and SD 14 kg. Calculate and interpret a 95% CI for the population mean.
+
+4. **Z-scores**: A pig weighs 125 kg. The population mean is 115 kg with SD 10 kg. Calculate the z-score and determine if this pig is unusual.
+
+---
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+
+*End of Week 3: Probability Distributions and Introduction to Inference*

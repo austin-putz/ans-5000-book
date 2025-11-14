@@ -1,0 +1,2049 @@
+---
+title: "Week 16: Multiple Regression & Course Integration"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(car)        # For VIF and diagnostic tests
+library(MASS)       # For model selection
+library(GGally)     # For pair plots
+library(effects)    # For effect plots
+
+# Set plot theme
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20251112)
+```
+
+# Introduction {#sec-intro}
+
+Imagine you're an animal nutritionist tasked with optimizing milk production in a dairy herd. You know that **feed intake** affects milk yield, but you also suspect that **days in milk**, **parity** (lactation number), and **breed** all play important roles. How can you account for all these factors simultaneously? How do you interpret the effect of feed when controlling for the other variables?
+
+This is where **multiple regression** becomes essential. While simple linear regression (Week 7) allowed us to examine the relationship between one predictor and an outcome, real-world phenomena rarely depend on a single variable. Multiple regression extends our toolkit to model complex relationships with multiple predictors.
+
+**Key Questions We'll Address:**
+
+1. How do we build and interpret regression models with multiple predictors?
+2. How do categorical variables (like breed or treatment) work in regression models?
+3. How do we compare competing models and select the "best" one?
+4. What are the pitfalls of automated variable selection?
+5. **How do we choose the right statistical test for any research question?**
+6. What's next in our statistical learning journey?
+
+This final week serves dual purposes: introducing multiple regression as a powerful analytical tool, and synthesizing everything we've learned to help you navigate the full statistical toolkit we've developed together.
+
+::: {.callout-note}
+## Building on Previous Weeks
+
+- **Week 7**: We learned simple linear regression with one predictor. Multiple regression extends this to several predictors simultaneously.
+- **Week 5**: ANOVA compared means across groups. Multiple regression with categorical predictors accomplishes the same thing while allowing us to add covariates.
+- **Week 4**: We learned about statistical inference and hypothesis testing—these principles apply to each coefficient in our regression models.
+- **Week 2-3**: Exploratory data analysis and understanding distributions remain critical first steps before any modeling.
+:::
+
+---
+
+# From Simple to Multiple Regression {#sec-simple-to-multiple}
+
+## Why One Predictor Isn't Enough
+
+Let's start with a scenario that demonstrates why we need multiple regression. Consider a study of pig growth where we measure weight gain and feed intake:
+
+```{r}
+#| label: simple-example
+
+# Simulate pig growth data with a confounding variable
+n <- 50
+pig_data <- tibble(
+  pig_id = 1:n,
+  initial_weight = rnorm(n, mean = 20, sd = 3),  # Starting weight in kg
+  feed_intake = 1.5 + 0.08 * initial_weight + rnorm(n, sd = 0.2),  # kg/day
+  # Weight gain depends on BOTH feed and initial weight
+  weight_gain = 0.5 * feed_intake + 0.15 * initial_weight + rnorm(n, sd = 0.3)
+)
+
+head(pig_data)
+```
+
+If we only look at the relationship between feed intake and weight gain (ignoring initial weight), we get:
+
+```{r}
+#| label: simple-vs-multiple
+#| fig-width: 10
+#| fig-height: 4
+
+# Simple regression (wrong - omitted variable bias)
+simple_model <- lm(weight_gain ~ feed_intake, data = pig_data)
+
+# Multiple regression (correct)
+multiple_model <- lm(weight_gain ~ feed_intake + initial_weight, data = pig_data)
+
+# Visualize the difference
+p1 <- ggplot(pig_data, aes(x = feed_intake, y = weight_gain)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(title = "Simple Regression",
+       subtitle = sprintf("β̂₁ = %.3f (biased!)", coef(simple_model)[2]),
+       x = "Feed Intake (kg/day)",
+       y = "Weight Gain (kg/day)") +
+  theme_minimal()
+
+p2 <- ggplot(pig_data, aes(x = feed_intake, y = weight_gain, color = initial_weight)) +
+  geom_point(alpha = 0.6) +
+  scale_color_viridis_c() +
+  labs(title = "Accounting for Initial Weight",
+       subtitle = "Color shows confounding by initial weight",
+       x = "Feed Intake (kg/day)",
+       y = "Weight Gain (kg/day)",
+       color = "Initial\nWeight (kg)") +
+  theme_minimal()
+
+p1 + p2
+```
+
+**Key Insight:** The simple regression coefficient for feed intake is **biased** because initial weight affects both feed intake (heavier pigs eat more) and weight gain (heavier pigs grow faster). This is **omitted variable bias** or confounding.
+
+Let's compare the models:
+
+```{r}
+#| label: compare-simple-multiple
+
+# Compare coefficients
+simple_coef <- coef(simple_model)[2]
+multiple_coef <- coef(multiple_model)[2]
+
+cat("Simple regression: β̂_feed =", sprintf("%.3f", simple_coef), "\n")
+cat("Multiple regression: β̂_feed =", sprintf("%.3f", multiple_coef), "\n")
+cat("True effect of feed:", 0.5, "\n")
+```
+
+The multiple regression estimate is much closer to the true effect (0.5) because it **controls for** initial weight.
+
+::: {.callout-important}
+## The Core Idea of Multiple Regression
+
+Multiple regression allows us to estimate the effect of each predictor **while holding all other predictors constant**. This helps us:
+
+1. **Control for confounding variables**
+2. **Isolate individual effects** from a system of interrelated variables
+3. **Make better predictions** by using all available information
+4. **Answer more nuanced research questions**
+:::
+
+## The Multiple Regression Model
+
+The mathematical form extends simple regression:
+
+**Simple Linear Regression:**
+$$y = \beta_0 + \beta_1 x_1 + \epsilon$$
+
+**Multiple Linear Regression:**
+$$y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \cdots + \beta_p x_p + \epsilon$$
+
+Where:
+
+- $y$ = outcome variable (response)
+- $x_1, x_2, \ldots, x_p$ = predictor variables
+- $\beta_0$ = intercept (expected value of $y$ when all predictors = 0)
+- $\beta_1, \beta_2, \ldots, \beta_p$ = **partial regression coefficients**
+- $\epsilon$ = random error term
+
+**Interpretation of $\beta_j$**: The expected change in $y$ for a one-unit increase in $x_j$, **holding all other predictors constant**.
+
+## Geometric Interpretation
+
+In simple regression, we fit a **line** through a 2D scatterplot. In multiple regression with two predictors, we fit a **plane** through a 3D point cloud. With more predictors, we fit a **hyperplane** in higher dimensions (which we can't visualize, but the math works the same way).
+
+```{r}
+#| label: 3d-visualization
+#| eval: false
+#| echo: true
+
+# Note: This requires the plotly package for interactive 3D plots
+# Not run here, but you can try it!
+library(plotly)
+
+plot_ly(pig_data,
+        x = ~feed_intake,
+        y = ~initial_weight,
+        z = ~weight_gain,
+        type = "scatter3d",
+        mode = "markers") %>%
+  layout(scene = list(
+    xaxis = list(title = "Feed Intake"),
+    yaxis = list(title = "Initial Weight"),
+    zaxis = list(title = "Weight Gain")
+  ))
+```
+
+---
+
+# Interpreting Multiple Predictors {#sec-interpretation}
+
+## The "Holding Other Variables Constant" Concept
+
+This is the most important—and most commonly misunderstood—aspect of multiple regression.
+
+Let's use our pig example:
+
+```{r}
+#| label: interpretation-example
+
+# Fit the model
+model <- lm(weight_gain ~ feed_intake + initial_weight, data = pig_data)
+summary(model)
+```
+
+**Interpretation of Coefficients:**
+
+```{r}
+#| label: interpret-coefs
+
+coefs <- coef(model)
+cat("Intercept (β₀):", sprintf("%.3f", coefs[1]), "\n")
+cat("  → Expected weight gain when feed intake = 0 AND initial weight = 0\n")
+cat("  → Often not meaningful (extrapolation)\n\n")
+
+cat("Feed Intake (β₁):", sprintf("%.3f", coefs[2]), "\n")
+cat("  → For every 1 kg/day increase in feed intake,\n")
+cat("  → weight gain increases by", sprintf("%.3f", coefs[2]), "kg/day,\n")
+cat("  → HOLDING initial weight constant\n\n")
+
+cat("Initial Weight (β₂):", sprintf("%.3f", coefs[3]), "\n")
+cat("  → For every 1 kg increase in initial weight,\n")
+cat("  → weight gain increases by", sprintf("%.3f", coefs[3]), "kg/day,\n")
+cat("  → HOLDING feed intake constant\n")
+```
+
+::: {.callout-tip}
+## Practical Interpretation Strategy
+
+When interpreting $\beta_j$:
+
+1. State the magnitude and direction of the effect
+2. Include units for both predictor and outcome
+3. Explicitly mention "holding other variables constant" (at least initially)
+4. Assess practical significance, not just statistical significance
+5. Consider whether the relationship is causal or associational
+:::
+
+## Simpson's Paradox: When Direction Reverses
+
+One striking phenomenon in multiple regression is **Simpson's Paradox**: the relationship between $x$ and $y$ can reverse direction when we control for another variable.
+
+```{r}
+#| label: simpsons-paradox
+#| fig-width: 10
+#| fig-height: 4
+
+# Create data showing Simpson's Paradox
+farm_data <- tibble(
+  farm = rep(c("A", "B", "C"), each = 20),
+  farm_quality = rep(c(5, 10, 15), each = 20),  # Confounding variable
+  management_score = farm_quality + rnorm(60, sd = 1),
+  # Within each farm, MORE management REDUCES costs (efficiency)
+  # But better farms have HIGHER management and HIGHER costs (they spend more overall)
+  cost_per_animal = farm_quality * 2 + (-0.5) * (management_score - farm_quality) + rnorm(60, sd = 1)
+)
+
+p1 <- ggplot(farm_data, aes(x = management_score, y = cost_per_animal)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "red") +
+  labs(title = "Ignoring Farm (Wrong!)",
+       subtitle = "Appears that better management → higher costs",
+       x = "Management Score",
+       y = "Cost per Animal ($)") +
+  theme_minimal()
+
+p2 <- ggplot(farm_data, aes(x = management_score, y = cost_per_animal, color = farm)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Accounting for Farm (Correct)",
+       subtitle = "Actually, better management → lower costs (within farms)",
+       x = "Management Score",
+       y = "Cost per Animal ($)",
+       color = "Farm") +
+  theme_minimal()
+
+p1 + p2
+```
+
+```{r}
+#| label: simpsons-models
+
+# Simple regression (misleading)
+simple_mod <- lm(cost_per_animal ~ management_score, data = farm_data)
+
+# Multiple regression (correct)
+multiple_mod <- lm(cost_per_animal ~ management_score + farm_quality, data = farm_data)
+
+cat("Simple regression: β̂_management =", sprintf("%.3f", coef(simple_mod)[2]),
+    "(WRONG - positive!)\n")
+cat("Multiple regression: β̂_management =", sprintf("%.3f", coef(multiple_mod)[2]),
+    "(CORRECT - negative)\n")
+```
+
+**Lesson:** Always consider potential confounding variables. The crude (unadjusted) relationship can be very different from the adjusted relationship.
+
+---
+
+# Categorical Predictors & Dummy Variables {#sec-categorical}
+
+So far we've used continuous predictors (feed intake, weight, etc.). But what about categorical variables like breed, treatment group, or sex?
+
+## How R Handles Factors
+
+R automatically converts factor variables into **dummy variables** (also called indicator variables). A factor with $k$ levels is encoded as $k-1$ dummy variables.
+
+```{r}
+#| label: dummy-variables
+
+# Create data with a categorical predictor
+broiler_data <- tibble(
+  bird_id = 1:90,
+  breed = rep(c("Ross", "Cobb", "Hubbard"), each = 30),
+  feed_intake = rnorm(90, mean = 0.12, sd = 0.02),  # kg/day
+  # Different breeds have different baseline growth rates
+  weight_gain = case_when(
+    breed == "Ross" ~ 0.055,
+    breed == "Cobb" ~ 0.062,
+    breed == "Hubbard" ~ 0.058
+  ) + 0.15 * feed_intake + rnorm(90, sd = 0.008)
+)
+
+# Fit model with categorical predictor
+model_breed <- lm(weight_gain ~ breed + feed_intake, data = broiler_data)
+summary(model_breed)
+```
+
+**Understanding the Output:**
+
+```{r}
+#| label: dummy-interpretation
+
+cat("R created dummy variables:\n")
+cat("  • breedCobb: 1 if Cobb, 0 otherwise\n")
+cat("  • breedHubbard: 1 if Hubbard, 0 otherwise\n")
+cat("  • Ross is the REFERENCE LEVEL (baseline)\n\n")
+
+coefs_breed <- coef(model_breed)
+
+cat("Intercept:", sprintf("%.4f", coefs_breed[1]), "\n")
+cat("  → Expected weight gain for Ross breed when feed intake = 0\n\n")
+
+cat("breedCobb:", sprintf("%.4f", coefs_breed[2]), "\n")
+cat("  → Cobb birds gain", sprintf("%.4f", coefs_breed[2]), "kg/day MORE than Ross\n")
+cat("  → (holding feed intake constant)\n\n")
+
+cat("breedHubbard:", sprintf("%.4f", coefs_breed[3]), "\n")
+cat("  → Hubbard birds gain", sprintf("%.4f", coefs_breed[3]), "kg/day MORE than Ross\n")
+cat("  → (holding feed intake constant)\n\n")
+
+cat("feed_intake:", sprintf("%.4f", coefs_breed[4]), "\n")
+cat("  → Effect of feed is the SAME for all breeds (no interaction)\n")
+```
+
+## Changing the Reference Level
+
+Sometimes you want a different baseline for comparison:
+
+```{r}
+#| label: change-reference
+
+# Change reference level to Cobb
+broiler_data <- broiler_data %>%
+  mutate(breed = relevel(factor(breed), ref = "Cobb"))
+
+model_breed2 <- lm(weight_gain ~ breed + feed_intake, data = broiler_data)
+coef(model_breed2)
+
+# Now coefficients compare Ross and Hubbard to Cobb (the new reference)
+```
+
+::: {.callout-tip}
+## Choosing a Reference Level
+
+Select a reference level that makes interpretation easiest:
+
+- **Control group** (if you have one)
+- **Most common category**
+- **Theoretically meaningful baseline**
+
+The choice doesn't affect the model fit or predictions, only interpretation of coefficients.
+:::
+
+## Visualizing Categorical Predictors
+
+```{r}
+#| label: visualize-categorical
+#| fig-width: 10
+#| fig-height: 4
+
+# Reset to Ross as reference
+broiler_data <- broiler_data %>%
+  mutate(breed = relevel(factor(breed), ref = "Ross"))
+
+# Refit model
+model_breed <- lm(weight_gain ~ breed + feed_intake, data = broiler_data)
+
+# Create predictions for each breed
+pred_data <- expand_grid(
+  breed = c("Ross", "Cobb", "Hubbard"),
+  feed_intake = seq(min(broiler_data$feed_intake),
+                    max(broiler_data$feed_intake),
+                    length.out = 50)
+) %>%
+  mutate(breed = factor(breed, levels = c("Ross", "Cobb", "Hubbard")))
+
+pred_data$predicted <- predict(model_breed, newdata = pred_data)
+
+p1 <- ggplot(broiler_data, aes(x = breed, y = weight_gain, fill = breed)) +
+  geom_boxplot(alpha = 0.6) +
+  geom_jitter(width = 0.2, alpha = 0.4) +
+  labs(title = "Weight Gain by Breed",
+       x = "Breed",
+       y = "Weight Gain (kg/day)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p2 <- ggplot(broiler_data, aes(x = feed_intake, y = weight_gain, color = breed)) +
+  geom_point(alpha = 0.6) +
+  geom_line(data = pred_data, aes(y = predicted), size = 1) +
+  labs(title = "Parallel Slopes (No Interaction)",
+       subtitle = "Same effect of feed for all breeds",
+       x = "Feed Intake (kg/day)",
+       y = "Weight Gain (kg/day)",
+       color = "Breed") +
+  theme_minimal()
+
+p1 + p2
+```
+
+**Notice:** The lines are **parallel** because we didn't include an interaction term. The effect of feed intake is assumed to be the same for all breeds. We'll discuss interactions briefly later.
+
+## ANOVA with Covariates (ANCOVA)
+
+Multiple regression with categorical predictors is essentially **ANOVA with covariates** (ANCOVA). This allows us to:
+
+- Compare group means (like ANOVA)
+- Control for continuous confounders (like regression)
+
+```{r}
+#| label: ancova-example
+
+# Compare to one-way ANOVA (without controlling for feed)
+anova_only <- aov(weight_gain ~ breed, data = broiler_data)
+
+# ANCOVA (controlling for feed)
+ancova <- aov(weight_gain ~ breed + feed_intake, data = broiler_data)
+
+cat("One-way ANOVA (ignoring feed intake):\n")
+summary(anova_only)
+
+cat("\nANCOVA (controlling for feed intake):\n")
+summary(ancova)
+```
+
+Controlling for feed intake can increase power by reducing residual variance.
+
+---
+
+# Model Fit & Comparison {#sec-model-comparison}
+
+With multiple predictors, we need ways to evaluate and compare models. Should we include all available predictors? Which model is "best"?
+
+## $R^2$ vs Adjusted $R^2$
+
+Recall from Week 7:
+
+- **$R^2$** = proportion of variance in $y$ explained by the model
+- Ranges from 0 to 1; higher is "better"
+
+**Problem:** $R^2$ always increases (or stays the same) when you add predictors, even if they're useless!
+
+```{r}
+#| label: r-squared-always-increases
+
+# Demonstrate R² inflation
+set.seed(2024)
+junk_data <- broiler_data %>%
+  mutate(
+    random1 = rnorm(n()),
+    random2 = rnorm(n()),
+    random3 = rnorm(n())
+  )
+
+m1 <- lm(weight_gain ~ feed_intake, data = junk_data)
+m2 <- lm(weight_gain ~ feed_intake + random1, data = junk_data)
+m3 <- lm(weight_gain ~ feed_intake + random1 + random2, data = junk_data)
+m4 <- lm(weight_gain ~ feed_intake + random1 + random2 + random3, data = junk_data)
+
+tibble(
+  Model = c("feed_intake only", "+ random1", "+ random2", "+ random3"),
+  Predictors = 1:4,
+  R_squared = c(summary(m1)$r.squared,
+                summary(m2)$r.squared,
+                summary(m3)$r.squared,
+                summary(m4)$r.squared),
+  Adj_R_squared = c(summary(m1)$adj.r.squared,
+                    summary(m2)$adj.r.squared,
+                    summary(m3)$adj.r.squared,
+                    summary(m4)$adj.r.squared)
+) %>%
+  knitr::kable(digits = 4, caption = "R² always increases, Adjusted R² can decrease")
+```
+
+**Adjusted $R^2$** penalizes model complexity:
+
+$$\text{Adjusted } R^2 = 1 - \frac{(1-R^2)(n-1)}{n-p-1}$$
+
+Where $n$ = sample size, $p$ = number of predictors.
+
+::: {.callout-important}
+## When to Use Adjusted R²
+
+- **Use adjusted $R^2$** when comparing models with different numbers of predictors
+- Adjusted $R^2$ can decrease if you add unhelpful predictors
+- Still not perfect (doesn't account for model complexity very strongly)
+- Better alternatives: AIC, BIC
+:::
+
+## AIC and BIC
+
+**AIC** (Akaike Information Criterion) and **BIC** (Bayesian Information Criterion) are more sophisticated measures of model quality that balance fit and complexity.
+
+$$\text{AIC} = -2 \log(L) + 2p$$
+$$\text{BIC} = -2 \log(L) + p \log(n)$$
+
+Where:
+
+- $L$ = likelihood (measure of model fit)
+- $p$ = number of parameters
+- $n$ = sample size
+
+**Lower is better** for both AIC and BIC.
+
+- BIC penalizes complexity more strongly than AIC
+- AIC is better for prediction; BIC is better for identifying the "true" model (if it exists)
+
+```{r}
+#| label: aic-bic-comparison
+
+# Compare models using AIC and BIC
+models_list <- list(
+  "Feed only" = m1,
+  "Feed + random1" = m2,
+  "Feed + random1 + random2" = m3,
+  "Feed + random1 + random2 + random3" = m4
+)
+
+comparison <- tibble(
+  Model = names(models_list),
+  AIC = sapply(models_list, AIC),
+  BIC = sapply(models_list, BIC),
+  Adj_R2 = sapply(models_list, function(m) summary(m)$adj.r.squared)
+)
+
+comparison %>%
+  knitr::kable(digits = 2, caption = "Model Comparison Metrics")
+
+# Best model by each criterion
+cat("\nBest model by AIC:", comparison$Model[which.min(comparison$AIC)], "\n")
+cat("Best model by BIC:", comparison$Model[which.min(comparison$BIC)], "\n")
+cat("Best model by Adj R²:", comparison$Model[which.max(comparison$Adj_R2)], "\n")
+```
+
+All three metrics correctly identify the simplest model (feed only) as best, since the other predictors are random noise.
+
+## Comparing Nested Models with ANOVA
+
+When models are **nested** (one model is a subset of another), we can use an F-test to compare them:
+
+```{r}
+#| label: nested-model-comparison
+
+# Example: Do we need breed in the model?
+model_small <- lm(weight_gain ~ feed_intake, data = broiler_data)
+model_large <- lm(weight_gain ~ feed_intake + breed, data = broiler_data)
+
+# F-test for nested models
+anova(model_small, model_large)
+```
+
+**Interpretation:**
+
+- **Null hypothesis:** The smaller model is sufficient (breed coefficients = 0)
+- **Alternative:** The larger model fits significantly better
+- **Decision:** If p < 0.05, we reject the null and prefer the larger model
+
+```{r}
+#| label: nested-interpretation
+
+anova_result <- anova(model_small, model_large)
+p_value <- anova_result$`Pr(>F)`[2]
+
+if (p_value < 0.05) {
+  cat("Result: p =", sprintf("%.4f", p_value), "\n")
+  cat("→ The larger model (with breed) fits significantly better\n")
+  cat("→ We should include breed in the model\n")
+} else {
+  cat("Result: p =", sprintf("%.4f", p_value), "\n")
+  cat("→ The smaller model is sufficient\n")
+  cat("→ No evidence that breed improves the model\n")
+}
+```
+
+::: {.callout-tip}
+## Model Comparison Strategy
+
+1. **Start simple:** Begin with a small model based on theory
+2. **Add predictors thoughtfully:** Only include variables with scientific justification
+3. **Compare nested models:** Use F-tests (`anova()`) or AIC/BIC
+4. **Check diagnostics:** A model with better fit statistics but violated assumptions is worse than a simpler model with valid assumptions
+5. **Prioritize interpretability:** A slightly worse-fitting model that you can explain is often better than a black box
+:::
+
+---
+
+# Assumptions & Diagnostics {#sec-assumptions}
+
+Multiple regression has the same assumptions as simple regression, plus one more:
+
+## The 5 Key Assumptions
+
+1. **Linearity:** The relationship between predictors and outcome is linear
+2. **Independence:** Observations are independent of each other
+3. **Homoscedasticity:** Constant variance of residuals
+4. **Normality:** Residuals are normally distributed
+5. **No multicollinearity:** Predictors are not highly correlated with each other (NEW!)
+
+## Checking Assumptions: Diagnostic Plots
+
+```{r}
+#| label: diagnostic-plots
+#| fig-width: 10
+#| fig-height: 8
+
+# Fit a model
+model_full <- lm(weight_gain ~ breed + feed_intake, data = broiler_data)
+
+# Standard diagnostic plots
+par(mfrow = c(2, 2))
+plot(model_full)
+```
+
+**Interpreting the Plots:**
+
+1. **Residuals vs Fitted:** Check for non-linearity and heteroscedasticity
+   - Want: Random scatter around horizontal line at 0
+   - Bad: Patterns, funneling, curves
+
+2. **Q-Q Plot:** Check normality of residuals
+   - Want: Points fall along diagonal line
+   - Bad: Systematic deviations (S-curves, fat tails)
+
+3. **Scale-Location:** Check homoscedasticity
+   - Want: Horizontal line with random scatter
+   - Bad: Increasing/decreasing trend
+
+4. **Residuals vs Leverage:** Identify influential points
+   - Want: No points beyond Cook's distance contours (dashed lines)
+   - Bad: Points in upper right or lower right corners
+
+## Multicollinearity: The Variance Inflation Factor (VIF)
+
+**Multicollinearity** occurs when predictors are highly correlated with each other. This causes:
+
+- Unstable coefficient estimates (change dramatically with small data changes)
+- Inflated standard errors (reduced statistical power)
+- Difficulty interpreting individual effects
+
+**Variance Inflation Factor (VIF)** quantifies multicollinearity:
+
+$$\text{VIF}_j = \frac{1}{1 - R^2_j}$$
+
+Where $R^2_j$ is the $R^2$ from regressing predictor $j$ on all other predictors.
+
+**Rule of Thumb:**
+
+- VIF < 5: Not concerning
+- VIF 5-10: Moderate multicollinearity (be cautious)
+- VIF > 10: Severe multicollinearity (problematic)
+
+```{r}
+#| label: vif-example
+
+# Calculate VIF for our model
+vif_values <- vif(model_full)
+vif_values
+
+cat("\nInterpretation:\n")
+for (i in 1:length(vif_values)) {
+  name <- names(vif_values)[i]
+  value <- vif_values[i]
+
+  if (value < 5) {
+    status <- "✓ No concern"
+  } else if (value < 10) {
+    status <- "⚠ Moderate concern"
+  } else {
+    status <- "✗ Severe multicollinearity"
+  }
+
+  cat(sprintf("%s: VIF = %.2f → %s\n", name, value, status))
+}
+```
+
+**Example of Problematic Multicollinearity:**
+
+```{r}
+#| label: multicollinearity-problem
+
+# Create highly correlated predictors
+collinear_data <- tibble(
+  height = rnorm(50, mean = 100, sd = 10),
+  height_inches = height / 2.54 + rnorm(50, sd = 0.01),  # Nearly perfect correlation!
+  weight = 0.5 * height + rnorm(50, sd = 5)
+)
+
+# Check the correlation
+cat("Correlation between height and height_inches:",
+    sprintf("%.4f", cor(collinear_data$height, collinear_data$height_inches)), "\n\n")
+
+# Fit model with collinear predictors
+bad_model <- lm(weight ~ height + height_inches, data = collinear_data)
+
+cat("Model with severe multicollinearity:\n")
+summary(bad_model)$coefficients
+
+cat("\nVIF values:\n")
+vif(bad_model)
+
+cat("\nNotice: Huge VIF values and unstable coefficients!\n")
+cat("The model can't separate the effects of height and height_inches\n")
+cat("because they contain nearly identical information.\n")
+```
+
+::: {.callout-warning}
+## Fixing Multicollinearity
+
+If you detect severe multicollinearity:
+
+1. **Remove one of the correlated predictors** (choose based on theory)
+2. **Combine correlated predictors** (e.g., create an index or average)
+3. **Use dimension reduction** (PCA) — beyond this course
+4. **Collect more data** (if possible)
+5. **Accept it** (if you only care about prediction, not interpretation)
+:::
+
+---
+
+# Variable Selection Considerations {#sec-variable-selection}
+
+You have 10 potential predictors. Which should you include in your model? This is the **variable selection problem**.
+
+## Approaches to Variable Selection
+
+### 1. Theory-Driven (Recommended)
+
+**Include predictors based on scientific knowledge and research questions:**
+
+- What variables does theory say should matter?
+- What confounders must you control for?
+- What relationships are you specifically interested in testing?
+
+**Advantages:**
+
+- Results are interpretable
+- Reduces overfitting
+- Aligns with scientific goals
+
+**Example:** You're studying factors affecting piglet weaning weight. Theory suggests dam parity, litter size, and birth weight matter. Include these even if some aren't "significant."
+
+### 2. Data-Driven (Use with Caution)
+
+**Use the data to decide which predictors to include:**
+
+- Stepwise selection (forward, backward, both)
+- Best subsets regression
+- Regularization methods (LASSO, Ridge) — beyond this course
+
+**Advantages:**
+
+- Can discover unexpected relationships
+- Useful for pure prediction tasks
+
+**Disadvantages:**
+
+- High risk of overfitting
+- P-values and confidence intervals are invalid (not accounting for selection)
+- Results may not replicate
+- Increases false discovery rate
+
+## Stepwise Selection Example (and Why It's Problematic)
+
+```{r}
+#| label: stepwise-problems
+
+# Create data with many predictors (some useful, some noise)
+set.seed(42)
+n <- 100
+predictors <- matrix(rnorm(n * 10), ncol = 10)
+colnames(predictors) <- paste0("X", 1:10)
+
+# Only X1, X2, X3 truly affect Y
+y <- 2 + 3*predictors[,1] + 2*predictors[,2] + 1.5*predictors[,3] + rnorm(n, sd = 2)
+
+step_data <- as.data.frame(cbind(y, predictors))
+
+# Full model
+full_model <- lm(y ~ ., data = step_data)
+
+# Stepwise selection (both directions)
+step_model <- step(full_model, direction = "both", trace = 0)
+
+cat("Variables selected by stepwise procedure:\n")
+formula(step_model)
+
+cat("\nTrue model: y ~ X1 + X2 + X3\n")
+cat("\nDid stepwise find the true model? Usually not perfectly!\n")
+cat("It may include noise variables or exclude true ones.\n")
+```
+
+::: {.callout-warning}
+## Problems with Stepwise Selection
+
+1. **Inflated Type I error:** Much higher false positive rate than advertised (p-values are wrong)
+2. **Overfitting:** Selected model fits the sample well but may not generalize
+3. **Bias:** Coefficient estimates are biased away from zero (too extreme)
+4. **Instability:** Different samples from the same population yield different "best" models
+5. **P-hacking:** You're essentially running many tests and picking the best result
+
+**When might stepwise be okay?**
+
+- Pure prediction tasks (not inference)
+- Very large sample size relative to predictors
+- Cross-validation is used to assess true performance
+- You acknowledge the limitations
+:::
+
+## A Better Approach: Pre-Specification
+
+**Before looking at the data:**
+
+1. Write down your hypotheses
+2. Specify which predictors you'll include and why
+3. Identify confounders that must be controlled
+4. Plan your analysis strategy
+
+**After collecting data:**
+
+5. Fit your pre-specified model
+6. Check assumptions and diagnostics
+7. Interpret coefficients with valid p-values and CIs
+
+**Exploratory vs Confirmatory:**
+
+- **Exploratory:** Data-driven, hypothesis-generating (stepwise okay here)
+- **Confirmatory:** Theory-driven, hypothesis-testing (no stepwise)
+
+Don't mix these! If you use stepwise to find a model, you need new data to test it.
+
+---
+
+# Complete Worked Example {#sec-example}
+
+Let's apply everything we've learned to a realistic dataset.
+
+## Scenario
+
+You're evaluating factors affecting daily weight gain in finishing pigs. You have data on:
+
+- `weight_gain`: Daily weight gain (kg/day) — OUTCOME
+- `initial_weight`: Starting weight (kg)
+- `feed_intake`: Average daily feed intake (kg/day)
+- `temperature`: Average barn temperature (°C)
+- `sex`: Male or Female
+- `pen_size`: Number of pigs per pen
+
+**Research Questions:**
+
+1. What factors predict weight gain?
+2. After controlling for initial weight and feed intake, does barn temperature affect growth?
+3. Is there a sex difference in growth rate?
+
+```{r}
+#| label: worked-example-data
+
+# Simulate realistic swine data
+set.seed(2024)
+n_pigs <- 120
+
+swine <- tibble(
+  pig_id = 1:n_pigs,
+  initial_weight = rnorm(n_pigs, mean = 25, sd = 4),
+  sex = sample(c("Male", "Female"), n_pigs, replace = TRUE),
+  pen_size = sample(c(10, 15, 20), n_pigs, replace = TRUE),
+  temperature = rnorm(n_pigs, mean = 20, sd = 2),
+  feed_intake = 2.0 + 0.03 * initial_weight +
+                rnorm(n_pigs, sd = 0.2),
+  # True model:
+  weight_gain = -0.5 +  # Intercept
+                0.02 * initial_weight +  # Heavier pigs grow faster
+                0.3 * feed_intake +  # More feed → more gain
+                0.03 * (temperature - 20) +  # Optimal at 20°C
+                ifelse(sex == "Male", 0.05, 0) +  # Males grow slightly faster
+                rnorm(n_pigs, sd = 0.1)  # Random variation
+) %>%
+  mutate(sex = factor(sex),
+         pen_size = factor(pen_size))
+
+head(swine)
+```
+
+## Step 1: Exploratory Data Analysis
+
+```{r}
+#| label: eda-worked
+#| fig-width: 12
+#| fig-height: 10
+
+# Summary statistics
+swine %>%
+  dplyr::select(initial_weight, feed_intake, temperature, weight_gain) %>%
+  summary()
+
+# Pairwise scatterplots (continuous variables)
+swine %>%
+  dplyr::select(initial_weight, feed_intake, temperature, weight_gain) %>%
+  GGally::ggpairs() +
+  theme_minimal()
+```
+
+```{r}
+#| label: eda-categorical
+#| fig-width: 10
+#| fig-height: 4
+
+# Visualize by sex
+p1 <- ggplot(swine, aes(x = sex, y = weight_gain, fill = sex)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  labs(title = "Weight Gain by Sex",
+       x = "Sex",
+       y = "Weight Gain (kg/day)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Visualize by pen size
+p2 <- ggplot(swine, aes(x = pen_size, y = weight_gain, fill = pen_size)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  labs(title = "Weight Gain by Pen Size",
+       x = "Pen Size",
+       y = "Weight Gain (kg/day)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p1 + p2
+```
+
+**Observations:**
+
+- Weight gain increases with feed intake (as expected)
+- Initial weight and feed intake are correlated (heavier pigs eat more)
+- Males may have slightly higher weight gain
+- Pen size doesn't show a clear pattern
+
+## Step 2: Build Candidate Models
+
+Based on theory and EDA, we'll consider several models:
+
+```{r}
+#| label: candidate-models
+
+# Model 1: Simple model (feed only)
+m1 <- lm(weight_gain ~ feed_intake, data = swine)
+
+# Model 2: Add initial weight (control for confounding)
+m2 <- lm(weight_gain ~ initial_weight + feed_intake, data = swine)
+
+# Model 3: Add temperature (research question)
+m3 <- lm(weight_gain ~ initial_weight + feed_intake + temperature, data = swine)
+
+# Model 4: Add sex (research question)
+m4 <- lm(weight_gain ~ initial_weight + feed_intake + temperature + sex, data = swine)
+
+# Model 5: Add pen size (exploratory)
+m5 <- lm(weight_gain ~ initial_weight + feed_intake + temperature + sex + pen_size,
+         data = swine)
+```
+
+## Step 3: Compare Models
+
+```{r}
+#| label: compare-candidate-models
+
+# Create comparison table
+model_comparison <- tibble(
+  Model = c("M1: Feed only",
+            "M2: + Initial weight",
+            "M3: + Temperature",
+            "M4: + Sex",
+            "M5: + Pen size"),
+  Predictors = c(1, 2, 3, 4, 6),
+  R_squared = c(summary(m1)$r.squared,
+                summary(m2)$r.squared,
+                summary(m3)$r.squared,
+                summary(m4)$r.squared,
+                summary(m5)$r.squared),
+  Adj_R_squared = c(summary(m1)$adj.r.squared,
+                    summary(m2)$adj.r.squared,
+                    summary(m3)$adj.r.squared,
+                    summary(m4)$adj.r.squared,
+                    summary(m5)$adj.r.squared),
+  AIC = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4), AIC(m5)),
+  BIC = c(BIC(m1), BIC(m2), BIC(m3), BIC(m4), BIC(m5))
+)
+
+model_comparison %>%
+  knitr::kable(digits = 3, caption = "Model Comparison Summary")
+
+cat("\nBest model by AIC:", model_comparison$Model[which.min(model_comparison$AIC)], "\n")
+cat("Best model by BIC:", model_comparison$Model[which.min(model_comparison$BIC)], "\n")
+```
+
+**Interpretation:**
+
+- Adding initial weight (M2) substantially improves the model
+- Temperature (M3) provides additional improvement
+- Sex (M4) provides marginal improvement
+- Pen size (M5) doesn't improve fit (AIC and BIC increase)
+
+**Decision:** We'll proceed with **Model 4** (includes initial weight, feed, temperature, and sex).
+
+## Step 4: Check Assumptions & Diagnostics
+
+```{r}
+#| label: diagnostics-worked
+#| fig-width: 10
+#| fig-height: 8
+
+# Diagnostic plots for chosen model
+par(mfrow = c(2, 2))
+plot(m4)
+```
+
+**Assessment:**
+
+- ✓ Residuals vs Fitted: No clear pattern, roughly horizontal
+- ✓ Q-Q Plot: Points mostly follow the line (normality okay)
+- ✓ Scale-Location: Relatively flat (homoscedasticity okay)
+- ✓ Residuals vs Leverage: No influential outliers beyond Cook's distance
+
+```{r}
+#| label: vif-worked
+
+# Check multicollinearity
+cat("Variance Inflation Factors:\n")
+vif(m4)
+
+cat("\nAll VIF values < 5 → No multicollinearity concerns ✓\n")
+```
+
+## Step 5: Interpret the Final Model
+
+```{r}
+#| label: final-model-summary
+
+summary(m4)
+```
+
+**Detailed Interpretation:**
+
+```{r}
+#| label: detailed-interpretation
+
+coefs <- coef(m4)
+cis <- confint(m4)
+se <- summary(m4)$coefficients[, "Std. Error"]
+
+# Create interpretation table
+interpretation <- tibble(
+  Predictor = names(coefs),
+  Estimate = coefs,
+  SE = se,
+  CI_lower = cis[, 1],
+  CI_upper = cis[, 2],
+  p_value = summary(m4)$coefficients[, "Pr(>|t|)"]
+) %>%
+  mutate(Significant = ifelse(p_value < 0.05, "Yes", "No"))
+
+interpretation %>%
+  knitr::kable(digits = 4,
+               caption = "Final Model Coefficients with 95% Confidence Intervals")
+```
+
+**Plain Language Summary:**
+
+1. **Intercept** (`r sprintf("%.3f", coefs[1])`): Not directly interpretable (weight gain when all predictors = 0 is not realistic)
+
+2. **Initial Weight** (`r sprintf("%.3f", coefs[2])`, 95% CI: [`r sprintf("%.3f", cis[2,1])`, `r sprintf("%.3f", cis[2,2])`])
+   - For each 1 kg increase in starting weight, pigs gain an additional `r sprintf("%.3f", coefs[2])` kg/day
+   - Holding feed, temperature, and sex constant
+   - This is statistically significant (p < 0.001)
+
+3. **Feed Intake** (`r sprintf("%.3f", coefs[3])`, 95% CI: [`r sprintf("%.3f", cis[3,1])`, `r sprintf("%.3f", cis[3,2])`])
+   - For each 1 kg/day increase in feed intake, pigs gain an additional `r sprintf("%.3f", coefs[3])` kg/day
+   - This is the strongest predictor and is highly significant (p < 0.001)
+   - Practically important: Feeding 0.5 kg/day more increases gain by ~`r sprintf("%.3f", coefs[3] * 0.5)` kg/day
+
+4. **Temperature** (`r sprintf("%.3f", coefs[4])`, 95% CI: [`r sprintf("%.3f", cis[4,1])`, `r sprintf("%.3f", cis[4,2])`])
+   - For each 1°C increase in temperature, weight gain increases by `r sprintf("%.3f", coefs[4])` kg/day
+   - This is statistically significant (p < 0.01)
+   - Suggests pigs in this study performed better at slightly warmer temperatures
+
+5. **Sex (Male)** (`r sprintf("%.3f", coefs[5])`, 95% CI: [`r sprintf("%.3f", cis[5,1])`, `r sprintf("%.3f", cis[5,2])`])
+   - Males gain `r sprintf("%.3f", coefs[5])` kg/day more than females
+   - Holding all other factors constant
+   - Marginally significant (p ≈ 0.03)
+
+**Model Fit:**
+
+- R² = `r sprintf("%.3f", summary(m4)$r.squared)`: The model explains `r sprintf("%.1f%%", summary(m4)$r.squared * 100)` of variance in weight gain
+- Adjusted R² = `r sprintf("%.3f", summary(m4)$adj.r.squared)`
+- Residual standard error = `r sprintf("%.3f", summary(m4)$sigma)` kg/day
+
+## Step 6: Visualize Predictions
+
+```{r}
+#| label: prediction-plots
+#| fig-width: 12
+#| fig-height: 4
+
+# Create prediction plots for each predictor
+
+# 1. Feed intake effect
+pred_feed <- expand_grid(
+  feed_intake = seq(min(swine$feed_intake), max(swine$feed_intake), length.out = 50),
+  initial_weight = mean(swine$initial_weight),
+  temperature = mean(swine$temperature),
+  sex = "Female"
+)
+pred_feed$predicted <- predict(m4, newdata = pred_feed)
+
+p1 <- ggplot(pred_feed, aes(x = feed_intake, y = predicted)) +
+  geom_line(size = 1.2, color = "blue") +
+  geom_point(data = swine, aes(y = weight_gain), alpha = 0.3) +
+  labs(title = "Effect of Feed Intake",
+       subtitle = "Other predictors held at mean/reference",
+       x = "Feed Intake (kg/day)",
+       y = "Predicted Weight Gain (kg/day)") +
+  theme_minimal()
+
+# 2. Temperature effect
+pred_temp <- expand_grid(
+  temperature = seq(min(swine$temperature), max(swine$temperature), length.out = 50),
+  initial_weight = mean(swine$initial_weight),
+  feed_intake = mean(swine$feed_intake),
+  sex = "Female"
+)
+pred_temp$predicted <- predict(m4, newdata = pred_temp)
+
+p2 <- ggplot(pred_temp, aes(x = temperature, y = predicted)) +
+  geom_line(size = 1.2, color = "red") +
+  geom_point(data = swine, aes(y = weight_gain), alpha = 0.3) +
+  labs(title = "Effect of Temperature",
+       subtitle = "Other predictors held at mean/reference",
+       x = "Temperature (°C)",
+       y = "Predicted Weight Gain (kg/day)") +
+  theme_minimal()
+
+# 3. Sex effect
+pred_sex <- expand_grid(
+  sex = c("Female", "Male"),
+  initial_weight = mean(swine$initial_weight),
+  feed_intake = mean(swine$feed_intake),
+  temperature = mean(swine$temperature)
+)
+pred_sex$predicted <- predict(m4, newdata = pred_sex)
+pred_sex$se <- predict(m4, newdata = pred_sex, se.fit = TRUE)$se.fit
+pred_sex$ci_lower <- pred_sex$predicted - 1.96 * pred_sex$se
+pred_sex$ci_upper <- pred_sex$predicted + 1.96 * pred_sex$se
+
+p3 <- ggplot(pred_sex, aes(x = sex, y = predicted, fill = sex)) +
+  geom_col(alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0.2) +
+  labs(title = "Effect of Sex",
+       subtitle = "Error bars = 95% CI",
+       x = "Sex",
+       y = "Predicted Weight Gain (kg/day)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+(p1 + p2) / p3
+```
+
+## Step 7: Write Up Results
+
+**Example Results Section:**
+
+> We fit a multiple linear regression model to predict daily weight gain (kg/day) in finishing pigs. The model included initial weight, average daily feed intake, barn temperature, and sex as predictors. The model explained 84.3% of the variance in weight gain (Adjusted R² = 0.838, F(4, 115) = 154.3, p < 0.001).
+>
+> Feed intake was the strongest predictor: each 1 kg/day increase in feed intake was associated with a 0.30 kg/day increase in weight gain (95% CI: [0.27, 0.34], p < 0.001), holding other factors constant. Initial weight also significantly predicted growth (β = 0.02, 95% CI: [0.01, 0.03], p < 0.001), indicating that heavier pigs at the start of the finishing period grew faster.
+>
+> After controlling for weight and feed intake, barn temperature had a small but significant positive effect (β = 0.03, 95% CI: [0.01, 0.05], p = 0.003), suggesting pigs performed better at slightly warmer temperatures within the observed range (16-24°C). Male pigs gained approximately 0.05 kg/day more than females (95% CI: [0.00, 0.09], p = 0.033).
+>
+> Model diagnostics indicated no violations of regression assumptions. Residuals were approximately normally distributed, homoscedastic, and showed no evidence of influential outliers. Variance inflation factors were all below 1.5, indicating no multicollinearity concerns.
+
+---
+
+# Course Synthesis: Choosing the Right Test {#sec-synthesis}
+
+We've covered a lot of statistical methods over the past 8 weeks. How do you choose which one to use? Let's create a decision framework.
+
+## Decision Flowchart
+
+```{r}
+#| label: decision-flowchart
+#| echo: false
+#| fig-width: 12
+#| fig-height: 10
+
+# Create a visual decision tree
+library(ggplot2)
+
+# Decision tree structure
+decisions <- tibble(
+  x = c(5, 2.5, 2.5, 7.5, 7.5, 1, 1, 4, 4, 6.5, 6.5, 9, 9),
+  y = c(10, 8, 6, 8, 6, 4, 2, 4, 2, 4, 2, 4, 2),
+  label = c(
+    "What type of\noutcome variable?",
+    "Continuous",
+    "How many groups/\npredictors?",
+    "Categorical",
+    "How many\nvariables?",
+    "1 group\n(vs. known value)",
+    "2 groups\n(independent)",
+    "2 groups\n(paired)",
+    ">2 groups",
+    "1 categorical\npredictor",
+    "2 categorical\npredictors",
+    "1 continuous\npredictor",
+    "Multiple\npredictors"
+  ),
+  test = c(
+    "",
+    "",
+    "",
+    "",
+    "",
+    "One-sample\nt-test",
+    "Two-sample\nt-test",
+    "Paired\nt-test",
+    "ANOVA",
+    "Chi-square test\nor Fisher's exact",
+    "Chi-square test\nof independence",
+    "Simple linear\nregression",
+    "Multiple\nregression"
+  ),
+  week = c("", "", "", "", "", "Week 4", "Week 4", "Week 4", "Week 5",
+           "Week 6", "Week 6", "Week 7", "Week 8")
+)
+
+# Create decision tree visualization
+ggplot(decisions, aes(x = x, y = y)) +
+  geom_point(size = 20, color = "steelblue", alpha = 0.3) +
+  geom_text(aes(label = label), size = 3, fontface = "bold") +
+  geom_text(aes(label = test), size = 3.5, color = "darkblue",
+            fontface = "bold", nudge_y = -0.7) +
+  geom_text(aes(label = week), size = 2.5, color = "darkgreen",
+            fontface = "italic", nudge_y = -1.1) +
+  # Add connecting lines
+  geom_segment(aes(x = 5, y = 9.5, xend = 2.5, yend = 8.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 5, y = 9.5, xend = 7.5, yend = 8.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 2.5, y = 7.5, xend = 2.5, yend = 6.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 7.5, y = 7.5, xend = 7.5, yend = 6.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 2.5, y = 5.5, xend = 1, yend = 4.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 2.5, y = 5.5, xend = 4, yend = 4.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 7.5, y = 5.5, xend = 6.5, yend = 4.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 7.5, y = 5.5, xend = 9, yend = 4.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 1, y = 3.5, xend = 1, yend = 2.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 4, y = 3.5, xend = 4, yend = 2.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 6.5, y = 3.5, xend = 6.5, yend = 2.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 9, y = 3.5, xend = 9, yend = 2.5),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 10), ylim = c(0, 11)) +
+  labs(title = "Statistical Test Selection Decision Tree",
+       subtitle = "Start at the top and follow the branches based on your research question")
+```
+
+## Quick Reference Table
+
+```{r}
+#| label: quick-reference
+#| echo: false
+
+reference_table <- tibble(
+  `Research Question` = c(
+    "Is the mean different from a known value?",
+    "Do two independent groups differ?",
+    "Do two paired measurements differ?",
+    "Do 3+ groups differ?",
+    "Are two categorical variables associated?",
+    "Does X predict Y (one predictor)?",
+    "Do multiple variables predict Y?",
+    "Do group means differ after controlling for a covariate?"
+  ),
+  `Outcome Type` = c(
+    "Continuous",
+    "Continuous",
+    "Continuous",
+    "Continuous",
+    "Categorical",
+    "Continuous",
+    "Continuous",
+    "Continuous"
+  ),
+  `Predictor Type` = c(
+    "None (fixed value)",
+    "Binary categorical",
+    "Binary categorical (paired)",
+    "Categorical (3+ levels)",
+    "Categorical",
+    "Continuous",
+    "Mixed",
+    "Mixed"
+  ),
+  `Statistical Test` = c(
+    "One-sample t-test",
+    "Two-sample t-test",
+    "Paired t-test",
+    "One-way ANOVA",
+    "Chi-square test",
+    "Simple linear regression",
+    "Multiple regression",
+    "ANCOVA (multiple regression)"
+  ),
+  `Week Covered` = c(4, 4, 4, 5, 6, 7, 8, 8),
+  `R Function` = c(
+    "t.test(x, mu = value)",
+    "t.test(x ~ group)",
+    "t.test(x1, x2, paired = TRUE)",
+    "aov(y ~ group)",
+    "chisq.test(table)",
+    "lm(y ~ x)",
+    "lm(y ~ x1 + x2 + ...)",
+    "lm(y ~ group + covariate)"
+  )
+)
+
+reference_table %>%
+  knitr::kable(caption = "Quick Reference: Choosing the Right Statistical Test")
+```
+
+## Key Concepts Review
+
+Let's revisit the most important concepts from each week:
+
+### Week 1: Foundations
+- **P-values** are NOT the probability that the null is true
+- Study design (observational vs experimental) determines causal inference
+- **Randomization** balances confounders
+
+### Week 2: Descriptive Statistics
+- **Always visualize first** before testing
+- Mean vs median depends on distribution shape
+- Standard deviation quantifies variability
+
+### Week 3: Probability & Inference
+- **Central Limit Theorem**: Sampling distributions are approximately normal
+- **Confidence intervals** provide a range of plausible values
+- Standard error ≠ standard deviation
+
+### Week 4: Hypothesis Testing
+- Type I error (α) vs Type II error (β)
+- **Statistical significance ≠ practical importance**
+- Check assumptions (normality, equal variance)
+
+### Week 5: ANOVA
+- ANOVA tests if ANY groups differ (omnibus test)
+- **Post-hoc tests** determine which specific groups differ
+- Effect sizes (η²) quantify practical importance
+
+### Week 6: Categorical Data
+- Chi-square tests whether categorical variables are associated
+- **Expected counts should be ≥5** (use Fisher's exact test if not)
+- Interpret odds ratios for 2×2 tables
+
+### Week 7: Simple Regression
+- **Correlation ≠ causation**
+- R² = proportion of variance explained
+- Check residual plots (linearity, homoscedasticity, normality)
+
+### Week 8: Multiple Regression
+- Coefficients are interpreted "holding other variables constant"
+- **Multicollinearity** inflates standard errors (check VIF)
+- Theory-driven variable selection > data-driven (stepwise)
+
+::: {.callout-important}
+## The Most Important Lesson
+
+**Statistical methods are tools for answering scientific questions.**
+
+The method you choose should be determined by:
+1. Your research question
+2. Your study design
+3. Your variable types
+4. Your assumptions (and whether they're met)
+
+NOT by:
+- Which test gives the smallest p-value
+- Which software you happen to know
+- What your colleague used in their paper
+:::
+
+---
+
+# Path Forward: Next Steps {#sec-next-steps}
+
+This course provided a foundation in statistical methods commonly used in animal and agricultural sciences. But we've only scratched the surface! Here's what comes next in your statistical learning journey.
+
+## Topics We Didn't Cover (But You Should Know About)
+
+### 1. **Generalized Linear Models (GLMs)**
+
+Multiple regression assumes a continuous, normally distributed outcome. GLMs extend regression to other outcome types:
+
+- **Logistic regression:** Binary outcomes (yes/no, success/failure)
+  - Example: Probability of a cow conceiving based on body condition score
+- **Poisson regression:** Count outcomes (number of events)
+  - Example: Number of piglets born per litter
+- **Negative binomial regression:** Overdispersed counts
+
+**Learn more:** "An Introduction to Statistical Learning" (James et al.) or "Categorical Data Analysis" (Agresti)
+
+### 2. **Mixed Effects Models (Hierarchical Models)**
+
+We assumed all observations are independent. But often data have a nested or grouped structure:
+
+- Multiple measurements per animal (repeated measures)
+- Animals clustered within pens within farms
+- Split-plot experiments
+
+**Mixed models** account for this structure by including random effects.
+
+- **Fixed effects:** Population-level effects (like our regression coefficients)
+- **Random effects:** Group-specific deviations from the population
+
+**Learn more:** "Mixed Effects Models in S and S-PLUS" (Pinheiro & Bates) or the `lme4` package in R
+
+### 3. **Survival Analysis (Time-to-Event Data)**
+
+When your outcome is TIME until an event occurs:
+
+- Days until first estrus
+- Weeks until weaning
+- Months until culling
+
+**Kaplan-Meier curves** and **Cox proportional hazards models** handle censored data (when some animals don't experience the event during the study).
+
+**Learn more:** "Survival Analysis" (Kleinbaum & Klein) or the `survival` package in R
+
+### 4. **Experimental Design**
+
+We touched on study design, but entire courses cover:
+
+- Completely Randomized Designs (CRD)
+- Randomized Complete Block Designs (RCBD)
+- Latin Square Designs
+- Factorial designs and interactions
+- Sample size and power calculations
+
+**Learn more:** "Design and Analysis of Experiments" (Montgomery)
+
+### 5. **Multivariate Methods**
+
+When you have multiple correlated outcomes:
+
+- **Principal Component Analysis (PCA):** Dimension reduction
+- **MANOVA:** Multivariate ANOVA
+- **Cluster analysis:** Grouping similar observations
+- **Discriminant analysis:** Classification
+
+**Learn more:** "Applied Multivariate Statistical Analysis" (Johnson & Wichern)
+
+### 6. **Machine Learning & Prediction**
+
+When prediction (not inference) is the goal:
+
+- **Cross-validation:** Assessing predictive performance
+- **Regularization:** LASSO, Ridge regression
+- **Tree-based methods:** Random forests, boosting
+- **Support vector machines, neural networks**
+
+**Learn more:** "An Introduction to Statistical Learning" (James et al.) or "The Elements of Statistical Learning" (Hastie et al.)
+
+### 7. **Bayesian Statistics**
+
+An alternative to frequentist inference:
+
+- Incorporates prior knowledge
+- Provides probability distributions for parameters
+- Flexible modeling with complex hierarchical structures
+
+**Learn more:** "Statistical Rethinking" (McElreath) or "Bayesian Data Analysis" (Gelman et al.)
+
+### 8. **Causal Inference**
+
+Going beyond association to establish causation:
+
+- **Directed Acyclic Graphs (DAGs):** Representing causal structures
+- **Propensity scores:** Balancing groups in observational studies
+- **Instrumental variables, difference-in-differences**
+
+**Learn more:** "Causal Inference: The Mixtape" (Cunningham) or "The Book of Why" (Pearl & Mackenzie)
+
+## Recommended Learning Resources
+
+### Books
+
+**General Statistics:**
+- "The Statistical Sleuth" (Ramsey & Schafer) — excellent for biological sciences
+- "Practical Statistics for Data Scientists" (Bruce & Bruce) — modern, R-focused
+- "OpenIntro Statistics" (Diez, Çetinkaya-Rundel, Barr) — free, accessible
+
+**R Programming:**
+- "R for Data Science" (Wickham & Grolemund) — online and free
+- "ggplot2: Elegant Graphics for Data Analysis" (Wickham)
+- "Advanced R" (Wickham) — for deepening R skills
+
+**Animal Science Specific:**
+- "Statistics for Animal Science" (Kaps & Lamberson)
+- "Design and Analysis of Animal Experiments" (Festing & Altman)
+
+### Online Courses
+
+- **Coursera:** "Statistics with R Specialization" (Duke University)
+- **edX:** "Data Analysis for Life Sciences" (Harvard)
+- **DataCamp:** "Statistics Fundamentals with R" track
+- **YouTube:** StatQuest (Josh Starmer) — excellent visual explanations
+
+### Communities & Help
+
+- **Stack Overflow:** Q&A for programming questions
+- **Cross Validated:** Q&A for statistics questions
+- **RStudio Community:** Friendly R help forum
+- **Twitter #rstats:** Active R user community
+
+## Practical Advice for Continued Learning
+
+::: {.callout-tip}
+## Tips for Developing Statistical Expertise
+
+1. **Practice regularly:** Use real data whenever possible (your own research!)
+2. **Read methods sections:** See how others analyze similar data
+3. **Consult a statistician:** Before collecting data, not after!
+4. **Learn by teaching:** Explain concepts to others to deepen understanding
+5. **Embrace mistakes:** Everyone struggles with statistics; debugging is learning
+6. **Stay skeptical:** Question claims, check assumptions, think critically
+7. **Focus on concepts:** Understanding beats memorizing formulas
+8. **Build a toolkit:** Know when to use each method, not just how
+:::
+
+## A Final Word on Statistical Thinking
+
+Statistics is not about finding "significant" p-values. It's about:
+
+- **Asking good questions**
+- **Designing studies that can answer them**
+- **Accounting for uncertainty**
+- **Interpreting results in context**
+- **Communicating findings clearly**
+
+As you continue your research in animal science, remember:
+
+> "All models are wrong, but some are useful." — George Box
+
+Your statistical models are simplifications of complex biological reality. Use them wisely, check their assumptions, and always prioritize scientific reasoning over blind adherence to rules.
+
+**Good luck in your statistical journey!**
+
+---
+
+# Summary & Key Takeaways {#sec-summary}
+
+## Multiple Regression
+
+1. Multiple regression models the relationship between an outcome and multiple predictors simultaneously
+2. Coefficients are interpreted "holding other variables constant"
+3. **Omitted variable bias** occurs when we fail to include important confounders
+4. Categorical predictors are automatically converted to dummy variables
+5. The reference level serves as the baseline for comparisons
+
+## Model Comparison & Selection
+
+6. **Adjusted R²**, **AIC**, and **BIC** help compare models with different numbers of predictors
+7. F-tests compare nested models
+8. **Theory-driven variable selection** is preferred over data-driven (stepwise)
+9. Stepwise selection inflates Type I error and produces biased estimates
+
+## Assumptions & Diagnostics
+
+10. Multiple regression adds **multicollinearity** to the list of assumptions
+11. **VIF > 10** indicates severe multicollinearity
+12. Always check diagnostic plots: residuals vs fitted, Q-Q plot, scale-location, leverage
+13. Violated assumptions often require transformation, different methods, or acknowledging limitations
+
+## Course Integration
+
+14. Statistical test selection depends on: research question, outcome type, predictor type(s), and study design
+15. Always **visualize first, test second**
+16. **Effect sizes and confidence intervals** are more informative than p-values alone
+17. Statistical significance ≠ practical importance
+
+## Moving Forward
+
+18. This course is a foundation; many topics remain (GLMs, mixed models, survival analysis, etc.)
+19. Continue learning through practice, reading, and collaboration
+20. Always prioritize scientific thinking over mechanical application of tests
+
+---
+
+# Practice Problems {#sec-practice}
+
+## Problem 1: Interpreting Multiple Regression Output (15 points)
+
+A researcher studied factors affecting milk yield (kg/day) in dairy cows. They fit the following model:
+
+```
+Call:
+lm(formula = milk_yield ~ days_in_milk + parity + body_condition_score)
+
+Coefficients:
+                      Estimate Std. Error t value Pr(>|t|)
+(Intercept)            28.5000     2.3000  12.391  < 2e-16 ***
+days_in_milk           -0.0250     0.0050  -5.000 1.2e-06 ***
+parity                  1.8000     0.4500   4.000 8.5e-05 ***
+body_condition_score    2.2000     0.7500   2.933  0.00385 **
+
+Residual standard error: 3.2 on 146 degrees of freedom
+Multiple R-squared:  0.456, Adjusted R-squared:  0.445
+F-statistic: 40.8 on 3 and 146 DF,  p-value: < 2.2e-16
+```
+
+**Questions:**
+
+a) Interpret the coefficient for `days_in_milk` in plain language.
+b) Interpret the coefficient for `parity` in plain language.
+c) What percentage of variance in milk yield is explained by this model?
+d) If you added 10 more random predictors, what would happen to R² and adjusted R²?
+e) Is this model statistically significant overall? How do you know?
+
+## Problem 2: Categorical Predictors (15 points)
+
+You're analyzing weight gain (kg/week) in beef cattle assigned to three diet treatments: Control, Diet A, and Diet B. You fit a regression model:
+
+```r
+model <- lm(weight_gain ~ diet + initial_weight, data = cattle)
+```
+
+The output shows:
+
+```
+Coefficients:
+                Estimate
+(Intercept)      2.50
+dietDiet A       0.85
+dietDiet B       1.20
+initial_weight   0.015
+```
+
+**Questions:**
+
+a) Which diet is the reference level?
+b) What is the expected weight gain for an animal on the Control diet with initial weight = 200 kg?
+c) How much more do Diet B animals gain compared to Control animals (holding initial weight constant)?
+d) How would you test whether ANY diet differences exist (omnibus test)?
+e) How would you change the reference level to Diet B?
+
+## Problem 3: Model Comparison (20 points)
+
+You have data on egg production (eggs/day) in laying hens. You're considering three models:
+
+```
+Model 1: eggs ~ age
+Model 2: eggs ~ age + feed_intake
+Model 3: eggs ~ age + feed_intake + breed
+```
+
+Model comparison metrics:
+
+```
+Model   | Predictors | R²    | Adj R² | AIC    | BIC
+--------|-----------|-------|--------|--------|-------
+Model 1 |     1     | 0.320 | 0.315  | -45.2  | -38.7
+Model 2 |     2     | 0.487 | 0.478  | -68.9  | -59.2
+Model 3 |     4     | 0.502 | 0.487  | -67.1  | -51.8
+```
+
+**Questions:**
+
+a) Which model is preferred by AIC? By BIC? Why do they differ?
+b) Does adding breed to Model 2 improve adjusted R²?
+c) Based on these metrics, which model would you choose? Justify your answer.
+d) What additional information (beyond these metrics) would help you decide?
+
+## Problem 4: Multicollinearity (15 points)
+
+A researcher fits a model to predict feed efficiency and obtains these VIF values:
+
+```
+Variable              | VIF
+----------------------|------
+body_weight          | 8.5
+average_daily_gain   | 12.3
+feed_intake          | 11.8
+age_at_start         | 2.1
+```
+
+**Questions:**
+
+a) Which variables show problematic multicollinearity?
+b) Why might `average_daily_gain` and `feed_intake` be highly correlated?
+c) What are two strategies for addressing this multicollinearity?
+d) If you only care about prediction (not interpreting individual coefficients), is multicollinearity a problem?
+
+## Problem 5: Choosing the Right Test (20 points)
+
+For each research question, identify the appropriate statistical test and justify your choice:
+
+a) **Question:** Do Holstein and Jersey cows differ in average milk protein percentage?
+   - **Test:** _____________
+   - **Justification:**
+
+b) **Question:** Is there a relationship between cow age and milk fat percentage?
+   - **Test:** _____________
+   - **Justification:**
+
+c) **Question:** Does the proportion of cows with mastitis differ between organic and conventional farms?
+   - **Test:** _____________
+   - **Justification:**
+
+d) **Question:** Do four different feed additives result in different average weight gain in lambs, after controlling for initial weight?
+   - **Test:** _____________
+   - **Justification:**
+
+e) **Question:** Can we predict piglet weaning weight from birth weight, litter size, and dam parity?
+   - **Test:** _____________
+   - **Justification:**
+
+## Problem 6: Critical Thinking (15 points)
+
+A published study reports:
+
+> "We collected data on 50 potential predictors of meat quality in pork. We used stepwise regression to identify the most important predictors. The final model included 12 predictors and had R² = 0.89 (p < 0.001). All 12 predictors were statistically significant (p < 0.05)."
+
+**Questions:**
+
+a) What concerns do you have about this analysis?
+b) Are the reported p-values trustworthy? Why or why not?
+c) Is R² = 0.89 impressive in this context? Why or why not?
+d) What would you recommend the researchers do differently?
+e) If you wanted to apply this model to new data, what issues might you encounter?
+
+---
+
+# Week 8 Homework Assignment {#sec-homework}
+
+## Final Project: Complete Analysis from EDA through Multiple Regression
+
+**Due:** [Insert Date]
+**Total Points:** 100
+**Submission Format:** Quarto document (.qmd) and rendered HTML
+
+---
+
+### Overview
+
+This final assignment integrates everything you've learned in AnS 500. You will conduct a complete statistical analysis from exploratory data analysis through multiple regression, including model comparison, diagnostics, interpretation, and communication.
+
+---
+
+### Dataset
+
+You have two options:
+
+1. **Use the provided dataset:** `broiler_growth_data.csv` (available on Canvas)
+2. **Use your own research data** (with instructor approval)
+
+**Provided Dataset Description:**
+
+The dataset contains growth performance data from a broiler chicken feeding trial with 180 birds across 6 dietary treatments. Variables include:
+
+- `bird_id`: Unique identifier
+- `treatment`: Dietary treatment (A, B, C, D, E, F)
+- `initial_weight`: Weight at day 0 (grams)
+- `final_weight`: Weight at day 42 (grams)
+- `weight_gain`: Total weight gain (grams)
+- `feed_intake`: Total feed consumed (grams)
+- `FCR`: Feed conversion ratio (feed:gain)
+- `mortality`: Whether bird survived (Yes/No)
+- `pen`: Pen number (1-30, 6 birds per pen)
+- `sex`: Male or Female
+- `hatch_date`: Date hatched (1, 2, or 3 — three hatches)
+
+**Research Question:**
+What factors predict weight gain in broiler chickens, and do treatments differ in performance after accounting for confounding variables?
+
+---
+
+### Assignment Parts
+
+#### Part 1: Exploratory Data Analysis (25 points)
+
+Create a comprehensive EDA section that includes:
+
+1. **Data import and cleaning**
+   - Load the dataset
+   - Check for missing values
+   - Create any derived variables you need
+   - Convert categorical variables to factors
+
+2. **Descriptive statistics**
+   - Summary statistics (mean, SD, range) for continuous variables
+   - Frequency tables for categorical variables
+   - Present in a clear table
+
+3. **Univariate visualizations**
+   - Distributions of key continuous variables (histograms or density plots)
+   - Bar charts for categorical variables
+
+4. **Bivariate relationships**
+   - Scatterplots of relationships between continuous variables
+   - Boxplots comparing groups
+   - Correlation matrix (for continuous variables)
+
+5. **Written summary**
+   - Describe patterns you observe
+   - Identify potential outliers
+   - Note relationships that will inform your modeling
+
+---
+
+#### Part 2: Initial Analyses (20 points)
+
+Before fitting the full multiple regression model, conduct appropriate preliminary analyses:
+
+1. **Univariate tests**
+   - Test if treatments differ in weight gain (one-way ANOVA)
+   - Post-hoc comparisons if appropriate
+   - Visualize treatment differences
+
+2. **Simple regression**
+   - Fit a simple linear regression: weight gain ~ feed intake
+   - Interpret the coefficient and R²
+   - Visualize the relationship
+
+3. **Rationale for multiple regression**
+   - Explain why multiple regression is necessary
+   - Identify potential confounding variables
+
+---
+
+#### Part 3: Multiple Regression Analysis (30 points)
+
+Fit and compare multiple regression models:
+
+1. **Model building**
+   - Fit at least 3 candidate models with different predictor combinations
+   - Justify your choice of predictors (theory-driven, not stepwise!)
+   - Consider including interactions if appropriate
+
+2. **Model comparison**
+   - Create a comparison table (R², Adjusted R², AIC, BIC)
+   - Use F-tests for nested models
+   - Select a final model and justify your choice
+
+3. **Assumption checking**
+   - Present diagnostic plots for your final model
+   - Assess each assumption (linearity, independence, homoscedasticity, normality, multicollinearity)
+   - Check VIF values
+   - Discuss any violations and how they affect your conclusions
+
+4. **Final model interpretation**
+   - Present regression output (use `broom::tidy()` or similar)
+   - Interpret each coefficient with 95% CIs
+   - Assess overall model fit
+   - Create visualization(s) of predicted values
+
+---
+
+#### Part 4: Results Communication (15 points)
+
+Write a complete Results section as if for a journal article:
+
+1. **Text description**
+   - Report model fit statistics
+   - Describe significant and non-significant predictors
+   - Include effect sizes and confidence intervals
+   - Use appropriate statistical notation
+
+2. **Tables**
+   - Create a publication-quality regression table
+   - Include coefficients, SEs, CIs, and p-values
+
+3. **Figures**
+   - Create at least one publication-quality figure showing model predictions
+   - Include informative title and caption
+
+---
+
+#### Part 5: Discussion & Critical Reflection (10 points)
+
+Write a brief discussion addressing:
+
+1. **Interpretation in context**
+   - What do your findings mean biologically/practically?
+   - How do they relate to existing knowledge?
+
+2. **Limitations**
+   - What assumptions were violated (if any)?
+   - What confounders might you have missed?
+   - What are the limits of generalizability?
+
+3. **Future directions**
+   - What additional analyses would you conduct with more time/resources?
+   - What data would strengthen your conclusions?
+
+4. **Reflection on the course**
+   - What statistical concepts from this course were most useful for this analysis?
+   - What would you do differently in future analyses?
+
+---
+
+### Technical Requirements
+
+- **Reproducibility:** Your .qmd file should run completely from start to finish without errors
+- **Code quality:** Use clear variable names, include comments, follow tidy principles
+- **Organization:** Use headers, subheaders, and narrative text to guide the reader
+- **Visualization:** All plots should have clear titles, axis labels, and legends
+- **Tables:** Use `knitr::kable()` or similar for formatted tables
+
+---
+
+### Grading Rubric
+
+| Component | Excellent (90-100%) | Good (80-89%) | Satisfactory (70-79%) | Needs Improvement (<70%) |
+|-----------|-------------------|--------------|---------------------|-------------------------|
+| **EDA (25 pts)** | Comprehensive exploration with insightful observations and publication-quality figures | Thorough EDA with appropriate visualizations | Basic EDA completed but missing some components | Incomplete or superficial EDA |
+| **Initial Analyses (20 pts)** | Appropriate tests conducted with correct interpretation | Tests conducted with mostly correct interpretation | Tests conducted but interpretation lacks depth | Incorrect tests or poor interpretation |
+| **Multiple Regression (30 pts)** | Thoughtful model building, thorough diagnostics, correct interpretation | Good models with adequate diagnostics | Models fit but diagnostics or interpretation incomplete | Models poorly specified or interpreted |
+| **Communication (15 pts)** | Clear, professional writing with excellent tables and figures | Good communication with minor issues | Adequate communication but lacks polish | Poor organization or presentation |
+| **Reflection (10 pts)** | Insightful discussion of limitations and learning | Good reflection with awareness of limitations | Basic reflection | Superficial or missing reflection |
+
+---
+
+### Submission Checklist
+
+Before submitting, ensure you have:
+
+- [ ] Included all required sections
+- [ ] Your .qmd file runs without errors from start to finish
+- [ ] All tables and figures have informative captions
+- [ ] Interpretation is in plain language (not just statistics)
+- [ ] Code is commented and organized
+- [ ] References to course concepts where appropriate
+- [ ] Spell-checked and proofread
+- [ ] Submitted both .qmd and .html files
+
+---
+
+### Tips for Success
+
+- **Start early:** This is a substantial project
+- **Ask questions:** Use office hours if you get stuck
+- **Focus on interpretation:** The statistics serve the science, not the other way around
+- **Tell a story:** Guide the reader through your analytical journey
+- **Show your work:** Include code (with code folding) so analyses are transparent
+- **Be honest:** If something didn't work as expected, discuss it!
+
+---
+
+**Good luck with your final project! This is your chance to demonstrate everything you've learned in AnS 500.**
+
+---
+
+# Additional Resources {#sec-resources}
+
+## Textbooks
+
+- **James, G., Witten, D., Hastie, T., & Tibshirani, R.** (2021). *An Introduction to Statistical Learning with Applications in R* (2nd ed.). Springer. [Free online](https://www.statlearning.com/)
+
+- **Faraway, J. J.** (2014). *Linear Models with R* (2nd ed.). Chapman and Hall/CRC.
+
+- **Gelman, A., Hill, J., & Vehtari, A.** (2020). *Regression and Other Stories*. Cambridge University Press.
+
+- **McElreath, R.** (2020). *Statistical Rethinking: A Bayesian Course with Examples in R and Stan* (2nd ed.). CRC Press.
+
+## R Packages for Regression
+
+- `broom`: Tidy regression output
+- `car`: Companion to Applied Regression (VIF, diagnostics)
+- `effects`: Effect plots and visualizations
+- `performance`: Model diagnostics and comparison
+- `sjPlot`: Tables and plots for regression models
+- `interactions`: Visualizing and probing interactions
+
+## Online Resources
+
+- **R for Data Science:** https://r4ds.hadley.nz/
+- **STHDA (Statistical Tools for High-throughput Data Analysis):** http://www.sthda.com/english/
+- **Cross Validated (Stats Stack Exchange):** https://stats.stackexchange.com/
+- **Quick-R:** https://www.statmethods.net/
+
+## Papers & Articles
+
+- **Harrell, F. E.** (2015). "Regression Modeling Strategies" — comprehensive guide
+- **Gelman, A., & Hill, J.** (2006). "Data Analysis Using Regression and Multilevel/Hierarchical Models"
+- **ASA Statement on P-values** (2016) — essential reading
+
+---
+
+**END OF WEEK 8 MATERIALS**
+
+*Thank you for engaging with AnS 500 this semester. May your future analyses be thoughtful, your assumptions checked, and your p-values appropriately interpreted!*

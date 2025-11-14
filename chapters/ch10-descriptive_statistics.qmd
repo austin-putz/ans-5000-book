@@ -1,0 +1,1386 @@
+---
+title: "Week 10: Descriptive Statistics and Exploratory Data Analysis"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup, include=FALSE}
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(gt)
+library(scales)
+
+# Set theme for all plots
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20250122)
+```
+
+# Introduction: The Foundation of Data Analysis {#sec-intro}
+
+Before you can run sophisticated statistical tests or build complex models, you must **understand your data**. This seemingly simple step is where many analyses go wrong. Jumping straight to hypothesis tests without thoroughly exploring your data is like performing surgery without examining the patient first.
+
+Consider a swine nutritionist who receives data from a 12-week growth trial involving 200 pigs across four different diets. What should be the first step? Running an ANOVA? No! The first step is **exploratory data analysis (EDA)**: looking at the data, understanding its structure, identifying patterns, and checking for potential issues.
+
+**Descriptive statistics** help us summarize data with numbers (means, standard deviations, percentiles), while **exploratory data analysis** uses visualization and summary techniques to understand patterns, spot outliers, and generate hypotheses.
+
+In this chapter, we'll learn to:
+
+1. **Summarize** data using measures of central tendency (mean, median, mode)
+2. **Quantify** variability using standard deviation, variance, and interquartile range
+3. **Visualize** distributions effectively with histograms, boxplots, and density plots
+4. **Identify** outliers and unusual patterns
+5. **Create** publication-quality summary tables
+
+::: {.callout-note}
+## Why Descriptive Statistics Matter
+
+"Above all else, show the data." — Edward Tufte
+
+Descriptive statistics and visualization aren't just preliminary steps—they're essential for:
+
+- Understanding your data before formal analysis
+- Checking assumptions required for statistical tests
+- Communicating findings clearly
+- Identifying data quality issues early
+:::
+
+---
+
+# Measures of Central Tendency {#sec-central-tendency}
+
+Central tendency describes the "center" or "typical value" of a distribution. The three main measures are the **mean**, **median**, and **mode**.
+
+## The Mean (Arithmetic Average) {#sec-mean}
+
+The **mean** is the sum of all values divided by the number of observations. It's the most commonly used measure of central tendency.
+
+### Mathematical Definition
+
+For a sample of $n$ observations $x_1, x_2, \ldots, x_n$, the sample mean is:
+
+$$
+\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i = \frac{x_1 + x_2 + \cdots + x_n}{n}
+$$
+
+Where:
+
+- $\bar{x}$ (pronounced "x-bar") = the sample mean
+- $\sum$ = summation symbol (add up all values)
+- $i=1$ to $n$ = index from the first to the $n$-th observation
+- $x_i$ = the $i$-th observation
+
+### Example: Weaning Weights in Pigs
+
+Suppose we have 8 piglets with the following weaning weights (kg):
+
+```{r mean-example}
+# Weaning weights of 8 piglets
+weights <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 5.7)
+
+# Calculate mean manually
+mean_manual <- sum(weights) / length(weights)
+
+# Calculate mean using R function
+mean_r <- mean(weights)
+
+cat("Piglet weights (kg):", paste(weights, collapse = ", "), "\n")
+cat(sprintf("Manual calculation: (%.1f + %.1f + ... + %.1f) / 8 = %.2f kg\n",
+            weights[1], weights[2], weights[8], mean_manual))
+cat(sprintf("Using mean(): %.2f kg\n", mean_r))
+```
+
+### Properties of the Mean
+
+**Strengths:**
+
+- Uses all data points (every value contributes)
+- Algebraically convenient (works well in formulas)
+- Familiar and widely understood
+
+**Weaknesses:**
+
+- **Sensitive to outliers**: One extreme value can dramatically shift the mean
+- **Requires numerical data**: Can't use with categorical data
+- **Not robust**: May not represent "typical" value if distribution is skewed
+
+### The Mean and Outliers
+
+Let's see how outliers affect the mean:
+
+```{r mean-outliers}
+# Normal piglet weights
+normal_weights <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 5.7)
+
+# One piglet has a data entry error (67 kg instead of 6.7 kg!)
+weights_with_outlier <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 67.0)
+
+cat("Without outlier:\n")
+cat(sprintf("  Mean = %.2f kg\n", mean(normal_weights)))
+cat("\nWith outlier (67 kg):\n")
+cat(sprintf("  Mean = %.2f kg\n", mean(weights_with_outlier)))
+cat(sprintf("  Difference: %.2f kg\n\n",
+            mean(weights_with_outlier) - mean(normal_weights)))
+cat("The outlier increased the mean by ~7.5 kg!\n")
+cat("This clearly doesn't represent the 'typical' piglet weight.\n")
+```
+
+This is why we need other measures of central tendency that are more **robust** to outliers.
+
+---
+
+## The Median {#sec-median}
+
+The **median** is the middle value when data are ordered from smallest to largest. Half the observations are below the median, half are above.
+
+### How to Calculate the Median
+
+1. **Sort** the data from smallest to largest
+2. If $n$ is **odd**: median = the middle value
+3. If $n$ is **even**: median = average of the two middle values
+
+Mathematically, for sorted data $x_{(1)} \leq x_{(2)} \leq \cdots \leq x_{(n)}$:
+
+$$
+\text{Median} =
+\begin{cases}
+x_{((n+1)/2)} & \text{if } n \text{ is odd} \\
+\frac{x_{(n/2)} + x_{(n/2+1)}}{2} & \text{if } n \text{ is even}
+\end{cases}
+$$
+
+### Example: Median Calculation
+
+```{r median-example}
+# Odd number of observations (9 pigs)
+weights_odd <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 5.7, 6.4)
+
+# Even number of observations (8 pigs)
+weights_even <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 5.7)
+
+cat("Odd sample (n=9):\n")
+cat("  Sorted:", paste(sort(weights_odd), collapse = ", "), "\n")
+cat(sprintf("  Median (5th value): %.1f kg\n", median(weights_odd)))
+
+cat("\nEven sample (n=8):\n")
+cat("  Sorted:", paste(sort(weights_even), collapse = ", "), "\n")
+cat(sprintf("  Median (average of 4th and 5th): (%.1f + %.1f)/2 = %.2f kg\n",
+            sort(weights_even)[4], sort(weights_even)[5], median(weights_even)))
+```
+
+### The Median is Robust to Outliers
+
+Let's revisit our outlier example:
+
+```{r median-outliers}
+normal_weights <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 5.7)
+weights_with_outlier <- c(6.2, 5.8, 6.5, 6.0, 5.9, 6.3, 6.1, 67.0)
+
+cat("Without outlier:\n")
+cat(sprintf("  Mean:   %.2f kg\n", mean(normal_weights)))
+cat(sprintf("  Median: %.2f kg\n", median(normal_weights)))
+
+cat("\nWith outlier (67 kg):\n")
+cat(sprintf("  Mean:   %.2f kg (changed by %.2f kg)\n",
+            mean(weights_with_outlier),
+            mean(weights_with_outlier) - mean(normal_weights)))
+cat(sprintf("  Median: %.2f kg (changed by %.2f kg)\n",
+            median(weights_with_outlier),
+            median(weights_with_outlier) - median(normal_weights)))
+
+cat("\nThe median barely changed, while the mean shifted dramatically!\n")
+```
+
+::: {.callout-tip}
+## When to Use Mean vs Median
+
+**Use the mean when:**
+
+- Data are roughly symmetric (no strong skew)
+- No extreme outliers
+- You need the mathematical properties of the mean (e.g., for further calculations)
+
+**Use the median when:**
+
+- Data are skewed (right-skewed or left-skewed)
+- Outliers are present
+- You want a measure resistant to extreme values
+- Reporting income, house prices, or other variables with long tails
+:::
+
+---
+
+## The Mode {#sec-mode}
+
+The **mode** is the most frequently occurring value in a dataset. Unlike mean and median, the mode can be used with categorical data.
+
+### Example: Mode in Categorical Data
+
+```{r mode-categorical}
+# Breed types in a beef herd
+breeds <- c("Angus", "Angus", "Hereford", "Angus", "Charolais",
+            "Angus", "Hereford", "Angus", "Angus")
+
+# Find mode (most common breed)
+breed_counts <- table(breeds)
+mode_breed <- names(breed_counts)[which.max(breed_counts)]
+
+cat("Breed counts:\n")
+print(breed_counts)
+cat(sprintf("\nMode: %s (most common breed)\n", mode_breed))
+```
+
+### Mode in Continuous Data
+
+For continuous data, the mode is less useful because values rarely repeat exactly. Instead, we look at the **peak** of the distribution using histograms or density plots.
+
+```{r mode-continuous, fig.width=8, fig.height=4}
+# Birth weights of 100 calves
+set.seed(123)
+calf_weights <- rnorm(100, mean = 40, sd = 5)
+
+# Visualize
+ggplot(tibble(weight = calf_weights), aes(x = weight)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 20, fill = "steelblue", alpha = 0.6) +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = mean(calf_weights), color = "darkgreen",
+             linetype = "dashed", linewidth = 1) +
+  annotate("text", x = mean(calf_weights) + 2, y = 0.07,
+           label = sprintf("Mean = %.1f kg", mean(calf_weights)),
+           color = "darkgreen", hjust = 0) +
+  labs(
+    title = "Distribution of Calf Birth Weights",
+    subtitle = "Red curve shows density; mode is near the peak",
+    x = "Birth Weight (kg)",
+    y = "Density"
+  )
+```
+
+::: {.callout-note}
+## Key Point: Mode
+
+The mode is most useful for:
+
+- **Categorical variables** (breed, sex, treatment group)
+- **Discrete counts** (number of piglets per litter)
+- **Multimodal distributions** (distributions with multiple peaks, suggesting subgroups)
+
+For continuous measurements, mean and median are usually more informative.
+:::
+
+---
+
+## Comparing Measures in Skewed Distributions {#sec-skewness}
+
+The relationship between mean, median, and mode reveals the **shape** of the distribution.
+
+### Symmetric Distribution
+
+When data are symmetric (like a normal distribution):
+
+$$
+\text{Mean} \approx \text{Median} \approx \text{Mode}
+$$
+
+```{r symmetric-distribution, fig.width=10, fig.height=4}
+set.seed(456)
+symmetric_data <- rnorm(500, mean = 100, sd = 15)
+
+p_sym <- ggplot(tibble(x = symmetric_data), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "steelblue", alpha = 0.6) +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = mean(symmetric_data), color = "darkgreen",
+             linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = median(symmetric_data), color = "purple",
+             linetype = "dotted", linewidth = 1) +
+  labs(title = "Symmetric Distribution",
+       subtitle = sprintf("Mean (green) = %.1f | Median (purple) = %.1f",
+                         mean(symmetric_data), median(symmetric_data)),
+       x = "Value", y = "Density")
+
+print(p_sym)
+```
+
+### Right-Skewed Distribution
+
+When data have a **long tail to the right** (positive skew):
+
+$$
+\text{Mean} > \text{Median} > \text{Mode}
+$$
+
+The mean is "pulled" toward the tail by extreme high values.
+
+**Example**: Days to market for pigs (most finish quickly, some take much longer)
+
+```{r right-skewed, fig.width=10, fig.height=4}
+set.seed(789)
+# Simulate right-skewed data (e.g., days to market)
+right_skewed <- rgamma(500, shape = 2, rate = 0.02)
+
+p_right <- ggplot(tibble(x = right_skewed), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "steelblue", alpha = 0.6) +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = mean(right_skewed), color = "darkgreen",
+             linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = median(right_skewed), color = "purple",
+             linetype = "dotted", linewidth = 1) +
+  annotate("text", x = mean(right_skewed), y = 0.012,
+           label = sprintf("Mean = %.1f", mean(right_skewed)),
+           color = "darkgreen", hjust = -0.1, size = 3.5) +
+  annotate("text", x = median(right_skewed), y = 0.011,
+           label = sprintf("Median = %.1f", median(right_skewed)),
+           color = "purple", hjust = 1.1, size = 3.5) +
+  labs(title = "Right-Skewed Distribution (Positive Skew)",
+       subtitle = "Mean > Median (mean pulled toward long right tail)",
+       x = "Days to Market", y = "Density")
+
+print(p_right)
+```
+
+### Left-Skewed Distribution
+
+When data have a **long tail to the left** (negative skew):
+
+$$
+\text{Mean} < \text{Median} < \text{Mode}
+$$
+
+**Example**: Carcass yield percentage (most are high, some are unusually low)
+
+```{r left-skewed, fig.width=10, fig.height=4}
+set.seed(321)
+# Simulate left-skewed data
+left_skewed <- 100 - rgamma(500, shape = 2, rate = 0.2)
+
+p_left <- ggplot(tibble(x = left_skewed), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "steelblue", alpha = 0.6) +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = mean(left_skewed), color = "darkgreen",
+             linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = median(left_skewed), color = "purple",
+             linetype = "dotted", linewidth = 1) +
+  annotate("text", x = mean(left_skewed), y = 0.04,
+           label = sprintf("Mean = %.1f", mean(left_skewed)),
+           color = "darkgreen", hjust = 1.1, size = 3.5) +
+  annotate("text", x = median(left_skewed), y = 0.042,
+           label = sprintf("Median = %.1f", median(left_skewed)),
+           color = "purple", hjust = -0.1, size = 3.5) +
+  labs(title = "Left-Skewed Distribution (Negative Skew)",
+       subtitle = "Mean < Median (mean pulled toward long left tail)",
+       x = "Carcass Yield (%)", y = "Density")
+
+print(p_left)
+```
+
+::: {.callout-important}
+## Remember
+
+- **Symmetric**: Mean ≈ Median
+- **Right-skewed**: Mean > Median (use median to describe center)
+- **Left-skewed**: Mean < Median (use median to describe center)
+
+Always visualize your data to understand its shape before choosing which measure to report!
+:::
+
+---
+
+# Measures of Variability (Spread) {#sec-variability}
+
+Central tendency tells only part of the story. Two datasets can have the same mean but completely different **variability** (spread).
+
+Consider two swine herds, both with mean weaning weight of 6.0 kg:
+
+- **Herd A**: All piglets between 5.8 and 6.2 kg (low variability)
+- **Herd B**: Piglets range from 3.5 to 8.5 kg (high variability)
+
+Measures of variability quantify this spread.
+
+## Range {#sec-range}
+
+The **range** is the simplest measure of spread:
+
+$$
+\text{Range} = \text{Maximum} - \text{Minimum}
+$$
+
+```{r range-example}
+# Two herds with same mean, different range
+herd_a <- c(5.8, 5.9, 6.0, 6.1, 6.2)
+herd_b <- c(3.5, 5.0, 6.0, 7.0, 8.5)
+
+cat("Herd A:", paste(herd_a, collapse = ", "), "\n")
+cat(sprintf("  Mean: %.1f kg | Range: %.1f - %.1f kg (%.1f kg)\n",
+            mean(herd_a), min(herd_a), max(herd_a), max(herd_a) - min(herd_a)))
+
+cat("\nHerd B:", paste(herd_b, collapse = ", "), "\n")
+cat(sprintf("  Mean: %.1f kg | Range: %.1f - %.1f kg (%.1f kg)\n",
+            mean(herd_b), min(herd_b), max(herd_b), max(herd_b) - min(herd_b)))
+```
+
+**Limitation**: The range uses only two values (min and max) and is extremely sensitive to outliers. We need better measures.
+
+---
+
+## Variance and Standard Deviation {#sec-variance-sd}
+
+The **variance** and **standard deviation** are the most important measures of variability in statistics.
+
+### Variance
+
+The **variance** measures the average squared deviation from the mean:
+
+$$
+s^2 = \frac{1}{n-1} \sum_{i=1}^{n} (x_i - \bar{x})^2
+$$
+
+Where:
+
+- $s^2$ = sample variance
+- $n$ = sample size
+- $x_i$ = each observation
+- $\bar{x}$ = sample mean
+- $(x_i - \bar{x})$ = deviation of observation $i$ from the mean
+- $n-1$ = degrees of freedom (we use $n-1$ instead of $n$ for sample variance)
+
+**Why $n-1$ instead of $n$?** This is called **Bessel's correction**. Using $n-1$ makes the sample variance an **unbiased estimator** of the population variance. Since we estimated the mean from the same data, we "lose" one degree of freedom.
+
+### Standard Deviation
+
+The **standard deviation** is the square root of the variance:
+
+$$
+s = \sqrt{s^2} = \sqrt{\frac{1}{n-1} \sum_{i=1}^{n} (x_i - \bar{x})^2}
+$$
+
+**Why take the square root?** Variance is in squared units (e.g., kg²), which is hard to interpret. Standard deviation is in the **original units** (kg), making it much more intuitive.
+
+### Calculating by Hand
+
+Let's calculate variance and SD step by step:
+
+```{r variance-manual}
+# Piglet weights
+weights <- c(6.2, 5.8, 6.5, 6.0, 5.9)
+
+# Step 1: Calculate mean
+mean_w <- mean(weights)
+
+# Step 2: Calculate deviations from mean
+deviations <- weights - mean_w
+
+# Step 3: Square the deviations
+squared_devs <- deviations^2
+
+# Step 4: Sum squared deviations
+sum_sq_devs <- sum(squared_devs)
+
+# Step 5: Divide by n-1
+variance <- sum_sq_devs / (length(weights) - 1)
+
+# Step 6: Take square root for SD
+std_dev <- sqrt(variance)
+
+# Create summary table
+tibble(
+  Weight = weights,
+  Deviation = round(deviations, 2),
+  `Squared Dev` = round(squared_devs, 3)
+) %>%
+  gt() %>%
+  tab_header(title = "Variance Calculation: Step by Step") %>%
+  tab_source_note(sprintf("Mean = %.2f kg", mean_w)) %>%
+  tab_source_note(sprintf("Sum of squared deviations = %.3f", sum_sq_devs)) %>%
+  tab_source_note(sprintf("Variance = %.3f / %d = %.3f kg²",
+                         sum_sq_devs, length(weights)-1, variance)) %>%
+  tab_source_note(sprintf("Standard Deviation = √%.3f = %.3f kg",
+                         variance, std_dev))
+```
+
+```{r variance-r}
+# Compare to R's built-in functions
+cat(sprintf("\nUsing R functions:\n"))
+cat(sprintf("  Variance: %.3f kg²\n", var(weights)))
+cat(sprintf("  Standard Deviation: %.3f kg\n", sd(weights)))
+```
+
+### Interpreting Standard Deviation
+
+Standard deviation tells us, **on average, how far observations deviate from the mean**.
+
+- **Small SD**: Data are clustered tightly around the mean (low variability)
+- **Large SD**: Data are spread out widely (high variability)
+
+```{r sd-interpretation, fig.width=10, fig.height=4}
+set.seed(999)
+
+# Generate two datasets with same mean, different SD
+low_sd <- rnorm(500, mean = 100, sd = 5)
+high_sd <- rnorm(500, mean = 100, sd = 20)
+
+p_low <- ggplot(tibble(x = low_sd), aes(x = x)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  geom_vline(xintercept = mean(low_sd), color = "red",
+             linetype = "dashed", linewidth = 1.2) +
+  labs(title = sprintf("Low Variability: SD = %.1f", sd(low_sd)),
+       x = "Weight (kg)", y = "Count") +
+  xlim(20, 180)
+
+p_high <- ggplot(tibble(x = high_sd), aes(x = x)) +
+  geom_histogram(bins = 30, fill = "darkorange", alpha = 0.7) +
+  geom_vline(xintercept = mean(high_sd), color = "red",
+             linetype = "dashed", linewidth = 1.2) +
+  labs(title = sprintf("High Variability: SD = %.1f", sd(high_sd)),
+       x = "Weight (kg)", y = "Count") +
+  xlim(20, 180)
+
+p_low + p_high
+```
+
+::: {.callout-tip}
+## The Empirical Rule (68-95-99.7 Rule)
+
+For data that are **approximately normally distributed**:
+
+- About **68%** of values fall within **1 SD** of the mean
+- About **95%** of values fall within **2 SD** of the mean
+- About **99.7%** of values fall within **3 SD** of the mean
+
+This rule helps you quickly assess whether an observation is unusual.
+:::
+
+```{r empirical-rule, fig.width=10, fig.height=5}
+# Demonstrate empirical rule
+set.seed(2025)
+data_norm <- rnorm(10000, mean = 100, sd = 15)
+mean_val <- 100
+sd_val <- 15
+
+ggplot(tibble(x = data_norm), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "lightblue", alpha = 0.7) +
+  geom_density(color = "darkblue", linewidth = 1.5) +
+  # Mark mean
+  geom_vline(xintercept = mean_val, color = "red",
+             linetype = "solid", linewidth = 1.2) +
+  # Mark ±1 SD
+  geom_vline(xintercept = c(mean_val - sd_val, mean_val + sd_val),
+             color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  # Mark ±2 SD
+  geom_vline(xintercept = c(mean_val - 2*sd_val, mean_val + 2*sd_val),
+             color = "orange", linetype = "dashed", linewidth = 1) +
+  # Mark ±3 SD
+  geom_vline(xintercept = c(mean_val - 3*sd_val, mean_val + 3*sd_val),
+             color = "purple", linetype = "dashed", linewidth = 1) +
+  # Annotations
+  annotate("text", x = mean_val, y = 0.025, label = "Mean",
+           color = "red", fontface = "bold") +
+  annotate("text", x = mean_val + sd_val, y = 0.020,
+           label = "±1 SD\n(68%)", color = "darkgreen", size = 3) +
+  annotate("text", x = mean_val + 2*sd_val, y = 0.015,
+           label = "±2 SD\n(95%)", color = "orange", size = 3) +
+  annotate("text", x = mean_val + 3*sd_val, y = 0.010,
+           label = "±3 SD\n(99.7%)", color = "purple", size = 3) +
+  labs(
+    title = "The Empirical Rule (68-95-99.7 Rule)",
+    subtitle = "For normal distributions: most data fall within 3 SD of the mean",
+    x = "Value",
+    y = "Density"
+  ) +
+  xlim(25, 175)
+```
+
+---
+
+## Interquartile Range (IQR) {#sec-iqr}
+
+The **interquartile range (IQR)** is a robust measure of spread that's not affected by outliers.
+
+### Quartiles
+
+**Quartiles** divide data into four equal parts:
+
+- **Q1** (First quartile / 25th percentile): 25% of data are below this value
+- **Q2** (Second quartile / 50th percentile): The **median**
+- **Q3** (Third quartile / 75th percentile): 75% of data are below this value
+
+$$
+\text{IQR} = Q3 - Q1
+$$
+
+The IQR represents the range containing the **middle 50%** of the data.
+
+```{r iqr-example}
+# Beef cattle weights
+cattle_weights <- c(450, 480, 490, 510, 520, 530, 540, 560, 580, 620)
+
+q1 <- quantile(cattle_weights, 0.25)
+q2 <- quantile(cattle_weights, 0.50)  # Median
+q3 <- quantile(cattle_weights, 0.75)
+iqr_val <- IQR(cattle_weights)
+
+cat("Cattle weights (kg):", paste(cattle_weights, collapse = ", "), "\n\n")
+cat(sprintf("Q1 (25th percentile): %.1f kg\n", q1))
+cat(sprintf("Q2 (Median):          %.1f kg\n", q2))
+cat(sprintf("Q3 (75th percentile): %.1f kg\n", q3))
+cat(sprintf("\nIQR = Q3 - Q1 = %.1f - %.1f = %.1f kg\n", q3, q1, iqr_val))
+cat("\nInterpretation: The middle 50% of cattle weigh between 495 and 565 kg.\n")
+```
+
+### IQR is Robust to Outliers
+
+```{r iqr-robust}
+# Normal data
+normal_data <- c(450, 480, 490, 510, 520, 530, 540, 560, 580, 620)
+
+# Add extreme outlier
+with_outlier <- c(450, 480, 490, 510, 520, 530, 540, 560, 580, 900)
+
+cat("Without outlier:\n")
+cat(sprintf("  SD:  %.1f kg\n", sd(normal_data)))
+cat(sprintf("  IQR: %.1f kg\n", IQR(normal_data)))
+
+cat("\nWith outlier (900 kg):\n")
+cat(sprintf("  SD:  %.1f kg (increased by %.1f kg)\n",
+            sd(with_outlier), sd(with_outlier) - sd(normal_data)))
+cat(sprintf("  IQR: %.1f kg (increased by %.1f kg)\n",
+            IQR(with_outlier), IQR(with_outlier) - IQR(normal_data)))
+
+cat("\nIQR is much more stable in the presence of outliers!\n")
+```
+
+::: {.callout-tip}
+## When to Use SD vs IQR
+
+**Use Standard Deviation when:**
+
+- Data are approximately normal
+- No extreme outliers
+- You need mathematical properties of variance (e.g., for further statistical tests)
+
+**Use IQR when:**
+
+- Data are skewed
+- Outliers are present
+- You want a robust, resistant measure of spread
+:::
+
+---
+
+# Visualizing Distributions {#sec-visualization}
+
+**"A picture is worth a thousand statistics."** Visualization is essential for understanding data.
+
+## Histograms {#sec-histograms}
+
+A **histogram** shows the distribution of a continuous variable by dividing the range into bins and counting observations in each bin.
+
+```{r histogram-example, fig.width=10, fig.height=5}
+# Generate pig growth data
+set.seed(12345)
+pig_weights <- tibble(
+  weight = rnorm(200, mean = 115, sd = 18),
+  diet = sample(c("Control", "High Protein"), 200, replace = TRUE)
+)
+
+# Basic histogram
+p_hist1 <- ggplot(pig_weights, aes(x = weight)) +
+  geom_histogram(bins = 20, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(
+    title = "Histogram of Pig Weights",
+    subtitle = "20 bins",
+    x = "Final Weight (kg)",
+    y = "Count"
+  )
+
+# Histogram with density overlay
+p_hist2 <- ggplot(pig_weights, aes(x = weight)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 20,
+                 fill = "steelblue", color = "white", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = mean(pig_weights$weight),
+             color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Histogram with Density Curve",
+    subtitle = "Red = density curve | Green = mean",
+    x = "Final Weight (kg)",
+    y = "Density"
+  )
+
+p_hist1 + p_hist2
+```
+
+::: {.callout-warning}
+## Choosing the Number of Bins
+
+The number of bins affects how the distribution looks:
+
+- **Too few bins**: May hide important features
+- **Too many bins**: May show too much noise
+
+Common rules:
+
+- **Sturges' rule**: $\text{bins} \approx \log_2(n) + 1$
+- **Square root rule**: $\text{bins} \approx \sqrt{n}$
+- **Or just experiment!** Try different bin numbers and see what reveals patterns best
+:::
+
+```{r bin-width, fig.width=10, fig.height=4}
+# Show effect of bin number
+p_few <- ggplot(pig_weights, aes(x = weight)) +
+  geom_histogram(bins = 5, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Too Few Bins (5)", x = "Weight (kg)", y = "Count")
+
+p_many <- ggplot(pig_weights, aes(x = weight)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Too Many Bins (50)", x = "Weight (kg)", y = "Count")
+
+p_few + p_many
+```
+
+---
+
+## Boxplots {#sec-boxplots}
+
+A **boxplot** (box-and-whisker plot) displays the distribution using five-number summary: minimum, Q1, median, Q3, and maximum.
+
+### Anatomy of a Boxplot
+
+```{r boxplot-anatomy, fig.width=8, fig.height=6}
+# Create sample data
+set.seed(456)
+sample_data <- rnorm(100, mean = 100, sd = 15)
+
+# Calculate components
+q1 <- quantile(sample_data, 0.25)
+median_val <- median(sample_data)
+q3 <- quantile(sample_data, 0.75)
+iqr_val <- IQR(sample_data)
+lower_whisker <- max(min(sample_data), q1 - 1.5 * iqr_val)
+upper_whisker <- min(max(sample_data), q3 + 1.5 * iqr_val)
+
+# Find outliers
+outliers <- sample_data[sample_data < lower_whisker | sample_data > upper_whisker]
+
+# Create boxplot
+ggplot(tibble(x = "Data", y = sample_data), aes(x = x, y = y)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.6, outlier.color = "red",
+               outlier.size = 3) +
+  # Add labels
+  annotate("text", x = 1.35, y = q1, label = sprintf("Q1 = %.1f", q1),
+           hjust = 0, size = 4, color = "blue") +
+  annotate("text", x = 1.35, y = median_val, label = sprintf("Median = %.1f", median_val),
+           hjust = 0, size = 4, color = "darkgreen", fontface = "bold") +
+  annotate("text", x = 1.35, y = q3, label = sprintf("Q3 = %.1f", q3),
+           hjust = 0, size = 4, color = "blue") +
+  annotate("text", x = 1.35, y = upper_whisker,
+           label = sprintf("Upper whisker = %.1f", upper_whisker),
+           hjust = 0, size = 3.5) +
+  annotate("text", x = 1.35, y = lower_whisker,
+           label = sprintf("Lower whisker = %.1f", lower_whisker),
+           hjust = 0, size = 3.5) +
+  # Add IQR bracket
+  annotate("segment", x = 0.7, xend = 0.7, y = q1, yend = q3,
+           color = "purple", linewidth = 1.5) +
+  annotate("text", x = 0.65, y = (q1 + q3)/2,
+           label = sprintf("IQR = %.1f", iqr_val),
+           angle = 90, vjust = 1, color = "purple", fontface = "bold") +
+  labs(
+    title = "Anatomy of a Boxplot",
+    subtitle = "Red points are outliers (> 1.5 × IQR from Q1 or Q3)",
+    y = "Value",
+    x = ""
+  ) +
+  theme(axis.text.x = element_blank())
+```
+
+### Comparing Groups with Boxplots
+
+Boxplots are excellent for comparing distributions across groups:
+
+```{r boxplot-comparison, fig.width=10, fig.height=5}
+# Simulate beef cattle data from different breeding programs
+set.seed(789)
+cattle_data <- tibble(
+  program = rep(c("Program A", "Program B", "Program C"), each = 60),
+  weight = c(
+    rnorm(60, mean = 580, sd = 45),  # Program A
+    rnorm(60, mean = 610, sd = 50),  # Program B
+    rnorm(60, mean = 595, sd = 35)   # Program C
+  )
+)
+
+# Boxplot comparison
+ggplot(cattle_data, aes(x = program, y = weight, fill = program)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 2) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "black") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Final Weights by Breeding Program",
+    subtitle = "Red diamond = mean | Bold line = median | Box = IQR",
+    x = "Breeding Program",
+    y = "Final Weight (kg)"
+  ) +
+  theme(legend.position = "none")
+```
+
+---
+
+## Density Plots {#sec-density}
+
+A **density plot** is a smoothed version of a histogram, showing the probability density function.
+
+```{r density-plots, fig.width=10, fig.height=5}
+# Compare distributions across groups
+ggplot(cattle_data, aes(x = weight, fill = program)) +
+  geom_density(alpha = 0.5, linewidth = 1) +
+  geom_vline(data = cattle_data %>% group_by(program) %>%
+               summarise(mean_wt = mean(weight), .groups = 'drop'),
+             aes(xintercept = mean_wt, color = program),
+             linetype = "dashed", linewidth = 1) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set2") +
+  labs(
+    title = "Density Plots: Comparing Weight Distributions",
+    subtitle = "Dashed lines show group means",
+    x = "Final Weight (kg)",
+    y = "Density",
+    fill = "Program",
+    color = "Program"
+  )
+```
+
+---
+
+## Violin Plots {#sec-violin}
+
+A **violin plot** combines a boxplot with a density plot, showing both summary statistics and the full distribution shape.
+
+```{r violin-plots, fig.width=10, fig.height=5}
+ggplot(cattle_data, aes(x = program, y = weight, fill = program)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.8, outlier.shape = NA) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+               fill = "red", color = "black") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Violin Plots: Distribution Shape + Boxplot",
+    subtitle = "Width shows density | Box shows quartiles | Red = mean",
+    x = "Breeding Program",
+    y = "Final Weight (kg)"
+  ) +
+  theme(legend.position = "none")
+```
+
+---
+
+# Identifying Outliers {#sec-outliers}
+
+**Outliers** are observations that are unusually far from the bulk of the data. They can represent:
+
+1. **Legitimate extreme values** (biological variation)
+2. **Measurement errors** (typos, equipment malfunction)
+3. **Different populations** (e.g., a different breed mixed in)
+
+## The IQR Method {#sec-iqr-method}
+
+The most common method defines outliers as observations beyond:
+
+$$
+\begin{align}
+\text{Lower fence} &= Q1 - 1.5 \times \text{IQR} \\
+\text{Upper fence} &= Q3 + 1.5 \times \text{IQR}
+\end{align}
+$$
+
+This is the definition used by boxplots.
+
+```{r outlier-detection}
+# Cattle weights with some outliers
+set.seed(111)
+weights_with_outliers <- c(
+  rnorm(45, mean = 550, sd = 40),  # Normal cattle
+  c(350, 420, 720)                  # Outliers
+)
+
+# Calculate fences
+q1 <- quantile(weights_with_outliers, 0.25)
+q3 <- quantile(weights_with_outliers, 0.75)
+iqr <- IQR(weights_with_outliers)
+lower_fence <- q1 - 1.5 * iqr
+upper_fence <- q3 + 1.5 * iqr
+
+# Identify outliers
+outliers <- weights_with_outliers[weights_with_outliers < lower_fence |
+                                   weights_with_outliers > upper_fence]
+
+cat("Outlier Detection Using IQR Method\n")
+cat("===================================\n")
+cat(sprintf("Q1 = %.1f kg\n", q1))
+cat(sprintf("Q3 = %.1f kg\n", q3))
+cat(sprintf("IQR = %.1f kg\n", iqr))
+cat(sprintf("\nLower fence = Q1 - 1.5×IQR = %.1f - %.1f = %.1f kg\n",
+            q1, 1.5*iqr, lower_fence))
+cat(sprintf("Upper fence = Q3 + 1.5×IQR = %.1f + %.1f = %.1f kg\n",
+            q3, 1.5*iqr, upper_fence))
+cat(sprintf("\nOutliers detected: %s\n", paste(round(outliers, 1), collapse = ", ")))
+```
+
+```{r outlier-viz, fig.width=10, fig.height=5}
+# Visualize outliers
+outlier_data <- tibble(
+  weight = weights_with_outliers,
+  is_outlier = weight < lower_fence | weight > upper_fence
+)
+
+p_box_outlier <- ggplot(outlier_data, aes(x = "Cattle", y = weight)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.6, outlier.color = "red",
+               outlier.size = 4) +
+  geom_hline(yintercept = c(lower_fence, upper_fence),
+             linetype = "dashed", color = "red", linewidth = 1) +
+  annotate("text", x = 1.3, y = lower_fence,
+           label = sprintf("Lower fence = %.0f", lower_fence),
+           color = "red", hjust = 0) +
+  annotate("text", x = 1.3, y = upper_fence,
+           label = sprintf("Upper fence = %.0f", upper_fence),
+           color = "red", hjust = 0) +
+  labs(title = "Boxplot: Outliers in Red",
+       y = "Weight (kg)", x = "") +
+  theme(axis.text.x = element_blank())
+
+p_hist_outlier <- ggplot(outlier_data, aes(x = weight, fill = is_outlier)) +
+  geom_histogram(bins = 20, color = "white", alpha = 0.7) +
+  scale_fill_manual(values = c("FALSE" = "steelblue", "TRUE" = "red"),
+                    labels = c("Normal", "Outlier")) +
+  labs(title = "Histogram: Outliers Highlighted",
+       x = "Weight (kg)", y = "Count", fill = "")
+
+p_box_outlier + p_hist_outlier
+```
+
+## What to Do with Outliers? {#sec-handling-outliers}
+
+**NEVER automatically delete outliers!** Instead:
+
+1. **Investigate**: Is it a data entry error? Measurement error? Legitimate extreme value?
+2. **Document**: Record what you find and what you decide
+3. **Consider**:
+   - If **error**: Correct if possible, or remove and document
+   - If **legitimate**: Keep it! Report results with and without outliers if it's influential
+   - If **different population**: Analyze separately
+
+::: {.callout-warning}
+## Important
+
+Removing outliers just to get "better" p-values is **data manipulation** and scientifically dishonest. Always have a **principled reason** for any data exclusions and report them transparently.
+:::
+
+---
+
+# Creating Summary Tables {#sec-summary-tables}
+
+Publication-quality summary tables are essential for communicating results.
+
+## Example: Swine Growth Trial Summary
+
+```{r summary-table-example}
+# Simulate swine growth data
+set.seed(2025)
+swine_data <- tibble(
+  diet = rep(c("Control", "High Protein", "High Energy", "Balanced"), each = 50),
+  initial_weight = rnorm(200, mean = 25, sd = 3),
+  final_weight = initial_weight + rnorm(200, mean = 90, sd = 12) +
+    case_when(
+      diet == "Control" ~ 0,
+      diet == "High Protein" ~ 5,
+      diet == "High Energy" ~ 3,
+      diet == "Balanced" ~ 7
+    )
+) %>%
+  mutate(weight_gain = final_weight - initial_weight)
+
+# Create comprehensive summary table
+summary_table <- swine_data %>%
+  group_by(diet) %>%
+  summarise(
+    N = n(),
+    Mean = mean(weight_gain),
+    SD = sd(weight_gain),
+    Median = median(weight_gain),
+    IQR = IQR(weight_gain),
+    Min = min(weight_gain),
+    Max = max(weight_gain),
+    .groups = 'drop'
+  )
+
+# Display with gt package
+summary_table %>%
+  gt() %>%
+  tab_header(
+    title = "Summary Statistics: Weight Gain by Diet",
+    subtitle = "12-week growth trial (n=200 pigs)"
+  ) %>%
+  fmt_number(
+    columns = c(Mean, SD, Median, IQR, Min, Max),
+    decimals = 1
+  ) %>%
+  cols_label(
+    diet = "Diet Treatment",
+    N = "n",
+    Mean = "Mean (kg)",
+    SD = "SD (kg)",
+    Median = "Median (kg)",
+    IQR = "IQR (kg)",
+    Min = "Min (kg)",
+    Max = "Max (kg)"
+  ) %>%
+  tab_source_note("SD = Standard Deviation; IQR = Interquartile Range") %>%
+  tab_options(
+    table.font.size = 12,
+    heading.background.color = "#f0f0f0"
+  )
+```
+
+---
+
+# Comprehensive Example: Beef Feedlot Data {#sec-comprehensive-example}
+
+Let's bring everything together with a complete exploratory data analysis of a beef feedlot study.
+
+```{r comprehensive-example-data}
+# Simulate realistic beef feedlot data
+set.seed(98765)
+
+feedlot_data <- tibble(
+  animal_id = 1:180,
+  breed = sample(c("Angus", "Hereford", "Charolais"), 180,
+                 replace = TRUE, prob = c(0.5, 0.3, 0.2)),
+  sex = sample(c("Steer", "Heifer"), 180, replace = TRUE, prob = c(0.6, 0.4)),
+  initial_weight = rnorm(180, mean = 300, sd = 35),
+  pen = rep(1:12, each = 15),
+  feed_program = rep(c("Standard", "Enhanced"), each = 90)
+) %>%
+  mutate(
+    # Final weight depends on sex, breed, and feed program
+    final_weight = initial_weight +
+      rnorm(180, mean = 220, sd = 30) +
+      case_when(
+        sex == "Steer" ~ 15,
+        sex == "Heifer" ~ 0
+      ) +
+      case_when(
+        breed == "Angus" ~ 10,
+        breed == "Hereford" ~ 0,
+        breed == "Charolais" ~ 20
+      ) +
+      case_when(
+        feed_program == "Enhanced" ~ 12,
+        feed_program == "Standard" ~ 0
+      ),
+    weight_gain = final_weight - initial_weight,
+    adg = weight_gain / 180  # Average daily gain over 180 days
+  )
+
+# Show first few rows
+head(feedlot_data, 10) %>%
+  gt() %>%
+  tab_header(title = "Beef Feedlot Data (First 10 Animals)") %>%
+  fmt_number(columns = c(initial_weight, final_weight, weight_gain, adg),
+             decimals = 1)
+```
+
+## Step 1: Overall Summary Statistics
+
+```{r overall-summary}
+# Overall summary of key variables
+overall_summary <- feedlot_data %>%
+  summarise(
+    `Sample Size` = n(),
+    across(c(initial_weight, final_weight, weight_gain, adg),
+           list(
+             Mean = ~mean(.),
+             SD = ~sd(.),
+             Median = ~median(.),
+             IQR = ~IQR(.),
+             Min = ~min(.),
+             Max = ~max(.)
+           ),
+           .names = "{.col}_{.fn}")
+  )
+
+# Reshape for display
+overall_summary %>%
+  pivot_longer(-`Sample Size`, names_to = "stat", values_to = "value") %>%
+  separate(stat, into = c("variable", "measure"), sep = "_") %>%
+  pivot_wider(names_from = measure, values_from = value) %>%
+  mutate(variable = case_when(
+    variable == "initial" ~ "Initial Weight (kg)",
+    variable == "final" ~ "Final Weight (kg)",
+    variable == "weight" ~ "Weight Gain (kg)",
+    variable == "adg" ~ "ADG (kg/day)"
+  )) %>%
+  gt() %>%
+  tab_header(title = "Overall Summary Statistics",
+             subtitle = sprintf("n = %d cattle", overall_summary$`Sample Size`)) %>%
+  fmt_number(columns = -variable, decimals = 2) %>%
+  cols_label(variable = "Variable")
+```
+
+## Step 2: Visualize Distributions
+
+```{r overall-distributions, fig.width=12, fig.height=8}
+# Create multiple visualizations
+p1 <- ggplot(feedlot_data, aes(x = initial_weight)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25,
+                 fill = "steelblue", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1) +
+  geom_vline(xintercept = mean(feedlot_data$initial_weight),
+             linetype = "dashed", color = "darkgreen", linewidth = 1) +
+  labs(title = "Initial Weight Distribution", x = "Weight (kg)", y = "Density")
+
+p2 <- ggplot(feedlot_data, aes(x = final_weight)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25,
+                 fill = "darkorange", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1) +
+  geom_vline(xintercept = mean(feedlot_data$final_weight),
+             linetype = "dashed", color = "darkgreen", linewidth = 1) +
+  labs(title = "Final Weight Distribution", x = "Weight (kg)", y = "Density")
+
+p3 <- ggplot(feedlot_data, aes(x = weight_gain)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25,
+                 fill = "darkgreen", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1) +
+  geom_vline(xintercept = mean(feedlot_data$weight_gain),
+             linetype = "dashed", color = "darkblue", linewidth = 1) +
+  labs(title = "Weight Gain Distribution", x = "Weight Gain (kg)", y = "Density")
+
+p4 <- ggplot(feedlot_data, aes(x = adg)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25,
+                 fill = "purple", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1) +
+  geom_vline(xintercept = mean(feedlot_data$adg),
+             linetype = "dashed", color = "darkgreen", linewidth = 1) +
+  labs(title = "ADG Distribution", x = "ADG (kg/day)", y = "Density")
+
+(p1 + p2) / (p3 + p4) +
+  plot_annotation(title = "Distribution of Weight Variables",
+                  theme = theme(plot.title = element_text(size = 16, face = "bold")))
+```
+
+## Step 3: Compare Groups
+
+```{r group-comparisons, fig.width=12, fig.height=8}
+# Summary by feed program
+feed_summary <- feedlot_data %>%
+  group_by(feed_program) %>%
+  summarise(
+    n = n(),
+    Mean_ADG = mean(adg),
+    SD_ADG = sd(adg),
+    Median_ADG = median(adg),
+    IQR_ADG = IQR(adg),
+    .groups = 'drop'
+  )
+
+print("Summary by Feed Program:")
+feed_summary %>%
+  gt() %>%
+  fmt_number(columns = -c(feed_program, n), decimals = 3) %>%
+  cols_label(feed_program = "Feed Program",
+             n = "n",
+             Mean_ADG = "Mean ADG",
+             SD_ADG = "SD",
+             Median_ADG = "Median ADG",
+             IQR_ADG = "IQR")
+
+# Visualize comparisons
+p_feed <- ggplot(feedlot_data, aes(x = feed_program, y = adg, fill = feed_program)) +
+  geom_violin(alpha = 0.5, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "black") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "ADG by Feed Program", x = "Feed Program",
+       y = "ADG (kg/day)") +
+  theme(legend.position = "none")
+
+p_sex <- ggplot(feedlot_data, aes(x = sex, y = adg, fill = sex)) +
+  geom_violin(alpha = 0.5, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "black") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "ADG by Sex", x = "Sex", y = "ADG (kg/day)") +
+  theme(legend.position = "none")
+
+p_breed <- ggplot(feedlot_data, aes(x = breed, y = adg, fill = breed)) +
+  geom_violin(alpha = 0.5, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "black") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "ADG by Breed", x = "Breed", y = "ADG (kg/day)") +
+  theme(legend.position = "none")
+
+p_feed + p_sex + p_breed +
+  plot_annotation(title = "Comparing ADG Across Groups",
+                  theme = theme(plot.title = element_text(size = 16, face = "bold")))
+```
+
+## Step 4: Check for Outliers
+
+```{r outlier-check}
+# Identify outliers in ADG
+q1_adg <- quantile(feedlot_data$adg, 0.25)
+q3_adg <- quantile(feedlot_data$adg, 0.75)
+iqr_adg <- IQR(feedlot_data$adg)
+lower_adg <- q1_adg - 1.5 * iqr_adg
+upper_adg <- q3_adg + 1.5 * iqr_adg
+
+outliers_adg <- feedlot_data %>%
+  filter(adg < lower_adg | adg > upper_adg)
+
+cat(sprintf("Outlier Detection for ADG (kg/day)\n"))
+cat(sprintf("Lower fence: %.3f\n", lower_adg))
+cat(sprintf("Upper fence: %.3f\n", upper_adg))
+cat(sprintf("\nNumber of outliers: %d out of %d (%.1f%%)\n",
+            nrow(outliers_adg), nrow(feedlot_data),
+            100 * nrow(outliers_adg) / nrow(feedlot_data)))
+
+if(nrow(outliers_adg) > 0) {
+  cat("\nOutlier animals:\n")
+  print(outliers_adg %>%
+          select(animal_id, breed, sex, feed_program, adg) %>%
+          arrange(adg))
+}
+```
+
+---
+
+# Summary and Key Takeaways {#sec-summary}
+
+Congratulations! You now have a solid foundation in descriptive statistics and exploratory data analysis.
+
+::: {.callout-tip icon=false}
+## Key Concepts Covered
+
+### 1. Measures of Central Tendency
+
+- **Mean**: Average value; sensitive to outliers
+- **Median**: Middle value; robust to outliers
+- **Mode**: Most common value; useful for categorical data
+- Use mean for symmetric data, median for skewed data
+
+### 2. Measures of Variability
+
+- **Range**: Max - Min; simple but sensitive to outliers
+- **Variance (s²)**: Average squared deviation from mean
+- **Standard Deviation (s)**: Square root of variance; in original units
+- **IQR**: Q3 - Q1; robust measure of spread
+- Use SD for normal data, IQR for skewed/outlier-prone data
+
+### 3. Visualization Techniques
+
+- **Histograms**: Show distribution shape
+- **Boxplots**: Display five-number summary and outliers
+- **Density plots**: Smoothed distribution curves
+- **Violin plots**: Combine boxplots with density
+
+### 4. Outlier Detection
+
+- **IQR method**: Values beyond Q1 - 1.5×IQR or Q3 + 1.5×IQR
+- Never automatically delete outliers
+- Investigate, document, and report decisions
+
+### 5. EDA Best Practices
+
+- **Always visualize before testing**
+- Calculate both mean/SD and median/IQR
+- Compare distributions across groups
+- Check for outliers and unusual patterns
+- Create clear summary tables
+:::
+
+---
+
+## Looking Ahead
+
+Next week, we'll build on these foundations by learning about:
+
+- **Probability distributions** (especially the normal distribution)
+- **The Central Limit Theorem** (why means are normally distributed)
+- **Standard error** vs standard deviation
+- **Confidence intervals** (quantifying uncertainty)
+- Introduction to **sampling distributions**
+
+These concepts will bridge descriptive statistics to inferential statistics, allowing us to make conclusions about populations based on samples.
+
+---
+
+## Reflection Questions
+
+Before next week, consider:
+
+1. Find a dataset from your research (or use one from class). Perform a complete EDA following the steps in this chapter.
+
+2. In published papers from your field, are both mean/SD and median/IQR reported? Are visualizations included?
+
+3. Think about a variable you measure in your work. What would you consider an outlier? What would you do if you found one?
+
+---
+
+## Additional Resources
+
+### R Packages for Descriptive Statistics
+
+- **`skimr`**: Quick, comprehensive summaries of datasets
+- **`summarytools`**: Detailed univariate and bivariate summaries
+- **`psych`**: Descriptive statistics for psychological/survey data
+- **`DataExplorer`**: Automated EDA reports
+
+### Recommended Reading
+
+- **"Exploratory Data Analysis"** by John Tukey (1977) - the classic text
+- **"Data Visualization: A Practical Introduction"** by Kieran Healy
+- **"Fundamentals of Biostatistics"** by Bernard Rosner - Chapters 2-3
+
+### Online Resources
+
+- **R for Data Science** (2e): Chapters on data transformation and visualization
+- **ggplot2 book** by Hadley Wickham: Comprehensive guide to data visualization
+
+---
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+
+*End of Week 2: Descriptive Statistics and Exploratory Data Analysis*

@@ -1,0 +1,124 @@
+# Welcome {.unnumbered}
+
+Welcome to **Introduction to Data Science & Statistics** (AnS 500) for Fall 2025!
+
+## Course Overview
+
+This comprehensive 16-week course is divided into two parts, providing a complete foundation in data science and statistical methods for animal and agricultural sciences. All examples and exercises use R and Quarto for reproducible analysis.
+
+**Duration**: 16 weeks (8 weeks per part)
+**Format**: 2 hours lecture per week + homework assignments
+**Tools**: R + Quarto exclusively
+**Prerequisites**: None (we start from the basics!)
+
+---
+
+## Part 1: Introduction to Data Science (Weeks 1-8)
+
+The first half introduces you to modern data science practices using R, RStudio, and the tidyverse ecosystem. You'll learn to import, clean, transform, visualize, and communicate data effectively.
+
+### What You'll Learn in Part 1
+
+- **Foundations**: Data science workflow, best practices, project organization
+- **R & RStudio**: Getting started, reading data (CSV, Excel)
+- **Data Manipulation**: `dplyr` for transforming and summarizing data
+- **Visualization**: `ggplot2` for creating publication-quality plots
+- **Advanced Topics**: Reshaping data, joining datasets, iteration with `purrr`
+
+### Part 1 Chapters
+
+1. **Foundations of Data Science** - What is data science? Best practices, R/RStudio/Quarto intro, Git/GitHub
+2. **R, RStudio & Reading Data** - Interface, projects, packages, importing CSV/Excel
+3. **Data Types & Strings** - Types, string manipulation, regex, intro to dplyr
+4. **Data Manipulation with dplyr** - mutate, arrange, group_by, summarise, handling NAs
+5. **Introduction to ggplot2** - Grammar of Graphics, essential plot types, themes
+6. **Advanced ggplot2** - Faceting, statistical layers, combining plots
+7. **Reshaping & Joining** - Tidy data, pivoting, joins, functional programming
+8. **Special Formats & Wrap-up** - SAS/SPSS/Stata, Excel, janitor, complete workflow
+
+---
+
+## Part 2: Introduction to Statistics (Weeks 9-16)
+
+The second half builds on your data science skills to conduct statistical analyses. You'll learn frequentist inference, hypothesis testing, and regression modeling.
+
+### What You'll Learn in Part 2
+
+- **Statistical Foundations**: P-values, study design, experimental vs observational
+- **Descriptive Statistics**: Measures of central tendency and variability, EDA
+- **Probability & Inference**: Normal distribution, Central Limit Theorem, confidence intervals
+- **Hypothesis Testing**: t-tests, ANOVA, power, Type I/II errors
+- **Regression**: Simple and multiple linear regression, model diagnostics
+
+### Part 2 Chapters
+
+1. **Statistical Foundations** - Frequentist vs Bayesian, p-values, RCTs, confounding
+2. **Descriptive Statistics** - Mean, median, variance, SD, visualization, outliers
+3. **Probability Distributions** - Normal distribution, CLT, sampling distributions
+4. **Hypothesis Testing** - t-tests, null/alternative hypotheses, power
+5. **ANOVA** - One-way ANOVA, post-hoc tests, multiple comparisons
+6. **Categorical Data** - Chi-square, Fisher's exact, odds ratios
+7. **Simple Linear Regression** - Correlation, least squares, diagnostics
+8. **Multiple Regression** - Multiple predictors, model comparison, variable selection
+
+---
+
+## R Packages Used
+
+This course makes extensive use of R packages from the tidyverse ecosystem and beyond.
+
+### Part 1 Packages (Data Science)
+
+```r
+# Core tidyverse
+install.packages("tidyverse")
+
+# Additional Part 1 packages
+install.packages(c(
+  "readxl",      # Read Excel files
+  "writexl",     # Write Excel files
+  "haven",       # Read SAS/SPSS/Stata files
+  "janitor",     # Data cleaning
+  "lubridate",   # Date/time manipulation
+  "cowplot",     # Combining plots
+  "patchwork",   # Combining plots (alternative)
+  "here",        # Project-relative paths
+  "glue"         # String interpolation
+))
+```
+
+### Part 2 Packages (Statistics)
+
+```r
+install.packages(c(
+  "broom",       # Tidy statistical output
+  "car",         # Companion to Applied Regression
+  "effsize",     # Effect size calculations
+  "ggpubr",      # Publication-ready plots
+  "rstatix",     # Pipe-friendly statistical tests
+  "gt",          # Grammar of Tables
+  "emmeans"      # Estimated marginal means
+))
+```
+
+## Course Philosophy
+
+This course emphasizes:
+
+- **Tidyverse-first approach**: Modern R practices from day one
+- **Reproducible research**: Every analysis in Quarto
+- **Real-world data**: Animal and agricultural science datasets with real messiness
+- **Best practices early**: Project organization, naming conventions, version control
+- **Statistical thinking**: Understanding over button-pushing
+- **Build incrementally**: Each week builds on previous skills
+
+## Getting Started
+
+Navigate through the chapters using the sidebar on the left. Each chapter includes:
+
+- Lecture content with conceptual explanations
+- R code examples you can run and modify
+- Visualizations to build intuition
+- Practice exercises and homework assignments
+
+Let's begin your statistical journey!

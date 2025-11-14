@@ -1,0 +1,20 @@
+# Advanced ggplot2 and Multi-Panel Plots
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Create faceted plots with `facet_wrap()` and `facet_grid()`
+2. Add statistical layers and trend lines
+3. Customize themes extensively
+4. Work with color palettes
+5. Combine multiple plots using `cowplot` and `patchwork`
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Chapter**: [Data Reshaping, Joining, and Iteration](part1-ch07-tidyr_joins_purrr.qmd)

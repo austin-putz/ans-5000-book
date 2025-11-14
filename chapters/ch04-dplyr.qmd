@@ -1,0 +1,20 @@
+# Data Manipulation with dplyr
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Create and modify variables with `mutate()`
+2. Sort data with `arrange()`
+3. Create grouped summaries with `group_by()` and `summarise()`
+4. Handle missing data effectively
+5. Apply conditional logic with `if_else()` and `case_when()`
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Chapter**: [Introduction to Data Visualization with ggplot2](part1-ch05-ggplot2_intro.qmd)

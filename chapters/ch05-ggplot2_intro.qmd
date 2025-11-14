@@ -1,0 +1,20 @@
+# Introduction to Data Visualization with ggplot2
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Understand the Grammar of Graphics philosophy
+2. Create basic plots: scatter, line, bar, histogram, boxplot
+3. Map variables to aesthetic properties
+4. Apply themes and customize plot appearance
+5. Save plots for publication
+
+::: {.callout-note}
+## Coming Soon
+This chapter is under development. Content will be added shortly.
+:::
+
+---
+
+**Next Chapter**: [Advanced ggplot2 and Multi-Panel Plots](part1-ch06-ggplot2_advanced.qmd)

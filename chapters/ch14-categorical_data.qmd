@@ -1,0 +1,1736 @@
+---
+title: "Week 14: Categorical Data Analysis"
+subtitle: "Introduction to Statistics for Animal Science"
+author: "AnS 500 - Fall 2025"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    code-tools: true
+    embed-resources: true
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup}
+#| include: false
+
+# Load required packages
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(scales)
+library(knitr)
+
+# Set default theme for plots
+theme_set(theme_minimal(base_size = 12))
+
+# Set seed for reproducibility
+set.seed(20250106)
+```
+
+# Introduction {#sec-intro}
+
+Up to this point in the course, we've focused primarily on **continuous outcomes**: cattle weight gains, milk production, feed efficiency, and similar numeric measurements. But many important questions in animal science involve **categorical outcomes**:
+
+- Does a vaccine prevent disease? (Yes/No)
+- What coat color will offspring inherit? (Black/Red/White)
+- Do different housing systems affect lameness rates? (Lame/Not Lame)
+- Is there a relationship between breed and temperament? (Calm/Nervous/Aggressive)
+
+When our outcome variable is categorical rather than continuous, we need different statistical tools. This week, we'll explore methods for analyzing categorical data, from simple chi-square tests to logistic regression models.
+
+## A Motivating Example
+
+Imagine you're investigating bovine respiratory disease (BRD) in feedlot cattle. You've implemented a new vaccine protocol and want to know:
+
+1. **Did it work?** Are disease rates different between vaccinated and unvaccinated cattle?
+2. **How much did it help?** What's the reduction in disease risk?
+3. **What factors matter?** Do age, weight, or previous health status affect disease risk?
+
+Traditional t-tests and ANOVA won't work here—our outcome is binary (disease: Yes/No), not continuous. We need categorical data analysis methods.
+
+## Key Questions We'll Address
+
+By the end of this week, you'll be able to answer:
+
+- When should I use chi-square tests vs Fisher's exact test?
+- How do I calculate and interpret odds ratios and risk ratios?
+- What's the difference between association and causation with categorical data?
+- When do I need logistic regression instead of simpler tests?
+- How do I interpret logistic regression coefficients?
+
+::: {.callout-note}
+## Building on Previous Weeks
+
+We've already covered hypothesis testing (Week 4) and ANOVA (Week 5). The logic is the same for categorical data:
+
+1. State hypotheses (null: no association; alternative: association exists)
+2. Calculate a test statistic
+3. Determine if results are more extreme than expected by chance
+4. Consider effect sizes and practical significance
+
+The difference is in **how** we measure associations with categorical variables.
+:::
+
+# Understanding Categorical Variables {#sec-categorical-variables}
+
+## Types of Categorical Variables
+
+Categorical variables come in different forms:
+
+**Nominal**: Categories with no inherent order
+- Breed (Holstein, Jersey, Angus)
+- Coat color (Black, White, Brown)
+- Disease diagnosis (BRD, Pneumonia, Healthy)
+
+**Ordinal**: Categories with a natural order
+- Body condition score (1, 2, 3, 4, 5)
+- Lameness score (None, Mild, Moderate, Severe)
+- Treatment response (Poor, Fair, Good, Excellent)
+
+**Binary**: Special case with only two categories
+- Disease status (Yes/No)
+- Survival (Alive/Dead)
+- Treatment group (Control/Treated)
+
+::: {.callout-important}
+## The methods we cover this week work best for nominal and binary data
+
+For ordinal data with many categories, specialized methods (ordinal logistic regression, Wilcoxon tests) may be more appropriate. However, chi-square tests can still be used as a first approximation.
+:::
+
+## Contingency Tables
+
+A **contingency table** (also called a cross-tabulation) displays the frequency distribution of two or more categorical variables.
+
+Let's create a simple example:
+
+```{r contingency-example}
+# Simulate vaccine trial data
+vaccine_data <- tibble(
+  animal_id = 1:200,
+  vaccine = rep(c("Control", "Vaccinated"), each = 100),
+  disease = c(
+    sample(c("Yes", "No"), 100, replace = TRUE, prob = c(0.30, 0.70)),  # Control
+    sample(c("Yes", "No"), 100, replace = TRUE, prob = c(0.15, 0.85))   # Vaccinated
+  )
+)
+
+# Create contingency table
+table_result <- table(vaccine_data$vaccine, vaccine_data$disease)
+table_result
+```
+
+This is a **2×2 contingency table** (2 rows × 2 columns). Let's make it more informative:
+
+```{r contingency-enhanced}
+# Add row/column totals
+addmargins(table_result)
+```
+
+We can also calculate proportions:
+
+```{r proportions}
+# Proportions by row (vaccine status)
+prop.table(table_result, margin = 1) %>%
+  round(3)
+```
+
+**Interpretation**: In this simulated data:
+- 31% of control animals got disease
+- 12% of vaccinated animals got disease
+- **Difference**: 31% - 12% = 19 percentage points
+
+But is this difference **statistically significant**, or could it have occurred by chance?
+
+# Chi-Square Goodness of Fit Test {#sec-chi-square-gof}
+
+The **chi-square goodness of fit test** answers the question: *Do observed frequencies match expected frequencies?*
+
+## When to Use It
+
+Use this test when you have:
+- **One categorical variable**
+- A hypothesis about the expected distribution
+- Want to test if your data fits that distribution
+
+## Classic Example: Mendelian Genetics
+
+Suppose you're breeding horses and expect a 3:1 ratio of black to chestnut coat color (simple dominant inheritance). You observe:
+
+- Black: 73
+- Chestnut: 27
+- Total: 100
+
+Does this match the expected 3:1 ratio?
+
+```{r genetics-example}
+# Observed counts
+observed <- c(Black = 73, Chestnut = 27)
+
+# Expected proportions (3:1 ratio)
+expected_props <- c(0.75, 0.25)
+
+# Chi-square goodness of fit test
+chisq_result <- chisq.test(observed, p = expected_props)
+chisq_result
+```
+
+```{r genetics-tidy}
+# Tidy output
+tidy(chisq_result)
+```
+
+**Interpretation**:
+- p-value = `r round(chisq_result$p.value, 3)`
+- We fail to reject the null hypothesis
+- The observed data is consistent with a 3:1 ratio
+
+## How It Works
+
+The chi-square test compares observed (O) and expected (E) frequencies:
+
+$$
+\chi^2 = \sum \frac{(O - E)^2}{E}
+$$
+
+Let's calculate it manually:
+
+```{r manual-chi-square}
+# Expected counts (3:1 ratio with n=100)
+expected <- c(75, 25)
+
+# Calculate chi-square statistic
+chi_square_stat <- sum((observed - expected)^2 / expected)
+chi_square_stat
+
+# Compare to test result
+chisq_result$statistic
+```
+
+The p-value comes from the chi-square distribution with degrees of freedom = k - 1 (where k = number of categories).
+
+```{r chi-square-distribution}
+# Visualize chi-square distribution
+tibble(x = seq(0, 10, 0.01)) %>%
+  mutate(density = dchisq(x, df = 1)) %>%
+  ggplot(aes(x = x, y = density)) +
+  geom_line(size = 1, color = "steelblue") +
+  geom_vline(xintercept = chi_square_stat, color = "red", linetype = "dashed", size = 1) +
+  geom_area(data = . %>% filter(x >= chi_square_stat),
+            fill = "red", alpha = 0.3) +
+  labs(title = "Chi-Square Distribution (df = 1)",
+       subtitle = "Red area = p-value",
+       x = "Chi-square statistic",
+       y = "Density") +
+  theme_minimal()
+```
+
+## Assumptions
+
+::: {.callout-warning}
+## Chi-Square Test Assumptions
+
+1. **Independent observations**: Each animal counted once
+2. **Expected cell counts ≥ 5**: Rule of thumb for valid p-values
+3. **Random sampling**: Data should be representative
+
+If expected counts < 5, the chi-square approximation may be poor. Consider:
+- Combining categories
+- Using exact tests
+- Collecting more data
+:::
+
+## More Complex Example: Dihybrid Cross
+
+In a dihybrid cross (two genes), we expect a 9:3:3:1 ratio. Let's test data from 160 offspring:
+
+```{r dihybrid}
+# Observed counts
+observed_dihybrid <- c(95, 28, 26, 11)
+names(observed_dihybrid) <- c("Both_Dominant", "First_Dominant",
+                               "Second_Dominant", "Both_Recessive")
+
+# Expected proportions (9:3:3:1 ratio)
+expected_props_dihybrid <- c(9, 3, 3, 1) / 16
+
+# Chi-square test
+chisq_dihybrid <- chisq.test(observed_dihybrid, p = expected_props_dihybrid)
+tidy(chisq_dihybrid)
+```
+
+```{r dihybrid-visual}
+# Visualize observed vs expected
+tibble(
+  Phenotype = factor(names(observed_dihybrid),
+                     levels = names(observed_dihybrid)),
+  Observed = observed_dihybrid,
+  Expected = expected_props_dihybrid * sum(observed_dihybrid)
+) %>%
+  pivot_longer(cols = c(Observed, Expected),
+               names_to = "Type", values_to = "Count") %>%
+  ggplot(aes(x = Phenotype, y = Count, fill = Type)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Observed" = "steelblue",
+                                "Expected" = "coral")) +
+  labs(title = "Dihybrid Cross: Observed vs Expected Counts",
+       subtitle = paste0("χ² = ", round(chisq_dihybrid$statistic, 2),
+                        ", p = ", round(chisq_dihybrid$p.value, 3)),
+       x = "Phenotype", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Interpretation**: The data fits the expected 9:3:3:1 ratio well (p = `r round(chisq_dihybrid$p.value, 3)`).
+
+# Chi-Square Test of Independence {#sec-chi-square-independence}
+
+The **chi-square test of independence** asks: *Are two categorical variables associated?*
+
+## The Null Hypothesis
+
+- **H₀**: The two variables are independent (no association)
+- **H₁**: The two variables are associated
+
+## Example: Vaccine Efficacy
+
+Let's return to our vaccine trial. Are vaccine status and disease outcome independent?
+
+```{r vaccine-chi-square}
+# Recreate table for clarity
+vaccine_table <- table(vaccine_data$vaccine, vaccine_data$disease)
+vaccine_table
+
+# Chi-square test of independence
+chi_vaccine <- chisq.test(vaccine_table)
+chi_vaccine
+```
+
+```{r vaccine-tidy}
+tidy(chi_vaccine)
+```
+
+**Interpretation**:
+- χ² = `r round(chi_vaccine$statistic, 2)`
+- p-value = `r round(chi_vaccine$p.value, 4)`
+- We reject the null hypothesis
+- There **is** an association between vaccination and disease status
+
+## What Does the Test Do?
+
+Under independence, we can calculate **expected counts** for each cell:
+
+$$
+E_{ij} = \frac{(\text{row } i \text{ total}) \times (\text{column } j \text{ total})}{\text{grand total}}
+$$
+
+```{r expected-counts}
+# Expected counts under independence
+chi_vaccine$expected
+```
+
+The chi-square statistic measures how different observed counts are from expected:
+
+$$
+\chi^2 = \sum_{all\ cells} \frac{(O_{ij} - E_{ij})^2}{E_{ij}}
+$$
+
+## Degrees of Freedom
+
+For a contingency table:
+$$
+df = (r - 1) \times (c - 1)
+$$
+
+where r = number of rows, c = number of columns.
+
+For our 2×2 table: df = (2-1) × (2-1) = 1
+
+## Visualizing Associations
+
+```{r vaccine-visual}
+# Create visualization
+vaccine_data %>%
+  count(vaccine, disease) %>%
+  group_by(vaccine) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(x = vaccine, y = prop, fill = disease)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = paste0(round(prop * 100, 1), "%")),
+            position = position_dodge(width = 0.9),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("Yes" = "coral", "No" = "steelblue")) +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
+  labs(title = "Disease Rates by Vaccine Status",
+       subtitle = paste0("χ² = ", round(chi_vaccine$statistic, 2),
+                        ", p = ", round(chi_vaccine$p.value, 4)),
+       x = "Vaccine Status", y = "Proportion", fill = "Disease") +
+  theme_minimal()
+```
+
+## Effect Size: Cramér's V
+
+Chi-square tells us **if** an association exists, but not **how strong** it is. For effect size, we use **Cramér's V**:
+
+$$
+V = \sqrt{\frac{\chi^2}{n \times (k - 1)}}
+$$
+
+where n = sample size, k = min(rows, columns)
+
+```{r cramers-v}
+# Calculate Cramér's V
+n <- sum(vaccine_table)
+k <- min(nrow(vaccine_table), ncol(vaccine_table))
+cramers_v <- sqrt(chi_vaccine$statistic / (n * (k - 1)))
+cramers_v
+
+# Interpretation guide
+cat("Cramér's V =", round(cramers_v, 3), "\n")
+cat("Effect size interpretation (Cohen's guidelines for 2x2 tables):\n")
+cat("  Small:  V = 0.10\n")
+cat("  Medium: V = 0.30\n")
+cat("  Large:  V = 0.50\n")
+```
+
+Our effect size (V = `r round(cramers_v, 3)`) suggests a **`r if(cramers_v < 0.30) "small to medium" else if(cramers_v < 0.50) "medium to large" else "large"`** association.
+
+## Larger Tables
+
+Chi-square tests work with larger contingency tables too. Example: Three housing systems × three health outcomes:
+
+```{r larger-table}
+# Simulate housing system study
+set.seed(123)
+housing_data <- tibble(
+  housing = sample(c("Confinement", "Pasture", "Mixed"),
+                   300, replace = TRUE)
+) %>%
+  rowwise() %>%
+  mutate(
+    health = case_when(
+      housing == "Confinement" ~ sample(c("Healthy", "Mild", "Severe"), 1,
+                                        prob = c(0.60, 0.30, 0.10)),
+      housing == "Pasture" ~ sample(c("Healthy", "Mild", "Severe"), 1,
+                                    prob = c(0.75, 0.20, 0.05)),
+      housing == "Mixed" ~ sample(c("Healthy", "Mild", "Severe"), 1,
+                                  prob = c(0.70, 0.25, 0.05))
+    )
+  ) %>%
+  ungroup()
+
+# Contingency table
+housing_table <- table(housing_data$housing, housing_data$health)
+housing_table
+
+# Chi-square test
+chi_housing <- chisq.test(housing_table)
+tidy(chi_housing)
+```
+
+```{r housing-visual}
+# Mosaic-style visualization
+housing_data %>%
+  count(housing, health) %>%
+  ggplot(aes(x = housing, y = n, fill = health)) +
+  geom_col(position = "fill") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(labels = percent_format()) +
+  labs(title = "Health Status by Housing System",
+       subtitle = paste0("χ² = ", round(chi_housing$statistic, 2),
+                        ", p = ", round(chi_housing$p.value, 4)),
+       x = "Housing System", y = "Proportion", fill = "Health Status") +
+  theme_minimal()
+```
+
+# Fisher's Exact Test {#sec-fisher-exact}
+
+When sample sizes are **small** or expected cell counts are **< 5**, the chi-square approximation may be poor. In these cases, use **Fisher's exact test**.
+
+## When to Use Fisher's Exact Test
+
+1. Any expected cell count < 5
+2. Small sample sizes (n < 20 or so)
+3. When you want an exact p-value (not an approximation)
+
+::: {.callout-note}
+## Fisher's Exact Test vs Chi-Square
+
+Fisher's exact test calculates the **exact probability** of observing the data (and more extreme tables) under the null hypothesis of independence. Chi-square uses an **approximation** based on the chi-square distribution.
+
+For large samples, results are nearly identical. For small samples, Fisher's test is more reliable.
+:::
+
+## Example: Rare Disease Outbreak
+
+Suppose we're investigating a rare disease in a small herd. Only 15 animals total:
+
+```{r rare-disease}
+# Small sample data
+rare_disease <- matrix(c(7, 1,    # Exposed
+                         4, 3),   # Not exposed
+                       nrow = 2, byrow = TRUE,
+                       dimnames = list(Exposure = c("Exposed", "Not Exposed"),
+                                      Disease = c("Yes", "No")))
+rare_disease
+```
+
+Check expected counts:
+
+```{r check-expected}
+chisq.test(rare_disease)$expected
+```
+
+Expected count in one cell is 3.2 (close to the threshold). Let's use Fisher's exact test:
+
+```{r fisher-test}
+fisher_result <- fisher.test(rare_disease)
+fisher_result
+```
+
+```{r fisher-tidy}
+tidy(fisher_result)
+```
+
+**Interpretation**:
+- Exact p-value = `r round(fisher_result$p.value, 4)`
+- We reject the null hypothesis at α = 0.05
+- There is evidence of an association between exposure and disease
+
+Compare to chi-square (for demonstration):
+
+```{r compare-chi-fisher}
+chi_rare <- chisq.test(rare_disease)
+
+tibble(
+  Test = c("Chi-Square", "Fisher's Exact"),
+  `P-value` = c(chi_rare$p.value, fisher_result$p.value)
+) %>%
+  kable(digits = 4,
+        caption = "Comparison of Tests on Small Sample Data")
+```
+
+The warning on chi-square confirms we should use Fisher's test here.
+
+## Computational Note
+
+Fisher's exact test can be computationally intensive for large tables. Most software (including R) can handle 2×2 tables easily, but larger tables may take time or use simulation-based approximations.
+
+# Risk Ratios, Odds Ratios, and 2×2 Tables {#sec-ratios}
+
+Chi-square and Fisher's tests tell us **whether** an association exists. To quantify **how strong** the association is, we use **risk ratios** and **odds ratios**.
+
+## 2×2 Table Notation
+
+For a standard 2×2 table:
+
+|                  | Disease Yes | Disease No | Total |
+|------------------|-------------|------------|-------|
+| **Exposed**      | a           | b          | a+b   |
+| **Not Exposed**  | c           | d          | c+d   |
+| **Total**        | a+c         | b+d        | n     |
+
+## Risk Ratio (Relative Risk)
+
+The **risk ratio (RR)** compares the risk of disease in exposed vs unexposed groups:
+
+$$
+RR = \frac{a/(a+b)}{c/(c+d)} = \frac{\text{Risk in exposed}}{\text{Risk in unexposed}}
+$$
+
+**Interpretation**:
+- RR = 1: No association
+- RR > 1: Exposure increases risk
+- RR < 1: Exposure decreases risk (protective)
+
+### Example: Vaccine Efficacy
+
+```{r risk-ratio}
+# Our vaccine data in 2x2 format
+vaccine_table
+```
+
+```{r calculate-rr}
+# Extract counts
+a <- vaccine_table["Vaccinated", "Yes"]    # Vaccinated & diseased
+b <- vaccine_table["Vaccinated", "No"]     # Vaccinated & not diseased
+c <- vaccine_table["Control", "Yes"]       # Control & diseased
+d <- vaccine_table["Control", "No"]        # Control & not diseased
+
+# Calculate risks
+risk_vaccinated <- a / (a + b)
+risk_control <- c / (c + d)
+
+# Risk ratio
+risk_ratio <- risk_vaccinated / risk_control
+risk_ratio
+
+cat("Risk in vaccinated group:", round(risk_vaccinated, 3), "\n")
+cat("Risk in control group:", round(risk_control, 3), "\n")
+cat("Risk Ratio:", round(risk_ratio, 3), "\n")
+```
+
+**Interpretation**: The vaccinated group has `r round(risk_ratio, 2)` times the risk of disease compared to controls. Since RR < 1, vaccination is **protective**.
+
+### Vaccine Efficacy
+
+**Vaccine efficacy** = 1 - RR = proportion of disease prevented by vaccination
+
+```{r vaccine-efficacy}
+vaccine_efficacy <- (1 - risk_ratio) * 100
+cat("Vaccine efficacy:", round(vaccine_efficacy, 1), "%\n")
+```
+
+The vaccine prevents approximately `r round(vaccine_efficacy, 0)`% of disease cases.
+
+## Odds Ratio
+
+The **odds ratio (OR)** compares the **odds** of disease in exposed vs unexposed:
+
+$$
+OR = \frac{a/b}{c/d} = \frac{a \times d}{b \times c}
+$$
+
+**Odds** are different from **risk** (probability):
+- Risk = a / (a+b)
+- Odds = a / b
+
+```{r odds-ratio}
+# Calculate odds
+odds_vaccinated <- a / b
+odds_control <- c / d
+
+# Odds ratio
+odds_ratio <- odds_vaccinated / odds_control
+# OR: Simplified calculation
+odds_ratio_simple <- (a * d) / (b * c)
+
+cat("Odds in vaccinated group:", round(odds_vaccinated, 3), "\n")
+cat("Odds in control group:", round(odds_control, 3), "\n")
+cat("Odds Ratio:", round(odds_ratio, 3), "\n")
+```
+
+::: {.callout-important}
+## Risk Ratio vs Odds Ratio
+
+- **Risk Ratio**: More intuitive, easier to interpret
+- **Odds Ratio**: More commonly used in logistic regression and case-control studies
+- When the outcome is **rare** (< 10%), OR ≈ RR
+- When the outcome is **common**, OR and RR can differ substantially
+
+In our vaccine example (disease rates ~12-31%), RR = `r round(risk_ratio, 2)` and OR = `r round(odds_ratio, 2)` are somewhat different.
+:::
+
+## Confidence Intervals
+
+Point estimates are useful, but we also need uncertainty quantification. Let's calculate 95% CIs:
+
+```{r ci-ratios}
+# Using prop.test for risk ratio CI
+prop_test <- prop.test(c(a, c), c(a+b, c+d))
+
+# For OR, use logarithmic CI
+log_or <- log(odds_ratio)
+se_log_or <- sqrt(1/a + 1/b + 1/c + 1/d)
+ci_log_or <- log_or + c(-1.96, 1.96) * se_log_or
+ci_or <- exp(ci_log_or)
+
+# Display results
+tibble(
+  Measure = c("Risk Ratio", "Odds Ratio"),
+  Estimate = c(risk_ratio, odds_ratio),
+  `95% CI Lower` = c(prop_test$estimate[1] / prop_test$estimate[2] *
+                       exp(-1.96 * sqrt(1/(a+b) + 1/(c+d))),
+                     ci_or[1]),
+  `95% CI Upper` = c(prop_test$estimate[1] / prop_test$estimate[2] *
+                       exp(1.96 * sqrt(1/(a+b) + 1/(c+d))),
+                     ci_or[2])
+) %>%
+  kable(digits = 3,
+        caption = "Risk Ratio and Odds Ratio with 95% Confidence Intervals")
+```
+
+Since both CIs exclude 1.0, we conclude there's a statistically significant association.
+
+# Introduction to Logistic Regression {#sec-logistic-regression}
+
+So far, we've analyzed relationships between **two categorical variables** (vaccine × disease, housing × health). But what if we want to:
+
+1. Include **continuous predictors** (age, weight, temperature)?
+2. Control for **multiple variables** simultaneously?
+3. **Predict** the probability of an outcome for a new individual?
+
+This is where **logistic regression** comes in.
+
+## Why Not Linear Regression?
+
+With a binary outcome (0/1, Yes/No), linear regression has problems:
+
+```{r why-not-lm}
+# Create data with binary outcome
+disease_weight <- tibble(
+  weight = runif(100, 200, 400),
+  disease = rbinom(100, 1, prob = plogis(-5 + 0.015 * weight))
+)
+
+# Try linear regression (wrong!)
+lm_wrong <- lm(disease ~ weight, data = disease_weight)
+
+# Plot
+disease_weight %>%
+  ggplot(aes(x = weight, y = disease)) +
+  geom_point(alpha = 0.5, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "dashed") +
+  labs(title = "Why Linear Regression Fails with Binary Outcomes",
+       subtitle = "Predicted values can be < 0 or > 1 (impossible for probabilities!)",
+       x = "Weight (kg)", y = "Disease (0 = No, 1 = Yes)") +
+  theme_minimal()
+```
+
+**Problems with linear regression for binary outcomes**:
+- Predicted values can be < 0 or > 1
+- Residuals are not normally distributed
+- Variance is not constant (heteroscedasticity)
+
+## The Logistic Function
+
+Logistic regression uses a special link function that constrains predictions to [0, 1]:
+
+$$
+P(Y = 1) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 X)}}
+$$
+
+This S-shaped curve is called the **logistic function** or **sigmoid function**:
+
+```{r logistic-curve}
+tibble(x = seq(-6, 6, 0.1)) %>%
+  mutate(probability = plogis(x)) %>%  # plogis() = logistic function
+  ggplot(aes(x = x, y = probability)) +
+  geom_line(size = 1.5, color = "steelblue") +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed", alpha = 0.5) +
+  geom_hline(yintercept = 0.5, linetype = "dotted", alpha = 0.5) +
+  labs(title = "The Logistic Function",
+       subtitle = "Output is always between 0 and 1",
+       x = "Linear Predictor (β₀ + β₁X)",
+       y = "Probability P(Y = 1)") +
+  theme_minimal()
+```
+
+## Understanding Log-Odds (Logit)
+
+The logistic regression equation can be rewritten as:
+
+$$
+\log\left(\frac{P}{1-P}\right) = \beta_0 + \beta_1 X
+$$
+
+The left side is the **log-odds** (also called the **logit**). This makes the relationship **linear** in log-odds space.
+
+::: {.callout-note}
+## Three Ways to Think About Logistic Regression
+
+1. **Probability scale**: P(Y=1) is a curve between 0 and 1
+2. **Odds scale**: Odds = P/(1-P), ranges from 0 to ∞
+3. **Log-odds scale**: log(Odds), ranges from -∞ to +∞ (linear!)
+
+Coefficients in logistic regression are in **log-odds scale**.
+:::
+
+## Simple Logistic Regression Example
+
+Let's model disease risk as a function of body weight:
+
+```{r logistic-example}
+# Fit logistic regression
+logistic_model <- glm(disease ~ weight,
+                      data = disease_weight,
+                      family = binomial)
+
+# Summary
+summary(logistic_model)
+```
+
+```{r logistic-tidy}
+# Tidy output
+tidy(logistic_model, conf.int = TRUE, conf.method = "Wald") %>%
+  kable(digits = 4,
+        caption = "Logistic Regression: Disease ~ Weight")
+```
+
+**Interpreting coefficients** (in log-odds scale):
+- **Intercept** (β₀) = `r round(coef(logistic_model)[1], 2)`: Log-odds of disease when weight = 0 (not meaningful here)
+- **Weight** (β₁) = `r round(coef(logistic_model)[2], 4)`: For each 1 kg increase in weight, log-odds of disease increase by `r round(coef(logistic_model)[2], 4)`
+
+## Converting to Odds Ratios
+
+To get **odds ratios**, exponentiate the coefficients:
+
+```{r odds-ratios-logistic}
+# Odds ratios
+tidy(logistic_model, conf.int = TRUE, exponentiate = TRUE, conf.method = "Wald") %>%
+  kable(digits = 4,
+        caption = "Odds Ratios from Logistic Regression")
+```
+
+**Interpretation**: For each 1 kg increase in weight, the **odds** of disease are multiplied by `r round(exp(coef(logistic_model)[2]), 3)`.
+
+Since OR > 1, higher weight is associated with higher disease risk.
+
+::: {.callout-important}
+## Interpreting Odds Ratios
+
+- OR = 1: No association (predictor doesn't affect odds)
+- OR > 1: Predictor increases odds of outcome
+- OR < 1: Predictor decreases odds of outcome (protective)
+
+Example: OR = 1.02 means odds increase by 2% per unit increase in predictor.
+:::
+
+## Predicted Probabilities
+
+We can use the model to predict disease probability for any weight:
+
+```{r predictions}
+# Predict probabilities for a range of weights
+pred_data <- tibble(
+  weight = seq(200, 400, by = 10)
+)
+
+pred_data <- pred_data %>%
+  mutate(
+    predicted_prob = predict(logistic_model, newdata = pred_data,
+                            type = "response")
+  )
+
+# Show some predictions
+pred_data %>%
+  filter(weight %in% c(200, 250, 300, 350, 400)) %>%
+  kable(digits = 3,
+        caption = "Predicted Disease Probabilities by Weight")
+```
+
+```{r predictions-visual}
+# Visualize predictions
+disease_weight %>%
+  ggplot(aes(x = weight, y = disease)) +
+  geom_point(alpha = 0.4, size = 2) +
+  geom_line(data = pred_data,
+            aes(x = weight, y = predicted_prob),
+            color = "blue", size = 1.5) +
+  labs(title = "Logistic Regression: Disease Risk by Weight",
+       subtitle = "Blue curve shows predicted probabilities",
+       x = "Weight (kg)",
+       y = "Probability of Disease") +
+  theme_minimal()
+```
+
+## Model Fit and Diagnostics
+
+### Deviance
+
+Similar to residual sum of squares in linear regression, logistic regression uses **deviance** to measure model fit.
+
+```{r deviance}
+glance(logistic_model) %>%
+  kable(digits = 2,
+        caption = "Logistic Regression Model Fit Statistics")
+```
+
+- **Null deviance**: Model with intercept only (no predictors)
+- **Residual deviance**: Model with predictors
+- Lower deviance = better fit
+
+### Likelihood Ratio Test
+
+Compare models with a likelihood ratio test:
+
+```{r lrt}
+# Null model (intercept only)
+null_model <- glm(disease ~ 1, data = disease_weight, family = binomial)
+
+# Compare models
+anova(null_model, logistic_model, test = "Chisq") %>%
+  kable(digits = 4,
+        caption = "Likelihood Ratio Test: Does Weight Improve the Model?")
+```
+
+Weight significantly improves model fit (p < 0.05).
+
+## Multiple Logistic Regression
+
+We can include multiple predictors, just like multiple linear regression:
+
+```{r multiple-logistic}
+# Add more predictors
+disease_multi <- disease_weight %>%
+  mutate(
+    age = runif(n(), 1, 5),
+    previous_disease = sample(c(0, 1), n(), replace = TRUE, prob = c(0.7, 0.3))
+  )
+
+# Fit multiple logistic regression
+multi_logistic <- glm(disease ~ weight + age + previous_disease,
+                      data = disease_multi,
+                      family = binomial)
+
+# Odds ratios
+tidy(multi_logistic, conf.int = TRUE, exponentiate = TRUE, conf.method = "Wald") %>%
+  kable(digits = 4,
+        caption = "Multiple Logistic Regression: Odds Ratios")
+```
+
+**Interpretation** (if results were significant):
+- Each 1 kg increase in weight multiplies odds of disease by `r round(exp(coef(multi_logistic)[2]), 3)`, **holding age and previous disease constant**
+- Previous disease history increases odds by a factor of `r round(exp(coef(multi_logistic)[4]), 2)`, **adjusting for weight and age**
+
+## Practical Example: BRD Risk Factors
+
+Let's analyze a more realistic dataset with bovine respiratory disease (BRD):
+
+```{r brd-example}
+# Simulate realistic BRD data
+set.seed(456)
+brd_data <- tibble(
+  animal_id = 1:300,
+  arrival_weight = rnorm(300, mean = 250, sd = 30),
+  age_months = runif(300, min = 6, max = 10),
+  vaccinated = sample(c("Yes", "No"), 300, replace = TRUE),
+  temperature_arrival = rnorm(300, mean = 39.2, sd = 0.8)
+) %>%
+  mutate(
+    # Disease risk depends on multiple factors
+    risk_score = -8 +
+      0.01 * arrival_weight +
+      0.3 * age_months -
+      1.5 * (vaccinated == "Yes") +
+      0.5 * temperature_arrival,
+    brd = rbinom(300, 1, prob = plogis(risk_score))
+  )
+
+# Check disease rate
+mean(brd_data$brd)
+```
+
+```{r brd-model}
+# Fit comprehensive model
+brd_model <- glm(brd ~ arrival_weight + age_months + vaccinated + temperature_arrival,
+                 data = brd_data,
+                 family = binomial)
+
+# Get results with Wald CIs
+brd_results <- tidy(brd_model, exponentiate = TRUE)
+brd_ci <- confint.default(brd_model) # Wald CIs
+brd_results$conf.low <- exp(brd_ci[,1])
+brd_results$conf.high <- exp(brd_ci[,2])
+
+# Display results
+brd_results %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  kable(digits = 4,
+        caption = "BRD Risk Factors: Odds Ratios with 95% Wald CIs")
+```
+
+```{r brd-interpretation}
+# Extract key odds ratios
+or_vaccine <- exp(coef(brd_model)["vaccinatedYes"])
+or_temp <- exp(coef(brd_model)["temperature_arrival"])
+
+cat("Key findings:\n")
+cat("- Vaccination reduces odds of BRD by",
+    round((1 - or_vaccine) * 100, 1), "%\n")
+cat("- Each 1°C increase in arrival temperature multiplies odds by",
+    round(or_temp, 2), "\n")
+```
+
+## Predictions for New Animals
+
+```{r brd-predictions}
+# Predict BRD risk for specific scenarios
+new_animals <- tibble(
+  scenario = c("Low risk", "Medium risk", "High risk"),
+  arrival_weight = c(280, 250, 220),
+  age_months = c(7, 8, 9),
+  vaccinated = c("Yes", "No", "No"),
+  temperature_arrival = c(38.5, 39.2, 40.0)
+)
+
+new_animals <- new_animals %>%
+  mutate(
+    predicted_risk = predict(brd_model, newdata = new_animals, type = "response")
+  )
+
+new_animals %>%
+  select(scenario, vaccinated, temperature_arrival, predicted_risk) %>%
+  kable(digits = 3,
+        caption = "Predicted BRD Risk for Different Scenarios")
+```
+
+::: {.callout-note}
+## When to Use Logistic Regression vs Chi-Square
+
+- **Chi-square test**: Quick test of association between two categorical variables
+- **Logistic regression**:
+  - Include continuous predictors
+  - Control for confounders
+  - Make predictions
+  - Model complex relationships
+  - Get odds ratios with confidence intervals
+:::
+
+# Assumptions and Considerations {#sec-assumptions}
+
+## Chi-Square Test Assumptions
+
+1. **Independence**: Each observation must be independent
+   - **Violated by**: Repeated measures, clustered data (multiple animals per farm)
+   - **Solution**: Use mixed models or GEE for clustered data
+
+2. **Expected cell counts ≥ 5**: Rule of thumb for valid chi-square approximation
+   - **Check**: Use `chisq.test()$expected`
+   - **Solution**: Fisher's exact test, combine categories, or collect more data
+
+3. **Random sampling**: Data should be representative of population
+
+4. **Mutually exclusive categories**: Each observation in exactly one category
+
+## Logistic Regression Assumptions
+
+1. **Binary outcome**: DV must be 0/1 (or convertible to binary)
+
+2. **Independence**: Observations are independent
+
+3. **Linearity of log-odds**: Relationship between continuous predictors and log-odds should be linear
+   - **Check**: Plot log-odds vs predictor, or use splines
+
+4. **No perfect multicollinearity**: Predictors shouldn't be perfectly correlated
+
+5. **Adequate sample size**: Rule of thumb: 10-15 events per predictor variable
+
+::: {.callout-warning}
+## Common Pitfalls
+
+1. **Small expected cell counts**: Chi-square p-values unreliable → Use Fisher's exact
+2. **Multiple comparisons**: Testing many associations increases false positives → Adjust for multiple testing
+3. **Confusing OR and RR**: Odds ratios ≠ Risk ratios (except for rare outcomes)
+4. **Causal language**: "Association" ≠ "Causation" → Observational data can't prove causation
+5. **Overfitting logistic models**: Too many predictors for sample size → Use fewer predictors or collect more data
+:::
+
+## Sample Size Considerations
+
+For chi-square tests, use power analysis:
+
+```{r power-example}
+# What sample size for 80% power to detect OR = 2.0?
+# Assuming equal groups, alpha = 0.05
+
+# Simulate to demonstrate concept
+simulate_power <- function(n_per_group, or, n_sims = 1000) {
+  p_control <- 0.20  # 20% baseline risk
+  p_exposed <- p_control * or / (1 - p_control + p_control * or)
+
+  p_values <- replicate(n_sims, {
+    exposed <- sample(c("Yes", "No"), n_per_group, replace = TRUE,
+                     prob = c(p_exposed, 1 - p_exposed))
+    control <- sample(c("Yes", "No"), n_per_group, replace = TRUE,
+                     prob = c(p_control, 1 - p_control))
+
+    outcome <- c(exposed, control)
+    group <- rep(c("Exposed", "Control"), each = n_per_group)
+
+    test_result <- tryCatch(
+      chisq.test(table(group, outcome))$p.value,
+      error = function(e) NA,
+      warning = function(w) NA
+    )
+
+    test_result
+  })
+
+  power <- mean(p_values < 0.05, na.rm = TRUE)
+  return(power)
+}
+
+# Test different sample sizes
+sample_sizes <- seq(50, 200, by = 25)
+power_results <- map_dbl(sample_sizes, ~simulate_power(.x, or = 2.0, n_sims = 500))
+
+# Plot
+tibble(n_per_group = sample_sizes, power = power_results) %>%
+  ggplot(aes(x = n_per_group, y = power)) +
+  geom_line(size = 1, color = "steelblue") +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "red") +
+  labs(title = "Statistical Power vs Sample Size",
+       subtitle = "Detecting OR = 2.0 with 20% baseline risk",
+       x = "Sample Size per Group",
+       y = "Power (1 - β)") +
+  theme_minimal()
+```
+
+# Practical Workflow: Choosing the Right Test {#sec-workflow}
+
+Here's a decision tree for categorical data analysis:
+
+## Decision Framework
+
+```{r decision-tree, echo=FALSE}
+#| fig-height: 8
+
+# Create decision tree text
+decision_text <- "
+START: Do you have categorical data?
+│
+├─ One categorical variable
+│  └─ Chi-square goodness of fit test
+│     (Do observed frequencies match expected?)
+│
+└─ Two or more variables
+   │
+   ├─ Both categorical (no continuous predictors)
+   │  │
+   │  ├─ 2×2 table, large sample (expected counts ≥ 5)
+   │  │  └─ Chi-square test of independence
+   │  │
+   │  ├─ 2×2 table, small sample (expected counts < 5)
+   │  │  └─ Fisher's exact test
+   │  │
+   │  └─ Larger table
+   │     └─ Chi-square test of independence
+   │
+   └─ Binary outcome + continuous predictors
+      │
+      ├─ Single predictor, just testing association
+      │  └─ Chi-square test (if categorized) or
+      │     Logistic regression (for continuous)
+      │
+      └─ Multiple predictors or need predictions
+         └─ Logistic regression
+"
+
+cat(decision_text)
+```
+
+## Complete Analysis Example
+
+Let's walk through a complete analysis with a new dataset:
+
+```{r complete-example}
+# Research question: Does feed type affect mortality in broiler chickens?
+# Also considering weight and age as covariates
+
+set.seed(789)
+broiler_data <- tibble(
+  bird_id = 1:400,
+  feed_type = sample(c("Standard", "Enhanced"), 400, replace = TRUE),
+  weight_kg = rnorm(400, mean = 2.5, sd = 0.4),
+  age_days = sample(35:49, 400, replace = TRUE)
+) %>%
+  mutate(
+    mortality_risk = plogis(-6 +
+                           0.5 * (feed_type == "Enhanced") -
+                           0.8 * weight_kg +
+                           0.05 * age_days),
+    mortality = rbinom(400, 1, prob = mortality_risk),
+    mortality_fct = factor(mortality, levels = c(0, 1), labels = c("Alive", "Dead"))
+  )
+```
+
+### Step 1: Exploratory Analysis
+
+```{r eda-complete}
+# Overall mortality rate
+broiler_data %>%
+  count(mortality_fct) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  kable(digits = 1, caption = "Overall Mortality")
+
+# Mortality by feed type
+broiler_data %>%
+  count(feed_type, mortality_fct) %>%
+  group_by(feed_type) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  kable(digits = 1, caption = "Mortality by Feed Type")
+```
+
+```{r eda-visual}
+# Visualization
+broiler_data %>%
+  ggplot(aes(x = feed_type, fill = mortality_fct)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values = c("Alive" = "steelblue", "Dead" = "coral")) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(title = "Mortality Rate by Feed Type",
+       x = "Feed Type", y = "Proportion", fill = "Status") +
+  theme_minimal()
+```
+
+### Step 2: Simple Association Test
+
+```{r simple-test}
+# Chi-square test
+mortality_table <- table(broiler_data$feed_type, broiler_data$mortality_fct)
+chi_mortality <- chisq.test(mortality_table)
+tidy(chi_mortality) %>%
+  kable(digits = 4, caption = "Chi-Square Test: Feed Type vs Mortality")
+```
+
+### Step 3: Calculate Effect Size (Odds Ratio)
+
+```{r effect-size-complete}
+# Calculate odds ratio
+a <- mortality_table["Enhanced", "Dead"]
+b <- mortality_table["Enhanced", "Alive"]
+c <- mortality_table["Standard", "Dead"]
+d <- mortality_table["Standard", "Alive"]
+
+or_simple <- (a * d) / (b * c)
+cat("Odds Ratio (Enhanced vs Standard):", round(or_simple, 3), "\n")
+```
+
+### Step 4: Logistic Regression (Adjusting for Confounders)
+
+```{r logistic-complete}
+# Fit logistic regression
+mortality_model <- glm(mortality ~ feed_type + weight_kg + age_days,
+                       data = broiler_data,
+                       family = binomial)
+
+# Results
+tidy(mortality_model, conf.int = TRUE, exponentiate = TRUE, conf.method = "Wald") %>%
+  kable(digits = 4, caption = "Adjusted Odds Ratios from Logistic Regression")
+```
+
+### Step 5: Interpret and Report
+
+```{r interpret}
+# Extract key results
+or_adjusted <- exp(coef(mortality_model)["feed_typeStandard"])
+ci_adjusted <- exp(confint(mortality_model)["feed_typeStandard", ])
+
+cat("Findings:\n")
+cat("1. Unadjusted OR (chi-square):", round(or_simple, 2), "\n")
+cat("2. Adjusted OR (logistic regression):", round(or_adjusted, 2), "\n")
+cat("   95% CI: [", round(ci_adjusted[1], 2), ",", round(ci_adjusted[2], 2), "]\n")
+cat("\nInterpretation:\n")
+cat("After adjusting for weight and age, feed type is",
+    ifelse(summary(mortality_model)$coefficients["feed_typeStandard", 4] < 0.05,
+           "significantly", "not significantly"),
+    "associated with mortality.\n")
+```
+
+# Practice Problems {#sec-practice}
+
+Work through these problems to reinforce your understanding.
+
+## Problem 1: Mastitis and Housing
+
+A dairy farm compares mastitis rates across three housing systems:
+
+```{r practice1-data}
+# Data
+mastitis_data <- tibble(
+  housing = rep(c("Freestall", "Tiestall", "Pasture"), each = 80),
+  mastitis = c(
+    sample(c("Yes", "No"), 80, replace = TRUE, prob = c(0.25, 0.75)),  # Freestall
+    sample(c("Yes", "No"), 80, replace = TRUE, prob = c(0.35, 0.65)),  # Tiestall
+    sample(c("Yes", "No"), 80, replace = TRUE, prob = c(0.15, 0.85))   # Pasture
+  )
+)
+
+# Your tasks:
+# 1. Create a contingency table
+# 2. Perform chi-square test
+# 3. Calculate Cramér's V
+# 4. Visualize the results
+# 5. Interpret findings
+```
+
+**Solution:**
+
+```{r practice1-solution}
+# 1. Contingency table
+mastitis_table <- table(mastitis_data$housing, mastitis_data$mastitis)
+addmargins(mastitis_table)
+
+# 2. Chi-square test
+chi_mastitis <- chisq.test(mastitis_table)
+tidy(chi_mastitis) %>%
+  kable(digits = 4, caption = "Chi-Square Test Results")
+
+# 3. Cramér's V
+n <- sum(mastitis_table)
+k <- min(dim(mastitis_table))
+cramers_v_mastitis <- sqrt(chi_mastitis$statistic / (n * (k - 1)))
+cat("Cramér's V:", round(cramers_v_mastitis, 3), "\n")
+
+# 4. Visualization
+mastitis_data %>%
+  count(housing, mastitis) %>%
+  group_by(housing) %>%
+  mutate(prop = n / sum(n)) %>%
+  filter(mastitis == "Yes") %>%
+  ggplot(aes(x = housing, y = prop, fill = housing)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(prop * 100, 1), "%")),
+            vjust = -0.5) +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 0.4)) +
+  labs(title = "Mastitis Rate by Housing System",
+       x = "Housing System", y = "Mastitis Rate") +
+  theme_minimal()
+
+# 5. Interpretation
+cat("\nInterpretation:\n")
+cat("There is a statistically significant association between housing system")
+cat(" and mastitis rate (p =", round(chi_mastitis$p.value, 4), ").\n")
+cat("Pasture-based systems show the lowest mastitis rate, while tiestall")
+cat(" systems show the highest.\n")
+```
+
+## Problem 2: Small Sample Fisher's Test
+
+Investigate a rare genetic disorder in a small sample:
+
+```{r practice2-data}
+# Data: Does dam age affect disorder occurrence?
+genetic_data <- matrix(c(5, 2,   # Young dams
+                        1, 7),   # Older dams
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Dam_Age = c("Young", "Older"),
+                                     Disorder = c("Yes", "No")))
+
+# Your tasks:
+# 1. Check expected cell counts
+# 2. Perform Fisher's exact test
+# 3. Calculate odds ratio
+# 4. Interpret results
+```
+
+**Solution:**
+
+```{r practice2-solution}
+# 1. Check expected counts
+chi_test <- chisq.test(genetic_data)
+cat("Expected counts:\n")
+print(chi_test$expected)
+cat("\nNote: Expected counts < 5, so Fisher's exact test is appropriate.\n\n")
+
+# 2. Fisher's exact test
+fisher_genetic <- fisher.test(genetic_data)
+cat("Fisher's Exact Test Results:\n")
+cat("Odds Ratio:", round(fisher_genetic$estimate, 3), "\n")
+cat("95% CI: [", round(fisher_genetic$conf.int[1], 3), ",",
+    round(fisher_genetic$conf.int[2], 3), "]\n")
+cat("P-value:", round(fisher_genetic$p.value, 4), "\n\n")
+
+# 3. Manual OR calculation
+or_manual <- (genetic_data[1,1] * genetic_data[2,2]) /
+             (genetic_data[1,2] * genetic_data[2,1])
+cat("Manual OR calculation:", round(or_manual, 3), "\n\n")
+
+# 4. Interpretation
+cat("Interpretation:\n")
+cat("Young dams have", round(fisher_genetic$estimate, 1),
+    "times higher odds of having offspring with the disorder")
+cat(" compared to older dams.\n")
+cat("However, with p =", round(fisher_genetic$p.value, 3),
+    "and a small sample size,\n")
+cat("we should interpret these results cautiously and consider collecting more data.\n")
+```
+
+## Problem 3: Logistic Regression with Multiple Predictors
+
+Analyze factors affecting retained placenta in dairy cows:
+
+```{r practice3-data}
+# Simulate data
+set.seed(2025)
+rp_data <- tibble(
+  cow_id = 1:250,
+  parity = sample(1:5, 250, replace = TRUE),
+  bcs_precalving = rnorm(250, mean = 3.5, sd = 0.5),
+  twin_birth = sample(c(0, 1), 250, replace = TRUE, prob = c(0.95, 0.05)),
+  dystocia = sample(c(0, 1), 250, replace = TRUE, prob = c(0.85, 0.15))
+) %>%
+  mutate(
+    rp_risk = plogis(-4 +
+                    0.2 * (parity >= 3) +
+                    -0.5 * bcs_precalving +
+                    2.0 * twin_birth +
+                    1.5 * dystocia),
+    retained_placenta = rbinom(250, 1, prob = rp_risk)
+  )
+
+# Your tasks:
+# 1. Fit a logistic regression model
+# 2. Interpret odds ratios for each predictor
+# 3. Identify the strongest risk factor
+# 4. Predict RP risk for a specific cow profile
+```
+
+**Solution:**
+
+```{r practice3-solution}
+# 1. Fit model
+rp_model <- glm(retained_placenta ~ parity + bcs_precalving + twin_birth + dystocia,
+                data = rp_data,
+                family = binomial)
+
+# 2. Odds ratios with CIs
+rp_results <- tidy(rp_model, conf.int = TRUE, exponentiate = TRUE, conf.method = "Wald")
+rp_results %>%
+  kable(digits = 3, caption = "Retained Placenta Risk Factors: Odds Ratios")
+
+# 3. Identify strongest risk factor
+cat("\nStrongest Risk Factors (by OR magnitude):\n")
+rp_results %>%
+  filter(term != "(Intercept)") %>%
+  arrange(desc(abs(estimate - 1))) %>%
+  select(term, estimate, p.value) %>%
+  print()
+
+# 4. Predict for specific profiles
+new_cows <- tibble(
+  scenario = c("Low risk", "High risk"),
+  parity = c(2, 4),
+  bcs_precalving = c(3.5, 2.8),
+  twin_birth = c(0, 1),
+  dystocia = c(0, 1)
+)
+
+new_cows %>%
+  mutate(predicted_rp_risk = predict(rp_model, newdata = new_cows,
+                                     type = "response")) %>%
+  kable(digits = 3, caption = "Predicted Retained Placenta Risk")
+
+cat("\nInterpretation:\n")
+cat("- Twin births have the strongest association with retained placenta\n")
+cat("- Higher BCS appears protective (OR < 1)\n")
+cat("- Dystocia also substantially increases risk\n")
+cat("- A high-risk cow profile (parity 4, low BCS, twins, dystocia) has\n")
+cat("  substantially higher predicted risk than a low-risk cow.\n")
+```
+
+## Problem 4: Goodness of Fit - Genetic Ratios
+
+Test if offspring coat colors match expected Mendelian ratios:
+
+```{r practice4-data}
+# Observed offspring: Black, Brown, White
+observed_colors <- c(Black = 42, Brown = 38, White = 20)
+
+# Expected ratio: 2:2:1
+# Your tasks:
+# 1. Perform chi-square goodness of fit test
+# 2. Visualize observed vs expected
+# 3. Interpret whether data fits the genetic model
+```
+
+**Solution:**
+
+```{r practice4-solution}
+# 1. Chi-square goodness of fit
+expected_proportions <- c(2, 2, 1) / 5
+chi_colors <- chisq.test(observed_colors, p = expected_proportions)
+
+tidy(chi_colors) %>%
+  kable(digits = 4, caption = "Chi-Square Goodness of Fit Test")
+
+# 2. Visualize
+color_comparison <- tibble(
+  Color = names(observed_colors),
+  Observed = observed_colors,
+  Expected = expected_proportions * sum(observed_colors)
+) %>%
+  pivot_longer(cols = c(Observed, Expected),
+               names_to = "Type", values_to = "Count")
+
+color_comparison %>%
+  ggplot(aes(x = Color, y = Count, fill = Type)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(Count, 1)),
+            position = position_dodge(width = 0.9), vjust = -0.5) +
+  scale_fill_manual(values = c("Observed" = "steelblue",
+                                "Expected" = "coral")) +
+  labs(title = "Coat Color Distribution: Observed vs Expected",
+       subtitle = paste0("χ² = ", round(chi_colors$statistic, 2),
+                        ", p = ", round(chi_colors$p.value, 3)),
+       x = "Coat Color", y = "Count") +
+  theme_minimal()
+
+# 3. Interpretation
+cat("\nInterpretation:\n")
+cat("P-value =", round(chi_colors$p.value, 4), "\n")
+if(chi_colors$p.value > 0.05) {
+  cat("The observed data is consistent with the expected 2:2:1 ratio.\n")
+  cat("We do not have evidence to reject the proposed genetic model.\n")
+} else {
+  cat("The observed data significantly differs from the expected 2:2:1 ratio.\n")
+  cat("The genetic model may not fit, or other factors may be at play.\n")
+}
+```
+
+# Summary and Key Takeaways {#sec-summary}
+
+This week, we've covered a comprehensive toolkit for analyzing categorical data:
+
+## Key Concepts
+
+1. **Chi-Square Goodness of Fit**: Tests if observed frequencies match expected distribution
+   - One categorical variable
+   - Used for genetic ratios, expected proportions
+
+2. **Chi-Square Test of Independence**: Tests association between two categorical variables
+   - Works with 2×2 or larger tables
+   - Requires expected cell counts ≥ 5
+
+3. **Fisher's Exact Test**: Alternative to chi-square for small samples
+   - Use when expected counts < 5
+   - Provides exact p-value
+
+4. **Risk Ratios and Odds Ratios**: Quantify strength of association
+   - Risk Ratio: More intuitive, ratio of probabilities
+   - Odds Ratio: Used in logistic regression, ratio of odds
+   - OR ≈ RR when outcome is rare
+
+5. **Logistic Regression**: Model binary outcomes with continuous/multiple predictors
+   - Uses logit link function
+   - Coefficients are log-odds
+   - Exponentiate to get odds ratios
+   - Can include multiple predictors and control for confounders
+
+## Decision Framework Summary
+
+```{r decision-summary, echo=FALSE}
+tibble(
+  Situation = c(
+    "One categorical variable vs expected distribution",
+    "Two categorical variables, large sample",
+    "Two categorical variables, small sample",
+    "Binary outcome + continuous predictors",
+    "Binary outcome + multiple predictors",
+    "Need predictions for new observations"
+  ),
+  `Recommended Test` = c(
+    "Chi-square goodness of fit",
+    "Chi-square test of independence",
+    "Fisher's exact test",
+    "Logistic regression",
+    "Logistic regression",
+    "Logistic regression"
+  )
+) %>%
+  kable(caption = "Choosing the Right Test for Categorical Data")
+```
+
+## R Functions Summary
+
+```{r functions-summary, echo=FALSE}
+tibble(
+  Function = c(
+    "`table()`",
+    "`prop.table()`",
+    "`chisq.test()`",
+    "`fisher.test()`",
+    "`glm(..., family = binomial)`",
+    "`predict(..., type = 'response')`",
+    "`exp(coef())`"
+  ),
+  Purpose = c(
+    "Create contingency tables",
+    "Convert counts to proportions",
+    "Chi-square tests (goodness of fit and independence)",
+    "Fisher's exact test for small samples",
+    "Fit logistic regression model",
+    "Get predicted probabilities from logistic regression",
+    "Convert log-odds to odds ratios"
+  )
+) %>%
+  kable(caption = "Key R Functions for Categorical Data Analysis")
+```
+
+## Common Pitfalls to Avoid
+
+::: {.callout-warning}
+## Watch Out For These Mistakes
+
+1. **Using chi-square with small expected counts** → Use Fisher's exact test
+2. **Confusing odds ratios with risk ratios** → They're different! (except for rare outcomes)
+3. **Interpreting association as causation** → Observational data requires caution
+4. **Ignoring effect sizes** → Statistical significance ≠ practical importance
+5. **Overfitting logistic models** → Too many predictors for sample size
+6. **Forgetting independence assumption** → Clustered/repeated measures violate this
+7. **Multiple testing without correction** → Increases false positive rate
+:::
+
+## Practical Significance
+
+Always consider:
+- **Effect size** (Cramér's V, odds ratios) not just p-values
+- **Confidence intervals** for uncertainty
+- **Biological/practical meaning** of findings
+- **Study design limitations** (observational vs experimental)
+
+# Additional Resources {#sec-resources}
+
+## Recommended Reading
+
+1. **Agresti, A. (2018).** *An Introduction to Categorical Data Analysis* (3rd ed.)
+   - Comprehensive, mathematical treatment
+
+2. **Hosmer, Lemeshow, & Sturdivant (2013).** *Applied Logistic Regression* (3rd ed.)
+   - Practical guide to logistic regression
+
+3. **Dohoo, Martin, & Stryhn (2014).** *Veterinary Epidemiologic Research* (2nd ed.)
+   - Excellent for animal health applications
+
+## Online Resources
+
+- **StatQuest Videos**: "Chi-Square Test" and "Logistic Regression" by Josh Starmer
+- **r-bloggers**: Tutorials on categorical data analysis in R
+- **Cross Validated (StackExchange)**: Q&A on statistical concepts
+
+## R Packages for Categorical Data
+
+```{r packages-info, eval=FALSE}
+# Beyond base R functions
+install.packages(c(
+  "vcd",        # Visualizing categorical data
+  "epitools",   # Epidemiology tools (OR, RR calculations)
+  "rms",        # Regression modeling strategies
+  "MASS"        # Ordinal logistic regression (polr)
+))
+```
+
+## Next Week Preview: Simple Linear Regression {#sec-preview}
+
+Next week, we return to **continuous outcomes** and explore **linear regression**:
+
+- Correlation vs regression
+- Fitting a regression line
+- Interpreting slope and intercept
+- Residual diagnostics
+- Prediction and confidence intervals
+
+**Connection to This Week**: Logistic regression and linear regression are both types of **Generalized Linear Models (GLMs)**. The main difference is:
+- **Linear regression**: Continuous outcome, identity link
+- **Logistic regression**: Binary outcome, logit link
+
+The concepts of model fitting, interpretation, and diagnostics carry over!
+
+# Homework Assignment {#sec-homework}
+
+## Week 6 Homework: Categorical Data Analysis
+
+### Instructions
+
+Complete the following analyses using R and Quarto. Submit both your `.qmd` and rendered `.html` files.
+
+### Part 1: Chi-Square Analysis (30 points)
+
+You're investigating the relationship between calving ease and calf sex in beef cattle. Use the following data:
+
+```{r hw-data1, eval=FALSE}
+# Run this code to create your dataset
+set.seed(YOUR_STUDENT_ID)  # Use your actual student ID number
+calving_data <- tibble(
+  calf_sex = sample(c("Male", "Female"), 200, replace = TRUE),
+  calving_ease = sample(c("Easy", "Moderate", "Difficult"), 200,
+                        replace = TRUE,
+                        prob = c(0.60, 0.30, 0.10))
+)
+```
+
+**Tasks:**
+1. Create a contingency table with row and column totals
+2. Calculate proportions by calf sex
+3. Perform a chi-square test of independence
+4. Calculate Cramér's V to quantify effect size
+5. Create a visualization showing calving ease by calf sex
+6. Write a 3-4 sentence interpretation of your findings
+
+### Part 2: Odds Ratios and Risk Ratios (25 points)
+
+A veterinary study investigates whether pre-weaning vaccination reduces diarrhea in piglets:
+
+- **Vaccinated**: 8 with diarrhea, 92 without
+- **Unvaccinated**: 20 with diarrhea, 80 without
+
+**Tasks:**
+1. Create a 2×2 table
+2. Calculate the risk of diarrhea in each group
+3. Calculate the risk ratio
+4. Calculate the odds ratio
+5. Perform Fisher's exact test
+6. Interpret all results, including vaccine efficacy
+
+### Part 3: Logistic Regression Analysis (35 points)
+
+Use the following simulated data on lameness in dairy cows:
+
+```{r hw-data3, eval=FALSE}
+set.seed(YOUR_STUDENT_ID + 100)
+lameness_data <- tibble(
+  cow_id = 1:300,
+  age_years = runif(300, 2, 8),
+  bcs = rnorm(300, mean = 3.0, sd = 0.5),
+  hoof_trimming = sample(c("Regular", "Irregular"), 300, replace = TRUE),
+  floor_type = sample(c("Concrete", "Rubber"), 300, replace = TRUE)
+) %>%
+  mutate(
+    lameness_prob = plogis(-2 + 0.3 * age_years - 0.5 * bcs +
+                           1.2 * (hoof_trimming == "Irregular") -
+                           0.8 * (floor_type == "Rubber")),
+    lameness = rbinom(300, 1, prob = lameness_prob)
+  )
+```
+
+**Tasks:**
+1. Fit a logistic regression model with lameness as the outcome and all other variables (except cow_id and lameness_prob) as predictors
+2. Create a table of odds ratios with 95% confidence intervals
+3. Identify which variables are statistically significant
+4. Interpret the odds ratio for `hoof_trimming` in context
+5. Create predictions for these three cow profiles:
+   - Young cow (3 years), BCS 3.5, Regular trimming, Rubber floor
+   - Old cow (7 years), BCS 2.5, Irregular trimming, Concrete floor
+   - Average cow (5 years), BCS 3.0, Regular trimming, Concrete floor
+6. Visualize predicted probability of lameness by age, with separate lines for regular vs irregular hoof trimming
+
+### Part 4: Reflection (10 points)
+
+Write a 250-300 word reflection addressing:
+
+1. When would you use chi-square vs Fisher's exact test?
+2. What's the key advantage of logistic regression over simple chi-square tests?
+3. Describe one challenge you encountered in this week's material and how you addressed it
+4. How might you apply these methods in your own research or field of interest?
+
+### Submission Checklist
+
+- [ ] All code runs without errors
+- [ ] All visualizations have informative titles and labels
+- [ ] Interpretations are written in complete sentences
+- [ ] Results are presented in tables where appropriate (using `kable()`)
+- [ ] Quarto document renders to HTML successfully
+- [ ] Both `.qmd` and `.html` files submitted
+
+### Grading Rubric
+
+- **Code correctness** (40%): Code runs, uses appropriate functions, no major errors
+- **Interpretation** (40%): Correct interpretation of results, addresses all questions
+- **Presentation** (15%): Clear visualizations, well-formatted tables, organized document
+- **Reflection** (5%): Thoughtful responses, demonstrates understanding
+
+---
+
+**Due Date**: [To be specified by instructor]
+
+**Estimated Time**: 3-4 hours
+
+Good luck! Remember to use the course resources and ask questions if you get stuck.
