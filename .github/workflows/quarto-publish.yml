@@ -54,6 +54,7 @@ jobs:
               any::ggrepel
               any::MASS
               any::multcomp
+              any::multcompView
               any::openxlsx
               any::plotly
               any::pwr
