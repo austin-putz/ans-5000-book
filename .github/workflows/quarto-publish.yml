@@ -27,18 +27,26 @@ jobs:
       - name: Install R Dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          packages: |
-            any::tidyverse
-            any::broom
-            any::car
-            any::effsize
-            any::ggpubr
-            any::rstatix
-            any::gt
-            any::patchwork
-            any::emmeans
-            any::knitr
-            any::rmarkdown
+            packages: |
+              any::tidyverse
+              any::broom
+              any::car
+              any::effsize
+              any::ggpubr
+              any::rstatix
+              any::gt
+              any::patchwork
+              any::emmeans
+              any::knitr
+              any::rmarkdown
+              any::here
+              any::readxl
+              any::writexl
+              any::haven
+              any::janitor
+              any::lubridate
+              any::cowplot
+              any::glue
 
       - name: Render Quarto Book
         uses: quarto-dev/quarto-actions/render@v2
