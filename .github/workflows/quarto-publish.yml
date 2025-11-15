@@ -47,6 +47,18 @@ jobs:
               any::lubridate
               any::cowplot
               any::glue
+              any::kableExtra
+              any::effects
+              any::effectsize
+              any::GGally
+              any::ggrepel
+              any::MASS
+              any::multcomp
+              any::openxlsx
+              any::plotly
+              any::pwr
+              any::RColorBrewer
+              any::scales
 
       - name: Render Quarto Book
         uses: quarto-dev/quarto-actions/render@v2
