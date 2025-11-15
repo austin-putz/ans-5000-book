@@ -4,18 +4,1356 @@
 
 By the end of this chapter, you will be able to:
 
-1. Navigate the RStudio interface and understand its main components
-2. Create and manage R Projects for organized workflows
-3. Install and load R packages
-4. Create and render Quarto documents
-5. Read CSV and Excel files into R
-6. Perform basic data exploration
+1. Navigate the RStudio interface and understand the purpose of each pane
+2. Create and use R Projects for better project organization
+3. Understand working directories and file paths
+4. Distinguish between installing and loading R packages
+5. Create and render Quarto documents with YAML headers, markdown, and code chunks
+6. Read CSV files using `readr::read_csv()`
+7. Read Excel files using `readxl::read_excel()`
+8. Explore data using functions like `head()`, `tail()`, `glimpse()`, `str()`, and `summary()`
+9. Understand the difference between data frames and tibbles
+10. Use R's help system effectively
+
+---
+
+## The RStudio Interface
+
+When you open RStudio, you'll see a workspace divided into several panes. Understanding each pane's purpose will help you work efficiently.
+
+### The Four Main Panes
+
+```{mermaid}
+flowchart TD
+    A[RStudio Interface] --> B[Source Editor<br/>Top Left]
+    A --> C[Console<br/>Bottom Left]
+    A --> D[Environment/History<br/>Top Right]
+    A --> E[Files/Plots/Help<br/>Bottom Right]
+
+    B --> B1[Write and edit scripts]
+    B --> B2[Create Quarto documents]
+
+    C --> C1[Execute R commands]
+    C --> C2[View output]
+
+    D --> D1[View objects in memory]
+    D --> D2[See command history]
+
+    E --> E1[Browse files]
+    E --> E2[View plots]
+    E --> E3[Read documentation]
+```
+
+#### 1. Source Editor (Top Left)
+
+This is where you write and edit your code.
+
+- **Scripts** (`.R` files): Plain R code
+- **Quarto documents** (`.qmd` files): Mix code, text, and output
+- **Multiple tabs**: Work on several files at once
+
+**Keyboard shortcuts**:
+
+- `Cmd/Ctrl + Enter`: Run current line or selection
+- `Cmd/Ctrl + Shift + Enter`: Run entire script
+- `Cmd/Ctrl + S`: Save file
+
+#### 2. Console (Bottom Left)
+
+This is where R actually runs and shows output.
+
+- Type commands directly for quick tests
+- See results from scripts
+- View error messages and warnings
 
 ::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
+## Console vs Scripts
+
+**Console**: Good for quick tests, exploring data
+**Scripts**: Good for saving your work, reproducibility
+
+Always save important code in scripts or Quarto documents, not just in the console!
+:::
+
+#### 3. Environment/History (Top Right)
+
+**Environment tab**:
+
+- Shows all objects currently in memory (datasets, variables, functions)
+- Click on dataset names to view them
+- Shows object types and sizes
+
+**History tab**:
+
+- Shows previous commands
+- Search through past code
+- Reload old commands
+
+::: {.callout-tip}
+## Cleaning Your Environment
+
+To start fresh:
+
+```r
+# Remove all objects from environment
+rm(list = ls())
+```
+
+Or click the broom icon in the Environment pane.
+:::
+
+#### 4. Files/Plots/Help (Bottom Right)
+
+**Files tab**: Browse your project directory
+**Plots tab**: View visualizations
+**Packages tab**: Manage installed packages
+**Help tab**: Read function documentation
+**Viewer tab**: Preview HTML output
+
+### Customizing RStudio
+
+Make RStudio work for you!
+
+**Tools → Global Options** (or `Cmd/Ctrl + ,`):
+
+- **Appearance**: Choose themes (dark mode, font size, colors)
+- **Code**: Enable syntax highlighting, code completion
+- **Pane Layout**: Rearrange panes to your preference
+
+::: {.callout-tip}
+## Recommended Settings
+
+1. **Appearance** → Choose a comfortable theme (I like "Tomorrow Night Bright" for dark mode)
+2. **Code** → Check "Soft-wrap R source files" (no horizontal scrolling)
+3. **General** → **Uncheck** "Restore .RData into workspace at startup" (for reproducibility)
+4. **General** → **Uncheck** "Save workspace to .RData on exit"
 :::
 
 ---
 
-**Next Chapter**: [Data Types, Strings, and Introduction to dplyr](part1-ch03-data_types_strings_dplyr.qmd)
+## R Projects and Working Directories
+
+### What is a Working Directory?
+
+The **working directory** is the folder where R looks for files and saves output.
+
+Check your current working directory:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Where am I?
+getwd()
+```
+
+**Problem**: If you use absolute paths, your code won't work on other computers:
+
+```r
+# BAD: Absolute path (only works on my computer)
+data <- read.csv("/Users/jane/Documents/my_project/data/cattle.csv")
+```
+
+**Solution**: Use R Projects and relative paths!
+
+### What is an R Project?
+
+An **R Project** is a special file (`.Rproj`) that:
+
+- Sets the working directory to the project folder automatically
+- Keeps all project files organized
+- Makes code portable across computers
+- Tracks your workspace and settings
+
+### Creating an R Project
+
+**Method 1: New Project**
+
+1. **File → New Project...**
+2. Choose:
+   - **New Directory**: Start from scratch
+   - **Existing Directory**: Use an existing folder
+   - **Version Control**: Clone from Git/GitHub
+3. Name your project (e.g., `ans500_cattle_analysis`)
+4. Choose where to save it
+5. Click **Create Project**
+
+**Method 2: From Existing Folder**
+
+If you already have a project folder:
+
+1. Navigate to the folder in RStudio's Files pane
+2. **More → Set As Working Directory**
+3. **File → New Project → Existing Directory**
+
+::: {.callout-important}
+## Always Use R Projects!
+
+Benefits:
+
+- **Reproducibility**: Code works on any computer
+- **Organization**: Everything in one place
+- **Convenience**: No more `setwd()`!
+- **Portability**: Easy to share with collaborators
+:::
+
+### The `here` Package
+
+Even better than relative paths: use the `here` package!
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Install once
+install.packages("here")
+
+# Load the package
+library(here)
+
+# Read data using here()
+cattle <- read.csv(here("data", "raw", "cattle_weights.csv"))
+
+# Save plots using here()
+ggsave(here("output", "figures", "weight_plot.png"))
+```
+
+**Why `here` is awesome**:
+
+- Works from any subdirectory
+- Works in Quarto documents
+- Works across operating systems (Mac, Windows, Linux)
+- Makes paths explicit and readable
+
+---
+
+## Installing and Loading Packages
+
+R's power comes from **packages**—collections of functions written by the community.
+
+### Packages vs Libraries
+
+::: {.panel-tabset}
+
+## Analogy
+
+**Package** = App on your phone
+**Library** = Installing/opening the app
+
+## In R
+
+**Package**: A collection of functions, data, and documentation
+**Library**: The folder where packages are stored
+
+:::
+
+### Installing Packages
+
+You only need to install a package **once** (or when updating).
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Install a single package
+install.packages("readr")
+
+# Install multiple packages
+install.packages(c("readr", "dplyr", "ggplot2"))
+
+# Or install the tidyverse (includes many packages)
+install.packages("tidyverse")
+```
+
+::: {.callout-warning}
+## Installation Notes
+
+- Put package names in **quotes**: `install.packages("readr")`
+- Requires internet connection
+- May take a few minutes for large packages
+- Choose a CRAN mirror (any US mirror works)
+:::
+
+### Loading Packages
+
+You need to load a package **every time** you start R.
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Load packages (no quotes!)
+library(readr)
+library(dplyr)
+
+# Or load everything at once
+library(tidyverse)
+```
+
+::: {.callout-note}
+## Install Once, Load Every Session
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Do this ONCE:
+install.packages("tidyverse")
+
+# Do this EVERY SESSION:
+library(tidyverse)
+```
+
+Think of it like installing an app once, but opening it every time you want to use it.
+:::
+
+### Common Package Errors
+
+**Error: package not found**
+
+```r
+library(readr)
+# Error: there is no package called 'readr'
+```
+
+**Solution**: Install the package first!
+
+```r
+install.packages("readr")
+library(readr)
+```
+
+**Error: could not find function**
+
+```r
+read_csv("data.csv")
+# Error: could not find function "read_csv"
+```
+
+**Solution**: Load the package!
+
+```r
+library(readr)  # Now read_csv() is available
+```
+
+### Understanding CRAN
+
+**CRAN** (Comprehensive R Archive Network) is the official repository for R packages.
+
+- Over 20,000 packages available
+- All packages are tested and documented
+- Safe to install from CRAN
+
+**Other sources**:
+
+- **Bioconductor**: Bioinformatics packages
+- **GitHub**: Development versions of packages
+
+### Package Documentation
+
+Every package has documentation:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# View package overview
+help(package = "readr")
+
+# See all functions in a package
+library(help = "readr")
+
+# Read vignettes (tutorials)
+vignette(package = "readr")
+vignette("readr")
+```
+
+---
+
+## Quarto Documents
+
+**Quarto** is a publishing system that lets you combine code, text, and output in a single document.
+
+### Why Use Quarto?
+
+Traditional workflow:
+
+1. Analyze data in R
+2. Copy results to Word/Excel
+3. Insert plots manually
+4. Write explanation
+5. **If data changes**: Repeat all steps 😫
+
+**Quarto workflow**:
+
+1. Write code and explanation together
+2. Render with one click
+3. **If data changes**: Just re-render! ✨
+
+::: {.callout-important}
+## Reproducible Research
+
+With Quarto:
+
+- Code and results are never out of sync
+- Anyone can reproduce your analysis
+- Updating is automatic
+- Professional output (HTML, PDF, Word)
+:::
+
+### Creating a Quarto Document
+
+**File → New File → Quarto Document**
+
+1. Enter title and author
+2. Choose output format (HTML recommended to start)
+3. Click **Create**
+
+You'll get a template with example content.
+
+### Anatomy of a Quarto Document
+
+A Quarto document (`.qmd`) has three main components:
+
+```{mermaid}
+flowchart LR
+    A[Quarto Document] --> B[YAML Header]
+    A --> C[Markdown Text]
+    A --> D[Code Chunks]
+
+    B --> B1[Metadata and settings]
+    C --> C1[Formatted text]
+    D --> D1[Executable R code]
+```
+
+### 1. YAML Header
+
+At the top of every Quarto document, between `---` markers:
+
+```yaml
+---
+title: "My First Analysis"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    code-fold: false
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+---
+```
+
+**Common options**:
+
+- `title`, `author`, `date`: Document metadata
+- `format`: Output type (html, pdf, docx)
+- `toc: true`: Add table of contents
+- `code-fold: true`: Hide code by default (click to show)
+- `theme`: Visual appearance
+- `execute`: Control code execution
+
+::: {.callout-tip}
+## YAML is Picky!
+
+- Indentation matters (use 2 spaces)
+- Colons need a space after them
+- Use `today` for automatic date
+- If you get an error, check your indentation!
+:::
+
+### 2. Markdown Text
+
+Markdown is a simple way to format text:
+
+::: {.panel-tabset}
+
+## Headers
+
+```markdown
+# Level 1 Header
+## Level 2 Header
+### Level 3 Header
+```
+
+## Emphasis
+
+```markdown
+*italic* or _italic_
+**bold** or __bold__
+***bold italic***
+```
+
+## Lists
+
+```markdown
+Unordered list:
+- Item 1
+- Item 2
+  - Sub-item
+
+Numbered list:
+1. First
+2. Second
+3. Third
+```
+
+## Links
+
+```markdown
+[Link text](https://example.com)
+[R for Data Science](https://r4ds.hadley.nz/)
+```
+
+## Images
+
+```markdown
+![Alt text](path/to/image.png)
+```
+
+:::
+
+### 3. Code Chunks
+
+Code chunks contain R code that executes when you render:
+
+````markdown
+```{{r}}
+# R code goes here
+x <- 1:10
+mean(x)
+```
+````
+
+**Insert code chunk**:
+
+- Click **Insert → Code Chunk → R**
+- Or use keyboard shortcut: `Cmd/Ctrl + Option + I` (Mac) / `Ctrl + Alt + I` (Windows)
+
+#### Code Chunk Options
+
+Control how code chunks behave with options:
+
+````markdown
+```{{r}}
+#| label: load-packages
+#| echo: true
+#| eval: true
+#| warning: false
+#| message: false
+
+library(tidyverse)
+```
+````
+
+**Common options**:
+
+- `label`: Name the chunk (optional, but helpful)
+- `echo: true/false`: Show/hide code in output
+- `eval: true/false`: Run/don't run code
+- `warning: false`: Hide warning messages
+- `message: false`: Hide package loading messages
+- `include: false`: Run code but show nothing in output
+
+::: {.callout-note}
+## Quarto vs R Markdown
+
+If you've used R Markdown before:
+
+- Quarto uses `#|` for chunk options (instead of `{r option=value}`)
+- YAML syntax is slightly different
+- Quarto has more features and better outputs
+- Most R Markdown code works in Quarto!
+:::
+
+### Rendering Your Document
+
+**Render** = Execute all code and create output document
+
+**Three ways to render**:
+
+1. Click **Render** button (top of source pane)
+2. Keyboard shortcut: `Cmd/Ctrl + Shift + K`
+3. Command line: `quarto render document.qmd`
+
+**Output**:
+
+- HTML: Opens in Viewer or browser
+- PDF: Requires LaTeX (install TinyTeX)
+- Word: Opens in Microsoft Word
+
+::: {.callout-tip}
+## Start with HTML
+
+HTML output is easiest:
+
+- No additional software needed
+- Interactive features (table of contents, code folding)
+- Easy to share (single file)
+- Fast rendering
+:::
+
+### Example Quarto Document
+
+Here's a complete minimal example:
+
+````markdown
+---
+title: "Cattle Weight Analysis"
+author: "Your Name"
+date: today
+format: html
+---
+
+## Introduction
+
+This analysis examines cattle weights from our feed trial.
+
+## Load Data
+
+```{{r}}
+#| message: false
+
+library(readr)
+cattle <- read_csv("data/raw/cattle_weights.csv")
+```
+
+## Summary Statistics
+
+The average initial weight was:
+
+```{{r}}
+mean(cattle$initial_weight_kg)
+```
+
+## Conclusion
+
+We found interesting patterns in the data.
+````
+
+---
+
+## Reading CSV Files
+
+CSV (Comma-Separated Values) is the most common data format for analysis.
+
+### Why CSV?
+
+- **Plain text**: Open in any editor
+- **Universal**: Works with all software
+- **Version control friendly**: Git can track changes
+- **Fast**: Quick to read and write
+- **Reliable**: No Excel date conversion errors!
+
+### The `readr` Package
+
+The **readr** package (part of tidyverse) provides `read_csv()`:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Load the package
+library(readr)
+
+# Read a CSV file
+cattle <- read_csv("data/raw/cattle_weights.csv")
+```
+
+### Reading Your First CSV
+
+Let's read the cattle weights data:
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: true
+
+library(readr)
+
+# Read CSV file
+cattle <- read_csv(here::here("data", "raw", "cattle_weights.csv"))
+
+# View first few rows
+head(cattle)
+```
+
+::: {.callout-note}
+## What Just Happened?
+
+When you run `read_csv()`:
+
+1. R reads the file from disk
+2. Parses column types automatically
+3. Creates a tibble (tidyverse data frame)
+4. Prints a message showing column types
+5. Assigns the result to `cattle`
+:::
+
+### `read_csv()` vs `read.csv()`
+
+R has two functions for reading CSVs:
+
+| Feature | `read.csv()` (base R) | `read_csv()` (readr) |
+|---------|------------------------|----------------------|
+| Speed | Slower | **Faster** |
+| Output | data.frame | **tibble** (better) |
+| Column types | Less reliable | **Smart guessing** |
+| Progress bar | No | **Yes** (for large files) |
+| Strings as factors | Yes (annoying) | **No** |
+
+::: {.callout-tip}
+## Always Use `read_csv()`
+
+The tidyverse version (`read_csv()` with underscore) is superior:
+
+- Faster for large files
+- Better column type guessing
+- More consistent behavior
+- Better error messages
+:::
+
+### Common `read_csv()` Options
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Skip first row
+data <- read_csv("file.csv", skip = 1)
+
+# Specify column types manually
+data <- read_csv("file.csv",
+  col_types = cols(
+    animal_id = col_character(),
+    weight_kg = col_double(),
+    treatment = col_factor()
+  )
+)
+
+# Handle missing values
+data <- read_csv("file.csv", na = c("", "NA", "N/A", "-", "."))
+
+# No column names in file
+data <- read_csv("file.csv", col_names = FALSE)
+
+# Custom column names
+data <- read_csv("file.csv",
+  col_names = c("id", "weight", "treatment")
+)
+```
+
+### File Paths
+
+::: {.panel-tabset}
+
+## Absolute Path (Bad)
+
+```r
+# DON'T DO THIS
+data <- read_csv("/Users/jane/Documents/project/data/cattle.csv")
+```
+
+**Problem**: Only works on Jane's computer!
+
+## Relative Path (Good)
+
+```r
+# Better
+data <- read_csv("data/raw/cattle.csv")
+```
+
+**Works if**: Your working directory is the project root
+
+## Using `here()` (Best)
+
+```r
+# Best practice
+library(here)
+data <- read_csv(here("data", "raw", "cattle.csv"))
+```
+
+**Works**: Anywhere, any time!
+
+:::
+
+---
+
+## Reading Excel Files
+
+While we prefer CSV for analysis, sometimes you need to read Excel files.
+
+### The `readxl` Package
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Install once
+install.packages("readxl")
+
+# Load every session
+library(readxl)
+```
+
+### Reading an Excel File
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: true
+
+library(readxl)
+
+# Read Excel file
+feed <- read_excel(here::here("data", "raw", "feed_records.xlsx"))
+
+# View first few rows
+head(feed)
+```
+
+### Excel File Options
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Specify sheet by name
+data <- read_excel("file.xlsx", sheet = "Sheet2")
+
+# Specify sheet by number
+data <- read_excel("file.xlsx", sheet = 2)
+
+# Skip rows
+data <- read_excel("file.xlsx", skip = 3)
+
+# Specify column types
+data <- read_excel("file.xlsx",
+  col_types = c("text", "numeric", "date")
+)
+
+# Read specific range (like Excel: A1:D10)
+data <- read_excel("file.xlsx", range = "A1:D10")
+
+# Handle missing values
+data <- read_excel("file.xlsx", na = c("", "NA", "N/A"))
+```
+
+### List Sheets in Excel File
+
+```{r}
+#| eval: true
+#| echo: true
+
+# See all sheet names
+excel_sheets(here::here("data", "raw", "feed_records.xlsx"))
+```
+
+### Read Multiple Sheets
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Read all sheets into a list
+library(purrr)
+
+sheets <- excel_sheets("file.xlsx")
+all_data <- map(sheets, ~ read_excel("file.xlsx", sheet = .x))
+names(all_data) <- sheets
+```
+
+::: {.callout-warning}
+## Excel Issues to Watch For
+
+- **Date conversions**: Excel loves turning things into dates
+- **Formula errors**: `read_excel()` reads values, not formulas
+- **Hidden rows/columns**: Will be included
+- **Merged cells**: Can cause problems
+- **Formatting**: Lost when importing (colors, fonts)
+
+**Best practice**: Export to CSV from Excel before analysis!
+:::
+
+---
+
+## Exploring Your Data
+
+Once you've loaded data, the first step is **exploration**.
+
+### First Look Functions
+
+::: {.panel-tabset}
+
+## `head()` and `tail()`
+
+View first or last rows:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# First 6 rows (default)
+head(cattle)
+
+# First 3 rows
+head(cattle, n = 3)
+
+# Last 6 rows
+tail(cattle)
+```
+
+## `glimpse()`
+
+Transposed view of data:
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(dplyr)
+glimpse(cattle)
+```
+
+Shows: number of rows, columns, column names, types, and first few values
+
+## `str()`
+
+Structure of object:
+
+```{r}
+#| eval: true
+#| echo: true
+
+str(cattle)
+```
+
+More technical, shows object class and internal structure
+
+## `summary()`
+
+Statistical summary:
+
+```{r}
+#| eval: true
+#| echo: true
+
+summary(cattle)
+```
+
+For numeric columns: min, max, quartiles, mean
+For character/factor: counts
+
+:::
+
+### Dimensions
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Number of rows
+nrow(cattle)
+
+# Number of columns
+ncol(cattle)
+
+# Both at once (rows, columns)
+dim(cattle)
+```
+
+### Column Names
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Get column names
+names(cattle)
+
+# Or
+colnames(cattle)
+```
+
+### Quick Counts
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Count observations by treatment
+library(dplyr)
+cattle %>% count(treatment)
+
+# Count by breed and sex
+cattle %>% count(breed, sex)
+```
+
+---
+
+## Data Structures: Data Frames vs Tibbles
+
+### Data Frames (Base R)
+
+A **data frame** is R's traditional way to store tabular data:
+
+- Rows are observations
+- Columns are variables
+- Columns can be different types (numeric, character, factor)
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create a basic data frame
+df <- data.frame(
+  id = 1:3,
+  name = c("Bessie", "Daisy", "Buttercup"),
+  weight_kg = c(450, 425, 475)
+)
+
+class(df)
+df
+```
+
+### Tibbles (Tidyverse)
+
+A **tibble** is the tidyverse version of a data frame:
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(tibble)
+
+# Create a tibble
+tib <- tibble(
+  id = 1:3,
+  name = c("Bessie", "Daisy", "Buttercup"),
+  weight_kg = c(450, 425, 475)
+)
+
+class(tib)
+tib
+```
+
+### Data Frame vs Tibble
+
+| Feature | Data Frame | Tibble |
+|---------|------------|--------|
+| Printing | Prints everything | Prints first 10 rows |
+| Column types | Shown with `str()` | Shown when printing |
+| Strings to factors | Yes (old R) | Never |
+| Subsetting | Inconsistent | Consistent |
+| Modern tidyverse | ❌ | ✅ |
+
+::: {.callout-tip}
+## Prefer Tibbles
+
+When using tidyverse packages, tibbles are better:
+
+- Better printing (won't flood your console)
+- Better warnings when something goes wrong
+- More predictable behavior
+- Column types always visible
+
+**Convert data frame to tibble**:
+
+```{r}
+#| eval: false
+#| echo: true
+
+tib <- as_tibble(df)
+```
+:::
+
+### Vectors
+
+Both data frames and tibbles are built from **vectors**—the most basic R data structure.
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Numeric vector
+weights <- c(250, 275, 300, 285)
+weights
+
+# Character vector
+names <- c("Bessie", "Daisy", "Buttercup", "Moolinda")
+names
+
+# Logical vector
+is_heavy <- weights > 280
+is_heavy
+```
+
+**Key point**: Each column in a data frame/tibble is a vector!
+
+---
+
+## The R Help System
+
+Learning to find help is crucial for becoming independent.
+
+### Function Help
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Get help for a function
+?read_csv
+help(read_csv)
+
+# Search for topic
+??csv
+help.search("csv")
+```
+
+### Package Help
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Overview of package
+help(package = "readr")
+
+# List all functions
+library(help = "readr")
+```
+
+### Vignettes
+
+**Vignettes** are long-form tutorials:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# See available vignettes
+vignette(package = "readr")
+
+# Open a specific vignette
+vignette("readr")
+```
+
+### Examples
+
+Most help files have examples at the bottom:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Run examples from help file
+example(read_csv)
+```
+
+### Online Resources
+
+When stuck, try:
+
+1. **Google**: "R read csv with missing values"
+2. **Stack Overflow**: [stackoverflow.com/questions/tagged/r](https://stackoverflow.com/questions/tagged/r)
+3. **Package websites**: Often have better documentation than `?function`
+4. **R for Data Science**: [https://r4ds.hadley.nz/](https://r4ds.hadley.nz/)
+
+::: {.callout-tip}
+## How to Ask for Help
+
+When asking questions online:
+
+1. **Describe what you want to do**
+2. **Show your code** (formatted!)
+3. **Include error messages** (full text)
+4. **Provide example data** (use `dput()` or built-in datasets)
+5. **Say what you've tried**
+
+Good question = fast, helpful answers!
+:::
+
+---
+
+## Summary
+
+This chapter introduced the R ecosystem for data analysis:
+
+- **RStudio interface** has four main panes: Source, Console, Environment, Files
+- **R Projects** organize your work and use relative paths for reproducibility
+- The **`here` package** makes file paths work anywhere
+- **Installing packages** (`install.packages()`) is done once; **loading packages** (`library()`) is done every session
+- **Quarto documents** combine code, text, and output for reproducible reports
+- **YAML headers** control document settings; **markdown** formats text; **code chunks** execute R code
+- **`read_csv()`** from readr is better than `read.csv()` for importing CSV files
+- **`read_excel()`** from readxl imports Excel files
+- **Exploration functions**: `head()`, `tail()`, `glimpse()`, `str()`, `summary()`, `names()`, `dim()`
+- **Tibbles** are better than data frames for tidyverse workflows
+- **R's help system**: `?function`, `help()`, `vignette()`, and online resources
+
+---
+
+## Homework Assignment
+
+### Assignment: Import, Explore, and Document Data
+
+**Due**: Before Week 3
+
+#### Part 1: Project Setup (20 points)
+
+1. Create a new R Project called `ans500_week2_yourname`
+2. Create this folder structure within your project:
+   ```
+   data/
+     raw/
+     processed/
+   code/
+   output/
+     figures/
+   ```
+3. Download two data files (your instructor will provide links):
+   - `cattle_weights.csv`
+   - `feed_records.xlsx`
+4. Place both files in `data/raw/`
+
+#### Part 2: Data Import and Exploration (40 points)
+
+Create a Quarto document called `week2_homework.qmd` that:
+
+1. **Loads necessary packages** (tidyverse, readxl, here)
+2. **Reads both data files** using appropriate functions
+3. **Explores the CSV data** (cattle_weights.csv):
+   - Show dimensions (rows and columns)
+   - Display column names and types
+   - Show first 10 rows
+   - Provide a statistical summary
+   - Count observations by treatment and by breed
+4. **Explores the Excel data** (feed_records.xlsx):
+   - Show dimensions
+   - Display column names and types
+   - Show first 8 rows
+   - Calculate mean feed consumption by feed type
+5. **Documents your observations**:
+   - What variables are in each dataset?
+   - What do you notice about the data?
+   - Any missing values or unusual patterns?
+   - Any potential data quality issues?
+
+#### Part 3: Quarto Skills (40 points)
+
+Your Quarto document must demonstrate:
+
+1. **Proper YAML header** with:
+   - Title: "Week 2 Homework: Data Import and Exploration"
+   - Your name as author
+   - Today's date
+   - HTML output with table of contents
+   - Code folding off
+2. **Markdown formatting**:
+   - Level 2 headers (##) for major sections
+   - Level 3 headers (###) for subsections
+   - Use bold and italic for emphasis
+   - Create a bulleted list
+3. **Code chunks** with appropriate options:
+   - Name at least 3 code chunks
+   - Use `#| message: false` where appropriate
+   - Use `#| echo: true` to show code
+4. **Written interpretation**:
+   - Each analysis section includes 2-3 sentences explaining what the output shows
+   - Final section (150-200 words) comparing CSV vs Excel import process
+
+**Render to HTML** and submit both `.qmd` and `.html` files.
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 2 Homework: Data Import and Exploration"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Project Setup (20%)**:
+  - R Project created properly (5%)
+  - Folder structure correct (10%)
+  - Data files in correct location (5%)
+
+- **Data Import and Exploration (40%)**:
+  - Both files imported correctly (10%)
+  - All required exploration completed (20%)
+  - Observations documented (10%)
+
+- **Quarto Skills (40%)**:
+  - YAML header correct and complete (10%)
+  - Markdown formatting used effectively (10%)
+  - Code chunks properly configured (10%)
+  - Written interpretation clear and complete (10%)
+
+### Bonus (5 points)
+
+Create a simple visualization of either dataset using base R plotting:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Example: Histogram of initial weights
+hist(cattle$initial_weight_kg,
+     main = "Distribution of Initial Cattle Weights",
+     xlab = "Weight (kg)",
+     col = "steelblue")
+```
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 6-8: Workflow, Data Import
+- [Quarto Tutorial](https://quarto.org/docs/get-started/hello/rstudio.html) - Complete the "Hello, Quarto" tutorial
+
+### Optional Reading
+
+- [RStudio IDE Cheat Sheet](https://rstudio.github.io/cheatsheets/rstudio-ide.pdf)
+- [readr documentation](https://readr.tidyverse.org/)
+- [readxl documentation](https://readxl.tidyverse.org/)
+- Wickham, H. (2014). "Tidy Data." *Journal of Statistical Software*, 59(10). [Link](https://www.jstatsoft.org/article/view/v059i10)
+
+### Videos
+
+- "RStudio for the Total Beginner" by RStudio
+- "Getting Started with Quarto" by Posit
+- "How to Import Data in R" by DataCamp
+
+### Cheat Sheets
+
+- [Data Import Cheat Sheet](https://rstudio.github.io/cheatsheets/data-import.pdf)
+- [RStudio IDE Cheat Sheet](https://rstudio.github.io/cheatsheets/rstudio-ide.pdf)
+- [Quarto Reference](https://rstudio.github.io/cheatsheets/quarto.pdf)
+
+### Useful Websites
+
+- [Tidyverse](https://www.tidyverse.org/) - Homepage for tidyverse packages
+- [Posit Community](https://community.rstudio.com/) - Forum for RStudio/Quarto questions
+- [Stack Overflow](https://stackoverflow.com/questions/tagged/r) - Q&A for R programming
+
+---
+
+**Next Chapter**: [Data Types, Strings, and Introduction to dplyr](ch03-data_types_strings_dplyr.qmd)

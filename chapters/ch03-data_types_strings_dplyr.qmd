@@ -4,17 +4,1577 @@
 
 By the end of this chapter, you will be able to:
 
-1. Understand and work with different R data types
-2. Manipulate strings using the `stringr` package
-3. Apply basic regular expressions for pattern matching
-4. Use the pipe operator for readable code
-5. Filter and select data using `dplyr`
+1. Identify and work with R's core data types: numeric, integer, character, logical, factor, and date
+2. Check and coerce data types using functions like `class()`, `typeof()`, and `as.*()` functions
+3. Create and manipulate factors using the `forcats` package
+4. Perform string operations using `stringr` functions
+5. Understand and apply basic regular expression patterns
+6. Use the pipe operator (`%>%` and `|>`) to create readable code workflows
+7. Select columns from a dataset using `dplyr::select()` and helper functions
+8. Filter rows based on conditions using `dplyr::filter()`
+9. Combine multiple dplyr operations using pipes
+10. Handle missing values (`NA`) when filtering data
+
+---
+
+## Understanding R Data Types
+
+Every piece of data in R has a **type**. Understanding data types is crucial because:
+
+- Different operations work on different types
+- Data import can misinterpret types
+- Type errors cause many frustrating bugs
+- Proper types enable correct statistical analysis
+
+### The Six Essential Data Types
+
+```{mermaid}
+flowchart TD
+    A[R Data Types] --> B[Numeric<br/>Numbers with decimals]
+    A --> C[Integer<br/>Whole numbers]
+    A --> D[Character<br/>Text strings]
+    A --> E[Logical<br/>TRUE/FALSE]
+    A --> F[Factor<br/>Categorical data]
+    A --> G[Date/POSIXct<br/>Dates and times]
+
+    B --> B1["3.14, 500.5, -12.7"]
+    C --> C1["1L, 42L, 100L"]
+    D --> D1["'Holstein', 'A123'"]
+    E --> E1["TRUE, FALSE"]
+    F --> F1["Breed, Treatment"]
+    G --> G1["2024-01-15"]
+```
+
+### 1. Numeric (Double)
+
+Numbers with decimal points:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Numeric values
+weight <- 450.5
+temperature <- 38.6
+milk_yield <- 25.3
+
+class(weight)
+typeof(weight)
+```
+
+### 2. Integer
+
+Whole numbers (add `L` suffix):
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Integer values
+n_animals <- 100L
+pen_number <- 5L
+
+class(n_animals)
+typeof(n_animals)
+
+# Most numbers are numeric by default, not integer
+x <- 42
+class(x)  # numeric (double), not integer!
+```
 
 ::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
+## When to Use Integer vs Numeric?
+
+**Practical answer**: Almost never worry about it!
+
+- R defaults to numeric (double precision)
+- Integer saves memory (rarely matters)
+- Use integer for:
+  - Counting things (number of animals)
+  - IDs that are whole numbers
+  - Indexing
+:::
+
+### 3. Character (Strings)
+
+Text data, enclosed in quotes:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Character values
+animal_id <- "A1234"
+breed <- "Holstein"
+farm_name <- "Green Valley Farm"
+
+class(breed)
+typeof(breed)
+
+# Numbers can be characters too!
+id_as_string <- "12345"
+class(id_as_string)
+```
+
+### 4. Logical (Boolean)
+
+`TRUE` or `FALSE` (note: all caps, no quotes):
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Logical values
+is_lactating <- TRUE
+has_disease <- FALSE
+
+class(is_lactating)
+
+# Logical from comparison
+weight <- 500
+is_heavy <- weight > 450
+is_heavy
+class(is_heavy)
+```
+
+::: {.callout-tip}
+## Logical Shortcuts
+
+- `TRUE` can be abbreviated as `T`
+- `FALSE` can be abbreviated as `F`
+- **BUT**: Don't use shortcuts! Write `TRUE` and `FALSE` for clarity
+:::
+
+### 5. Factor
+
+Categorical data with defined levels:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create a factor
+breed <- factor(c("Holstein", "Jersey", "Holstein", "Angus", "Jersey"))
+breed
+
+class(breed)
+levels(breed)
+```
+
+**When to use factors**:
+- Categorical variables (breed, treatment, sex)
+- Ordered categories (small, medium, large)
+- Fixed set of possible values
+
+**Why factors matter**:
+- Control order in plots and tables
+- Enable statistical modeling
+- Prevent typos (can't add invalid levels)
+
+### 6. Date and POSIXct
+
+Dates and date-times:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Date (just the date)
+birth_date <- as.Date("2024-01-15")
+birth_date
+class(birth_date)
+
+# POSIXct (date + time)
+breeding_time <- as.POSIXct("2024-01-15 14:30:00")
+breeding_time
+class(breeding_time)
+```
+
+::: {.callout-important}
+## Date Format: YYYY-MM-DD
+
+Always use ISO 8601 format: **Year-Month-Day** (2024-01-15)
+
+- Unambiguous internationally
+- Sorts correctly
+- Standard in R and databases
+- Avoid: 01/15/2024 (ambiguous: US or Europe?)
 :::
 
 ---
 
-**Next Chapter**: [Data Manipulation with dplyr](part1-ch04-dplyr.qmd)
+## Type Checking and Coercion
+
+### Checking Types
+
+```{r}
+#| eval: true
+#| echo: true
+
+x <- 42.5
+
+# What class is it?
+class(x)
+
+# What is the internal type?
+typeof(x)
+
+# Test if it's a specific type
+is.numeric(x)
+is.character(x)
+is.logical(x)
+is.factor(x)
+```
+
+### Common Type-Checking Functions
+
+| Function | Tests for |
+|----------|-----------|
+| `is.numeric()` | Numeric (double) |
+| `is.integer()` | Integer |
+| `is.character()` | Character/string |
+| `is.logical()` | Logical (TRUE/FALSE) |
+| `is.factor()` | Factor |
+| `is.na()` | Missing value (NA) |
+
+### Type Coercion
+
+**Coercion** = Converting from one type to another
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Character to numeric
+age_string <- "5"
+age_numeric <- as.numeric(age_string)
+age_numeric
+class(age_numeric)
+
+# Numeric to character
+weight <- 450
+weight_string <- as.character(weight)
+weight_string
+class(weight_string)
+
+# Numeric to integer
+n <- 42.7
+n_integer <- as.integer(n)  # Truncates decimal!
+n_integer
+
+# Character to factor
+treatments <- c("Control", "TreatA", "TreatB", "Control")
+treatments_factor <- as.factor(treatments)
+treatments_factor
+```
+
+### What Happens When Coercion Fails?
+
+```{r}
+#| eval: true
+#| echo: true
+#| warning: true
+
+# Can't convert text to number
+bad_conversion <- as.numeric("not_a_number")
+bad_conversion  # NA with warning
+```
+
+::: {.callout-warning}
+## Watch for Automatic Coercion!
+
+R silently coerces types in some situations:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Mixing types in a vector
+mixed <- c(1, 2, "three", 4)
+mixed  # Everything became character!
+class(mixed)
+```
+
+**Rule**: A vector can only hold **one** data type. R chooses the most flexible type that fits all values:
+
+logical → integer → numeric → character
+:::
+
+### Real-World Example: Cleaning Animal IDs
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(tibble)
+
+# Animal IDs imported as numbers (lost leading zeros!)
+animals <- tibble(
+  animal_id = c(123, 456, 789),
+  weight = c(450, 525, 490)
+)
+
+animals
+
+# Should be: "0123", "0456", "0789"
+# Fix by padding with zeros
+animals$animal_id_fixed <- sprintf("%04d", animals$animal_id)
+animals
+```
+
+---
+
+## Working with Factors
+
+Factors are R's way of handling categorical data. The `forcats` package (part of tidyverse) makes working with factors easier.
+
+### Why Factors?
+
+::: {.panel-tabset}
+
+## Problem
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(ggplot2)
+
+# Character vector for breed
+df <- data.frame(
+  breed = c("Holstein", "Jersey", "Angus", "Holstein", "Angus", "Jersey"),
+  weight = c(600, 450, 550, 620, 580, 470)
+)
+
+# Default alphabetical order
+ggplot(df, aes(x = breed, y = weight)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+Order: Angus, Holstein, Jersey (alphabetical)
+
+## Solution
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Use factors to control order
+df$breed_factor <- factor(df$breed,
+                          levels = c("Jersey", "Holstein", "Angus"))
+
+ggplot(df, aes(x = breed_factor, y = weight)) +
+  geom_boxplot() +
+  labs(x = "Breed") +
+  theme_minimal()
+```
+
+Order: Jersey, Holstein, Angus (our choice!)
+
+:::
+
+### Creating Factors
+
+```{r}
+#| eval: true
+#| echo: true
+
+# From a character vector
+treatments <- c("Control", "Low", "High", "Control", "High", "Low")
+
+# Convert to factor
+treatment_factor <- factor(treatments)
+treatment_factor
+
+# Levels are alphabetical by default
+levels(treatment_factor)
+
+# Specify level order
+treatment_factor_ordered <- factor(treatments,
+                                   levels = c("Control", "Low", "High"))
+levels(treatment_factor_ordered)
+```
+
+### Introduction to `forcats`
+
+The **forcats** package ("**for** **cat**egorical variable**s**") provides helpful factor functions:
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(forcats)
+
+# Example data
+df <- tibble(
+  treatment = c("Control", "TreatA", "TreatB", "Control", "TreatA", "TreatB"),
+  response = c(10, 15, 20, 12, 18, 22)
+)
+
+# Convert to factor
+df$treatment <- as.factor(df$treatment)
+levels(df$treatment)
+```
+
+### Useful `forcats` Functions
+
+#### 1. `fct_relevel()` - Manually reorder levels
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Put "Control" first
+df$treatment <- fct_relevel(df$treatment, "Control")
+levels(df$treatment)
+```
+
+#### 2. `fct_infreq()` - Order by frequency
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Most common first
+df$treatment <- fct_infreq(df$treatment)
+levels(df$treatment)
+```
+
+#### 3. `fct_recode()` - Rename levels
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Rename levels
+df$treatment <- fct_recode(df$treatment,
+  "Control Group" = "Control",
+  "Treatment A" = "TreatA",
+  "Treatment B" = "TreatB"
+)
+levels(df$treatment)
+```
+
+::: {.callout-tip}
+## When to Use Factors
+
+✅ **Use factors for:**
+- Categorical variables (breed, sex, treatment)
+- Variables with a natural order (small < medium < large)
+- Modeling and statistical tests
+- Controlling plot order
+
+❌ **Don't use factors for:**
+- Animal IDs (use character)
+- Free text (use character)
+- Data that might have new categories
+:::
+
+---
+
+## String Manipulation with `stringr`
+
+Working with text is common in data cleaning. The **stringr** package provides consistent, intuitive functions for string manipulation.
+
+### Why `stringr`?
+
+All `stringr` functions:
+- Start with `str_`
+- Take string as first argument (pipe-friendly)
+- Work with character vectors
+- Use consistent naming
+
+### Loading `stringr`
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(stringr)
+```
+
+### Common String Operations
+
+#### 1. Detecting Patterns: `str_detect()`
+
+Check if a pattern exists in a string:
+
+```{r}
+#| eval: true
+#| echo: true
+
+animal_ids <- c("H001", "J002", "H003", "A004", "H005")
+
+# Which IDs start with "H"?
+str_detect(animal_ids, "H")
+
+# Filter to just Holstein (H prefix)
+animal_ids[str_detect(animal_ids, "H")]
+```
+
+#### 2. Extracting Substrings: `str_subset()`
+
+Get strings that match a pattern:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Get Holstein IDs
+str_subset(animal_ids, "H")
+
+# Get IDs ending in 0
+str_subset(animal_ids, "0")
+```
+
+#### 3. Changing Case: `str_to_lower()`, `str_to_upper()`, `str_to_title()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+breeds <- c("HOLSTEIN", "jersey", "AnGuS")
+
+str_to_lower(breeds)
+str_to_upper(breeds)
+str_to_title(breeds)  # First letter capitalized
+```
+
+::: {.callout-tip}
+## Standardizing Text Data
+
+Always standardize case when cleaning data:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Before comparing or grouping
+data$breed <- str_to_title(data$breed)
+```
+
+Prevents: "holstein" ≠ "Holstein" ≠ "HOLSTEIN"
+:::
+
+#### 4. Trimming Whitespace: `str_trim()`
+
+Remove leading and trailing spaces:
+
+```{r}
+#| eval: true
+#| echo: true
+
+messy_names <- c("  Holstein  ", "Jersey", "  Angus")
+messy_names
+
+# Clean up
+str_trim(messy_names)
+```
+
+#### 5. Replacing: `str_replace()` and `str_replace_all()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+ids <- c("A-001", "A-002", "B-001")
+
+# Replace first occurrence
+str_replace(ids, "-", "_")
+
+# Replace all occurrences
+text <- "the the cow cow"
+str_replace(text, "the", "a")      # First only
+str_replace_all(text, "the", "a")  # All
+```
+
+#### 6. Combining Strings: `str_c()` (or `paste()`)
+
+```{r}
+#| eval: true
+#| echo: true
+
+first <- c("Animal", "Pen", "Feed")
+second <- c("ID", "Number", "Type")
+
+# Concatenate
+str_c(first, second, sep = "_")
+
+# Collapse into one string
+str_c(first, collapse = ", ")
+```
+
+#### 7. Splitting Strings: `str_split()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+ids <- "H001,J002,A003"
+
+# Split by comma
+str_split(ids, ",")
+
+# Returns a list! Get as character vector:
+str_split(ids, ",")[[1]]
+```
+
+### Real-World Example: Cleaning Messy Farm Data
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(tibble)
+
+# Messy data from Excel
+farm_data <- tibble(
+  animal_id = c("  H-001", "h-002  ", "H-003"),
+  breed = c("HOLSTEIN", "holstein", "Holstein  "),
+  weight_kg = c(450, 475, 460)
+)
+
+farm_data
+
+# Clean it up!
+library(dplyr)
+
+farm_data_clean <- farm_data %>%
+  mutate(
+    animal_id = str_trim(animal_id),           # Remove whitespace
+    animal_id = str_to_upper(animal_id),       # Uppercase
+    animal_id = str_replace(animal_id, "-", ""),  # Remove dash
+    breed = str_trim(breed),
+    breed = str_to_title(breed)
+  )
+
+farm_data_clean
+```
+
+---
+
+## Regular Expressions Basics
+
+**Regular expressions** (regex) are patterns for matching text. They're powerful but can look cryptic.
+
+### Common Regex Patterns
+
+| Pattern | Matches | Example |
+|---------|---------|---------|
+| `.` | Any single character | `"a.c"` matches "abc", "a1c", "a_c" |
+| `^` | Start of string | `"^H"` matches "Holstein", not "The Holstein" |
+| `$` | End of string | `"001$"` matches "H001", not "H001A" |
+| `[0-9]` | Any digit | `"[0-9]"` matches any number |
+| `[a-z]` | Any lowercase letter | `"[a-z]+"` matches "abc" |
+| `[A-Z]` | Any uppercase letter | `"[A-Z]"` matches "H" |
+| `+` | One or more | `"[0-9]+"` matches "123" |
+| `*` | Zero or more | `"[0-9]*"` matches "", "1", "123" |
+| `{n}` | Exactly n times | `"[0-9]{3}"` matches "123" |
+| `|` | Or | `"H|J"` matches "H" or "J" |
+
+### Regex Examples
+
+```{r}
+#| eval: true
+#| echo: true
+
+animal_ids <- c("H001", "J002", "H003", "A004", "H100")
+
+# IDs starting with H
+str_subset(animal_ids, "^H")
+
+# IDs ending with 00-something
+str_subset(animal_ids, "00.$")
+
+# IDs with exactly 3 digits
+str_detect(animal_ids, "[0-9]{3}")
+
+# IDs starting with H or J
+str_subset(animal_ids, "^(H|J)")
+```
+
+::: {.callout-note}
+## Learning Regex
+
+Regular expressions take practice! Start simple:
+
+1. **Literal matches**: `"Holstein"` matches "Holstein"
+2. **Simple patterns**: `"^H"` for starts with H
+3. **Character classes**: `"[0-9]"` for digits
+4. **Build gradually**: Test patterns as you go
+
+Resources:
+- [regex101.com](https://regex101.com/) - Interactive regex tester
+- [RegExr.com](https://regexr.com/) - Learn and test regex
+- [stringr cheat sheet](https://rstudio.github.io/cheatsheets/strings.pdf)
+:::
+
+### Practical Example: Extracting Numbers
+
+```{r}
+#| eval: true
+#| echo: true
+
+pen_labels <- c("Pen1", "Pen2", "Pen10", "Pen25")
+
+# Extract the numbers
+str_extract(pen_labels, "[0-9]+")
+
+# Convert to numeric
+as.numeric(str_extract(pen_labels, "[0-9]+"))
+```
+
+---
+
+## Introduction to the Pipe
+
+The **pipe operator** chains operations together, making code more readable.
+
+### What is a Pipe?
+
+The pipe takes the output of one function and passes it as the first argument to the next function.
+
+**Two versions**:
+- **Magrittr pipe**: `%>%` (requires magrittr or tidyverse)
+- **Native pipe**: `|>` (built into R 4.1+)
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(dplyr)
+
+# Sample data
+weights <- c(450, 475, 460, 490, 510, 425)
+
+# WITHOUT pipe (nested functions, hard to read)
+round(mean(weights), 1)
+
+# WITH pipe (left to right, easy to read)
+weights %>%
+  mean() %>%
+  round(1)
+
+# Read as: "Take weights, THEN calculate mean, THEN round to 1 decimal"
+```
+
+### Reading Pipes
+
+**Think: "and then"**
+
+```{r}
+#| eval: false
+#| echo: true
+
+data %>%
+  filter(weight > 400) %>%
+  select(animal_id, weight) %>%
+  arrange(weight)
+```
+
+**Read as**:
+- Take `data`
+- **and then** filter to weight > 400
+- **and then** select animal_id and weight columns
+- **and then** arrange by weight
+
+### `%>%` vs `|>`
+
+::: {.panel-tabset}
+
+## Magrittr Pipe `%>%`
+
+```{r}
+#| eval: false
+#| echo: true
+
+# From magrittr package (included in tidyverse)
+library(dplyr)
+
+data %>%
+  filter(weight > 400) %>%
+  summarise(mean_weight = mean(weight))
+```
+
+- Older, more established
+- Required before R 4.1
+- More features (`.` placeholder, `%$%`, `%<>%`)
+
+## Native Pipe `|>`
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Built into R 4.1+
+data |>
+  filter(weight > 400) |>
+  summarise(mean_weight = mean(weight))
+```
+
+- Newer (R 4.1+)
+- Slightly faster
+- No extra package needed
+- Simpler (fewer features)
+
+:::
+
+::: {.callout-tip}
+## Which Pipe Should You Use?
+
+**Short answer**: Either! They work the same 99% of the time.
+
+**Recommendations**:
+- Working with tidyverse? Use `%>%` (consistency)
+- R 4.1+ and prefer native? Use `|>`
+- Teaching beginners? `%>%` (more examples online)
+- **Most important**: Be consistent within a project!
+
+**Keyboard shortcuts**:
+- `%>%`: `Cmd/Ctrl + Shift + M` (customizable to `|>` in RStudio settings)
+:::
+
+### When NOT to Use Pipes
+
+Pipes are great, but sometimes other approaches are clearer:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# ❌ Too many steps (hard to debug)
+result <- data %>%
+  step1() %>%
+  step2() %>%
+  step3() %>%
+  step4() %>%
+  step5() %>%
+  step6() %>%
+  step7()
+
+# ✅ Break into intermediate steps
+data_filtered <- data %>%
+  step1() %>%
+  step2()
+
+data_transformed <- data_filtered %>%
+  step3() %>%
+  step4()
+
+result <- data_transformed %>%
+  step5()
+
+# ❌ Only one step (unnecessary)
+result <- data %>% mean()
+
+# ✅ Just call the function
+result <- mean(data)
+
+# ❌ Multiple inputs (pipes work with one object)
+# Pipes don't work well here
+result <- merge(data1, data2, by = "id")
+```
+
+---
+
+## Introduction to dplyr
+
+**dplyr** is the tidyverse package for data manipulation. It provides intuitive "verbs" for working with data frames.
+
+### Why dplyr?
+
+::: {.panel-tabset}
+
+## Base R
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Subsetting in base R
+cattle_subset <- cattle[cattle$weight > 400 & cattle$breed == "Holstein",
+                        c("animal_id", "weight")]
+```
+
+Hard to read! What's happening?
+
+## dplyr
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Same operation with dplyr
+cattle_subset <- cattle %>%
+  filter(weight > 400, breed == "Holstein") %>%
+  select(animal_id, weight)
+```
+
+Clear and readable! "Filter rows, then select columns"
+
+:::
+
+**dplyr verbs** (functions):
+- `select()`: Pick columns
+- `filter()`: Pick rows
+- `mutate()`: Create/modify columns (next chapter)
+- `arrange()`: Sort rows (next chapter)
+- `summarise()`: Calculate summaries (next chapter)
+- `group_by()`: Group for operations (next chapter)
+
+**This chapter**: `select()` and `filter()`
+
+### Loading dplyr
+
+```{r}
+#| eval: true
+#| echo: true
+
+library(dplyr)
+
+# Or load entire tidyverse (includes dplyr)
+library(tidyverse)
+```
+
+---
+
+## Selecting Columns with `select()`
+
+`select()` chooses which columns to keep in your dataset.
+
+### Basic Usage
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create example data
+cattle <- tibble(
+  animal_id = c("H001", "H002", "H003"),
+  breed = c("Holstein", "Holstein", "Jersey"),
+  weight_kg = c(450, 475, 460),
+  height_cm = c(140, 145, 135),
+  age_months = c(24, 30, 26)
+)
+
+cattle
+
+# Select specific columns
+cattle %>%
+  select(animal_id, weight_kg)
+
+# Select range of columns
+cattle %>%
+  select(animal_id:weight_kg)
+
+# Select all EXCEPT certain columns
+cattle %>%
+  select(-height_cm, -age_months)
+```
+
+### Helper Functions
+
+`select()` has powerful helper functions:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create wider dataset
+animals <- tibble(
+  animal_id = c("001", "002", "003"),
+  weight_kg = c(450, 475, 460),
+  weight_lb = c(992, 1047, 1014),
+  height_cm = c(140, 145, 135),
+  height_in = c(55, 57, 53),
+  temp_c = c(38.5, 38.8, 38.3)
+)
+
+animals
+
+# Select columns starting with "weight"
+animals %>%
+  select(starts_with("weight"))
+
+# Select columns ending with "cm"
+animals %>%
+  select(ends_with("cm"))
+
+# Select columns containing "weight"
+animals %>%
+  select(contains("weight"))
+
+# Select all numeric columns
+animals %>%
+  select(where(is.numeric))
+```
+
+### Common `select()` Helpers
+
+| Helper | Selects |
+|--------|---------|
+| `starts_with("x")` | Columns starting with "x" |
+| `ends_with("x")` | Columns ending with "x" |
+| `contains("x")` | Columns containing "x" |
+| `matches("regex")` | Columns matching regex pattern |
+| `num_range("x", 1:3)` | x1, x2, x3 |
+| `where(is.numeric)` | All numeric columns |
+| `where(is.character)` | All character columns |
+| `everything()` | All remaining columns |
+
+### Reordering Columns
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Move animal_id to the end
+cattle %>%
+  select(breed, weight_kg, height_cm, age_months, animal_id)
+
+# Or use everything() for remaining columns
+cattle %>%
+  select(breed, everything())
+```
+
+### Renaming While Selecting
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Rename during select
+cattle %>%
+  select(id = animal_id, weight = weight_kg)
+```
+
+::: {.callout-tip}
+## `select()` Pro Tips
+
+1. **Use helper functions** to avoid typing column names
+2. **Use `-` to remove columns** rather than listing many to keep
+3. **Use `everything()`** to move columns to front:
+   ```{r}
+   #| eval: false
+   #| echo: true
+   data %>% select(important_col, everything())
+   ```
+4. **Chain with other verbs** for powerful workflows
+:::
+
+---
+
+## Filtering Rows with `filter()`
+
+`filter()` keeps rows that meet specified conditions.
+
+### Basic Filtering
+
+```{r}
+#| eval: true
+#| echo: true
+
+cattle <- tibble(
+  animal_id = c("H001", "H002", "J001", "A001", "H003"),
+  breed = c("Holstein", "Holstein", "Jersey", "Angus", "Holstein"),
+  weight_kg = c(450, 475, 460, 520, 490),
+  age_months = c(24, 30, 26, 36, 28)
+)
+
+cattle
+
+# Filter to heavy animals (weight > 470)
+cattle %>%
+  filter(weight_kg > 470)
+
+# Filter to Holstein breed
+cattle %>%
+  filter(breed == "Holstein")
+
+# Filter to young animals (age < 30)
+cattle %>%
+  filter(age_months < 30)
+```
+
+### Comparison Operators
+
+| Operator | Meaning | Example |
+|----------|---------|---------|
+| `==` | Equal to | `breed == "Holstein"` |
+| `!=` | Not equal to | `breed != "Holstein"` |
+| `>` | Greater than | `weight > 450` |
+| `<` | Less than | `age < 30` |
+| `>=` | Greater than or equal | `weight >= 450` |
+| `<=` | Less than or equal | `age <= 30` |
+| `%in%` | In a set | `breed %in% c("Holstein", "Jersey")` |
+
+::: {.callout-warning}
+## Common Mistake: `=` vs `==`
+
+```{r}
+#| eval: false
+#| echo: true
+
+# ❌ WRONG (assignment, not comparison)
+filter(cattle, breed = "Holstein")
+
+# ✅ CORRECT (comparison)
+filter(cattle, breed == "Holstein")
+```
+
+**Remember**:
+- `=` assigns a value
+- `==` tests equality
+:::
+
+### Combining Conditions
+
+#### AND: Multiple conditions (comma or `&`)
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Heavy AND Holstein
+cattle %>%
+  filter(weight_kg > 460, breed == "Holstein")
+
+# Same thing with &
+cattle %>%
+  filter(weight_kg > 460 & breed == "Holstein")
+```
+
+#### OR: Either condition (`|`)
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Holstein OR Jersey
+cattle %>%
+  filter(breed == "Holstein" | breed == "Jersey")
+
+# Better way: use %in%
+cattle %>%
+  filter(breed %in% c("Holstein", "Jersey"))
+```
+
+#### NOT: Negate a condition (`!`)
+
+```{r}
+#| eval: true
+#| echo: true
+
+# NOT Holstein
+cattle %>%
+  filter(breed != "Holstein")
+
+# Or
+cattle %>%
+  filter(!breed == "Holstein")
+
+# NOT in the set
+cattle %>%
+  filter(!breed %in% c("Holstein", "Jersey"))
+```
+
+### Complex Logical Conditions
+
+```{r}
+#| eval: true
+#| echo: true
+
+# (Heavy OR old) AND not Angus
+cattle %>%
+  filter(
+    (weight_kg > 470 | age_months > 30),
+    breed != "Angus"
+  )
+```
+
+### The `%in%` Operator
+
+Match any value in a set:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Select specific IDs
+selected_ids <- c("H001", "H003", "A001")
+
+cattle %>%
+  filter(animal_id %in% selected_ids)
+
+# Select multiple breeds
+dairy_breeds <- c("Holstein", "Jersey", "Guernsey")
+
+cattle %>%
+  filter(breed %in% dairy_breeds)
+```
+
+### Filtering with Strings
+
+Use `stringr` functions inside `filter()`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Animals with IDs starting with "H"
+cattle %>%
+  filter(str_detect(animal_id, "^H"))
+
+# Breeds containing "Hol"
+cattle %>%
+  filter(str_detect(breed, "Hol"))
+```
+
+### Handling Missing Values
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with missing values
+cattle_na <- tibble(
+  animal_id = c("H001", "H002", "H003", "H004"),
+  weight_kg = c(450, NA, 460, 490),
+  breed = c("Holstein", "Holstein", NA, "Jersey")
+)
+
+cattle_na
+
+# Filter to rows with missing weight
+cattle_na %>%
+  filter(is.na(weight_kg))
+
+# Filter to rows with NON-missing weight
+cattle_na %>%
+  filter(!is.na(weight_kg))
+
+# Remove all rows with ANY missing values
+cattle_na %>%
+  filter(!is.na(weight_kg), !is.na(breed))
+
+# Or use drop_na() from tidyr
+library(tidyr)
+cattle_na %>%
+  drop_na()  # Removes rows with any NA
+```
+
+::: {.callout-important}
+## Be Careful with `NA` in Comparisons
+
+```{r}
+#| eval: true
+#| echo: true
+
+x <- c(1, 2, NA, 4)
+
+# This doesn't work as expected!
+x == NA  # Returns NA, not TRUE/FALSE
+
+# Use is.na() instead
+is.na(x)
+```
+
+`NA` means "unknown", so:
+- `NA == NA` is `NA` (we don't know if two unknowns are equal)
+- Always use `is.na()` to test for missingness
+:::
+
+---
+
+## Combining `select()` and `filter()` with Pipes
+
+The real power comes from combining operations:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create larger dataset
+farm_data <- tibble(
+  animal_id = c("H001", "H002", "J001", "A001", "H003", "J002"),
+  breed = c("Holstein", "Holstein", "Jersey", "Angus", "Holstein", "Jersey"),
+  weight_kg = c(450, 475, 420, 520, 490, 435),
+  height_cm = c(140, 145, 130, 155, 148, 132),
+  age_months = c(24, 30, 26, 36, 28, 25),
+  farm = c("North", "North", "South", "West", "North", "South"),
+  sex = c("F", "F", "F", "M", "F", "F")
+)
+
+farm_data
+
+# Filter Holstein cows from North farm, select ID and weight
+farm_data %>%
+  filter(breed == "Holstein", farm == "North") %>%
+  select(animal_id, weight_kg)
+
+# Young, light animals: just ID, breed, weight
+farm_data %>%
+  filter(age_months < 28, weight_kg < 450) %>%
+  select(animal_id, breed, weight_kg)
+
+# All females, excluding height column
+farm_data %>%
+  filter(sex == "F") %>%
+  select(-height_cm)
+```
+
+### Building Complex Workflows
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Multi-step cleaning and filtering
+cleaned_data <- farm_data %>%
+  # Remove height (not needed)
+  select(-height_cm) %>%
+  # Only females
+  filter(sex == "F") %>%
+  # Only dairy breeds
+  filter(breed %in% c("Holstein", "Jersey")) %>%
+  # Only mature animals
+  filter(age_months >= 26)
+
+cleaned_data
+```
+
+::: {.callout-tip}
+## Pipe Workflow Best Practices
+
+1. **One operation per line** for readability:
+   ```{r}
+   #| eval: false
+   #| echo: true
+   data %>%
+     filter(condition1) %>%
+     select(col1, col2) %>%
+     filter(condition2)
+   ```
+
+2. **Comment complex filters**:
+   ```{r}
+   #| eval: false
+   #| echo: true
+   data %>%
+     # Remove animals that failed health check
+     filter(health_status == "Pass") %>%
+     # Only lactating cows
+     filter(is_lactating == TRUE)
+   ```
+
+3. **Indent continued pipes** (2 spaces):
+   ```{r}
+   #| eval: false
+   #| echo: true
+   result <- data %>%
+     filter(condition) %>%
+     select(columns)
+   ```
+
+4. **Save intermediate results** for debugging:
+   ```{r}
+   #| eval: false
+   #| echo: true
+   filtered <- data %>% filter(condition)
+   final <- filtered %>% select(columns)
+   ```
+:::
+
+---
+
+## Summary
+
+This chapter introduced essential data manipulation skills:
+
+- **R data types** include numeric, integer, character, logical, factor, and date/time
+- **Type checking** uses `class()`, `typeof()`, `is.*()` functions
+- **Type coercion** uses `as.*()` functions to convert between types
+- **Factors** represent categorical data; use `forcats` package to manipulate them
+- **String manipulation** with `stringr`: detect, replace, transform, split, combine text
+- **Regular expressions** provide powerful pattern matching for text
+- **The pipe** (`%>%` or `|>`) chains operations for readable workflows
+- **`select()`** chooses columns; use helper functions like `starts_with()`, `ends_with()`, `contains()`
+- **`filter()`** chooses rows based on conditions; combine conditions with `&`, `|`, `!`
+- **Combining operations** with pipes creates powerful data transformation workflows
+
+**Next chapter**: More dplyr verbs for data transformation!
+
+---
+
+## Homework Assignment
+
+### Assignment: Data Cleaning and Manipulation
+
+**Due**: Before Week 4
+
+#### Part 1: Type Exploration and Conversion (25 points)
+
+Download the dataset `messy_cattle.csv` (your instructor will provide the link).
+
+In a Quarto document:
+
+1. **Read the data** and examine the structure
+2. **Check column types** - are they correct?
+3. **Fix type issues**:
+   - Convert `animal_id` to character (if needed)
+   - Convert `breed` and `treatment` to factors with appropriate levels
+   - Convert `birth_date` to Date type
+   - Ensure weights are numeric
+4. **Document the issues** you found and how you fixed them
+
+#### Part 2: String Cleaning (30 points)
+
+The dataset has messy text fields. Clean them:
+
+1. **Standardize `breed`**:
+   - Remove leading/trailing whitespace
+   - Convert to title case
+   - Count observations per breed
+2. **Fix `animal_id`**:
+   - Make all IDs uppercase
+   - Remove any dashes or spaces
+   - Pad with leading zeros to 4 digits (e.g., "1" → "0001")
+3. **Create new variable** `breed_code`:
+   - Extract first letter of breed name
+   - Examples: "Holstein" → "H", "Jersey" → "J"
+4. **Document** your cleaning steps with before/after examples
+
+#### Part 3: Filtering and Selecting (35 points)
+
+Using your cleaned data:
+
+1. **Create subset 1**: Holstein and Jersey cows only
+   - Select columns: animal_id, breed, weight_kg, age_months
+   - Filter to breeds: Holstein or Jersey
+   - Filter to sex: Female only
+   - Save as `dairy_cows`
+
+2. **Create subset 2**: Heavy, mature animals
+   - Filter to weight > 450 kg
+   - Filter to age >= 24 months
+   - Remove the `birth_date` column
+   - Save as `mature_heavy`
+
+3. **Create subset 3**: Treatment A recipients
+   - Filter to treatment == "TreatmentA"
+   - Select only ID, weight, and treatment columns
+   - Remove any rows with missing values
+   - Save as `treatment_a`
+
+4. **Answer questions**:
+   - How many animals are in each subset?
+   - What is the mean weight in each subset?
+   - Which breed is most common in `dairy_cows`?
+
+#### Part 4: Reflection on Pipes and Readability (10 points)
+
+Write 150-200 words reflecting on:
+- How does using pipes change your code?
+- Compare nested functions vs piped operations—which is clearer?
+- When might you NOT want to use pipes?
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 3 Homework: Data Types and dplyr"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Part 1: Type Exploration (25%)**:
+  - Data read and structure examined (5%)
+  - Types checked correctly (5%)
+  - Type conversions performed correctly (10%)
+  - Issues documented clearly (5%)
+
+- **Part 2: String Cleaning (30%)**:
+  - Breed standardization (10%)
+  - Animal ID fixes (10%)
+  - Breed code creation (5%)
+  - Documentation and examples (5%)
+
+- **Part 3: Filtering and Selecting (35%)**:
+  - Three subsets created correctly (21%)
+  - Questions answered accurately (9%)
+  - Code is clean and well-commented (5%)
+
+- **Part 4: Reflection (10%)**:
+  - Thoughtful reflection on pipes (5%)
+  - Comparison of approaches (5%)
+
+### Bonus (10 points)
+
+Create a complex multi-step pipeline that:
+1. Starts with the raw messy data
+2. Cleans all text fields
+3. Converts all types
+4. Filters to a specific subset
+5. Selects relevant columns
+6. All in ONE pipe chain with clear comments
+
+Show before (first 5 rows of raw data) and after (final result).
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 13-15, 19-20: Strings, Factors, Pipes, Data Transformation
+- [stringr documentation](https://stringr.tidyverse.org/)
+- [dplyr documentation](https://dplyr.tidyverse.org/)
+
+### Optional Reading
+
+- [forcats documentation](https://forcats.tidyverse.org/)
+- [Regular Expressions in R](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
+- Wickham, H. (2014). "Tidy Data." *Journal of Statistical Software*, 59(10). [Link](https://www.jstatsoft.org/article/view/v059i10)
+
+### Videos
+
+- "String Manipulation in R" by StatQuest
+- "Introduction to dplyr" by RStudio
+- "Regular Expressions Demystified" by DataCamp
+
+### Cheat Sheets
+
+- [stringr Cheat Sheet](https://rstudio.github.io/cheatsheets/strings.pdf)
+- [dplyr Cheat Sheet](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
+- [Regular Expressions Cheat Sheet](https://www.rstudio.com/wp-content/uploads/2016/09/RegExCheatsheet.pdf)
+- [forcats Cheat Sheet](https://rstudio.github.io/cheatsheets/factors.pdf)
+
+### Interactive Learning
+
+- [regex101.com](https://regex101.com/) - Interactive regex tester and debugger
+- [RegExr.com](https://regexr.com/) - Learn, build, and test regex
+- [stringr in 5 minutes](https://stringr.tidyverse.org/articles/stringr.html) - Quick start guide
+
+### Useful Websites
+
+- [Tidyverse](https://www.tidyverse.org/) - Homepage for tidyverse packages
+- [Stack Overflow: R](https://stackoverflow.com/questions/tagged/r) - Q&A community
+- [RStudio Community](https://community.rstudio.com/) - Friendly help forum
+
+---
+
+**Next Chapter**: [Data Manipulation with dplyr](ch04-dplyr.qmd)

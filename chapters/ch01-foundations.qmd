@@ -863,4 +863,4 @@ execute:
 
 ---
 
-**Next Chapter**: [Getting Started with R, RStudio, and Reading Data](part1-ch02-r_rstudio_reading_data.qmd)
+**Next Chapter**: [Getting Started with R, RStudio, and Reading Data](ch02-r_rstudio_reading_data.qmd)

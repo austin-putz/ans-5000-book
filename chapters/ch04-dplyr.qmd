@@ -4,17 +4,1383 @@
 
 By the end of this chapter, you will be able to:
 
-1. Create and modify variables with `mutate()`
-2. Sort data with `arrange()`
-3. Create grouped summaries with `group_by()` and `summarise()`
-4. Handle missing data effectively
-5. Apply conditional logic with `if_else()` and `case_when()`
+1. Create and modify variables using `dplyr::mutate()`
+2. Sort data using `dplyr::arrange()` in ascending and descending order
+3. Calculate summary statistics using `dplyr::summarise()`
+4. Perform grouped operations with `group_by()` and `summarise()`
+5. Use helper functions: `count()`, `rename()`, and `relocate()`
+6. Apply conditional logic with `if_else()` and `case_when()`
+7. Work across multiple columns efficiently using `across()`
+8. Handle missing data with `is.na()`, `drop_na()`, `replace_na()`, and `coalesce()`
+9. Use window functions: `lag()`, `lead()`, `cumsum()`, and `row_number()`
+10. Chain multiple dplyr operations into complex data transformation pipelines
+
+---
+
+## Introduction to dplyr Verbs
+
+In the previous chapter, you learned `select()` and `filter()` for choosing columns and rows. This chapter covers the remaining core dplyr verbs that complete your data manipulation toolkit.
+
+### The Five Main dplyr Verbs
+
+```{mermaid}
+flowchart TD
+    A[dplyr Verbs] --> B[select<br/>Pick columns]
+    A --> C[filter<br/>Pick rows]
+    A --> D[mutate<br/>Create/modify columns]
+    A --> E[arrange<br/>Sort rows]
+    A --> F[summarise<br/>Calculate summaries]
+
+    B --> B1["select(animal_id, weight)"]
+    C --> C1["filter(weight > 450)"]
+    D --> D1["mutate(bmi = weight/height)"]
+    E --> E1["arrange(weight)"]
+    F --> F1["summarise(mean_weight = mean(weight))"]
+```
+
+**This chapter focuses on**: `mutate()`, `arrange()`, `summarise()`, and `group_by()`
 
 ::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
+## Review: Data Used in This Chapter
+
+We'll use animal science datasets throughout. Make sure you have these packages loaded:
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: false
+
+library(tidyverse)  # Includes dplyr, ggplot2, tidyr, etc.
+library(lubridate)  # For dates
+```
 :::
 
 ---
 
-**Next Chapter**: [Introduction to Data Visualization with ggplot2](part1-ch05-ggplot2_intro.qmd)
+## Creating and Modifying Variables with `mutate()`
+
+`mutate()` **creates new columns** or **modifies existing columns** in your data frame.
+
+### Basic Usage
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create example cattle data
+cattle <- tibble(
+  animal_id = c("H001", "H002", "H003", "J001", "J002"),
+  breed = c("Holstein", "Holstein", "Holstein", "Jersey", "Jersey"),
+  weight_kg = c(600, 625, 580, 450, 470),
+  height_cm = c(145, 148, 142, 130, 133),
+  age_months = c(30, 36, 28, 30, 32)
+)
+
+cattle
+
+# Create new column: weight in pounds
+cattle %>%
+  mutate(weight_lb = weight_kg * 2.20462)
+
+# Create multiple new columns
+cattle %>%
+  mutate(
+    weight_lb = weight_kg * 2.20462,
+    height_m = height_cm / 100,
+    bmi = weight_kg / (height_m^2)
+  )
+```
+
+::: {.callout-important}
+## `mutate()` Adds Columns, Doesn't Replace Data
+
+`mutate()` returns a **new data frame**. To keep changes, assign the result:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# ❌ Changes are lost
+cattle %>% mutate(weight_lb = weight_kg * 2.20462)
+
+# ✅ Save the result
+cattle <- cattle %>% mutate(weight_lb = weight_kg * 2.20462)
+# OR
+cattle_with_lb <- cattle %>% mutate(weight_lb = weight_kg * 2.20462)
+```
+:::
+
+### Overwriting Existing Columns
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Modify existing column: convert breed to uppercase
+cattle %>%
+  mutate(breed = str_to_upper(breed))
+
+# Round weight to nearest 10 kg
+cattle %>%
+  mutate(weight_kg = round(weight_kg / 10) * 10)
+```
+
+### Using New Columns Immediately
+
+You can reference newly created columns within the same `mutate()`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+cattle %>%
+  mutate(
+    height_m = height_cm / 100,       # Create height_m
+    bmi = weight_kg / (height_m^2)    # Use height_m immediately!
+  )
+```
+
+### Useful Functions Inside `mutate()`
+
+Common operations you'll use with `mutate()`:
+
+| Operation | Function | Example |
+|-----------|----------|---------|
+| Math | `+`, `-`, `*`, `/`, `^` | `weight_kg * 2.20462` |
+| Rounding | `round()`, `floor()`, `ceiling()` | `round(weight, 1)` |
+| Logarithms | `log()`, `log10()`, `exp()` | `log(concentration)` |
+| Ranking | `min_rank()`, `dense_rank()` | `min_rank(desc(weight))` |
+| String functions | `str_*()` | `str_to_upper(breed)` |
+| Date functions | `year()`, `month()`, `day()` | `year(birth_date)` |
+| Conditional | `if_else()`, `case_when()` | `if_else(weight > 500, "Heavy", "Light")` |
+
+---
+
+## Conditional Operations
+
+### Simple Conditions with `if_else()`
+
+`if_else()` creates values based on a TRUE/FALSE condition:
+
+**Syntax**: `if_else(condition, value_if_true, value_if_false)`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Classify animals as heavy or light
+cattle %>%
+  mutate(
+    weight_class = if_else(weight_kg > 500, "Heavy", "Light")
+  )
+
+# Create logical column
+cattle %>%
+  mutate(
+    is_mature = if_else(age_months >= 30, TRUE, FALSE)
+  )
+
+# Can use existing values
+cattle %>%
+  mutate(
+    adjusted_weight = if_else(breed == "Jersey",
+                              weight_kg * 1.1,  # Boost Jersey weights by 10%
+                              weight_kg)        # Keep others same
+  )
+```
+
+::: {.callout-tip}
+## `if_else()` vs base R `ifelse()`
+
+dplyr's `if_else()` is stricter and safer than base R's `ifelse()`:
+
+- **Type safety**: Both true and false values must be the same type
+- **NA handling**: Explicit `missing` argument for NA values
+- **Speed**: Faster for large datasets
+
+```{r}
+#| eval: false
+#| echo: true
+
+# ✅ Good (both character)
+if_else(condition, "yes", "no")
+
+# ❌ Error (different types)
+if_else(condition, "yes", 0)
+
+# ✅ With NAs
+if_else(condition, "yes", "no", missing = "unknown")
+```
+:::
+
+### Multiple Conditions with `case_when()`
+
+For multiple conditions, use `case_when()`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Classify into three weight categories
+cattle %>%
+  mutate(
+    weight_category = case_when(
+      weight_kg < 500 ~ "Light",
+      weight_kg < 600 ~ "Medium",
+      weight_kg >= 600 ~ "Heavy"
+    )
+  )
+
+# Multiple factors
+cattle %>%
+  mutate(
+    category = case_when(
+      breed == "Jersey" & weight_kg > 450 ~ "Large Jersey",
+      breed == "Jersey" & weight_kg <= 450 ~ "Small Jersey",
+      breed == "Holstein" & weight_kg > 600 ~ "Large Holstein",
+      breed == "Holstein" & weight_kg <= 600 ~ "Small Holstein",
+      TRUE ~ "Other"  # Catch-all (like "else")
+    )
+  )
+```
+
+**How `case_when()` works**:
+1. Evaluates conditions **in order from top to bottom**
+2. Returns the value (`~` right side) for the **first TRUE condition**
+3. Stops checking once a match is found
+4. Use `TRUE ~ value` as a catch-all for everything else
+
+::: {.callout-warning}
+## Order Matters in `case_when()`!
+
+```{r}
+#| eval: true
+#| echo: true
+
+# ❌ WRONG: Everything becomes "Heavy"
+cattle %>%
+  mutate(
+    wrong = case_when(
+      weight_kg > 0 ~ "Heavy",      # This matches EVERYTHING!
+      weight_kg > 500 ~ "Medium",   # Never reached
+      TRUE ~ "Light"                # Never reached
+    )
+  ) %>%
+  select(animal_id, weight_kg, wrong)
+
+# ✅ CORRECT: Specific conditions first
+cattle %>%
+  mutate(
+    correct = case_when(
+      weight_kg > 600 ~ "Heavy",
+      weight_kg > 500 ~ "Medium",
+      TRUE ~ "Light"
+    )
+  ) %>%
+  select(animal_id, weight_kg, correct)
+```
+
+**Rule**: Put specific conditions before general ones!
+:::
+
+### Real-World Example: Creating Treatment Groups
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create feed trial data
+feed_trial <- tibble(
+  animal_id = sprintf("A%03d", 1:10),
+  baseline_weight = c(450, 480, 445, 490, 455, 470, 460, 475, 465, 485),
+  age_months = c(24, 30, 22, 32, 26, 28, 24, 30, 26, 31),
+  sex = c("F", "F", "M", "F", "M", "F", "F", "M", "F", "M")
+)
+
+feed_trial
+
+# Assign animals to treatment groups based on multiple factors
+feed_trial_assigned <- feed_trial %>%
+  mutate(
+    # Age category
+    age_group = case_when(
+      age_months < 26 ~ "Young",
+      age_months <= 30 ~ "Adult",
+      TRUE ~ "Mature"
+    ),
+    # Weight category
+    weight_group = if_else(baseline_weight > 470, "Heavy", "Light"),
+    # Treatment assignment (balanced by sex and weight)
+    treatment = case_when(
+      sex == "F" & baseline_weight > 470 ~ "A",
+      sex == "F" & baseline_weight <= 470 ~ "B",
+      sex == "M" & baseline_weight > 470 ~ "B",
+      sex == "M" & baseline_weight <= 470 ~ "A"
+    )
+  )
+
+feed_trial_assigned
+```
+
+---
+
+## Sorting Data with `arrange()`
+
+`arrange()` **sorts rows** by one or more columns.
+
+### Basic Sorting
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Sort by weight (ascending, lightest first)
+cattle %>%
+  arrange(weight_kg)
+
+# Sort by weight (descending, heaviest first)
+cattle %>%
+  arrange(desc(weight_kg))
+
+# Sort by breed, then by weight within breed
+cattle %>%
+  arrange(breed, weight_kg)
+
+# Sort by breed (ascending), weight (descending)
+cattle %>%
+  arrange(breed, desc(weight_kg))
+```
+
+### Sorting with Missing Values
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with missing weights
+cattle_na <- tibble(
+  animal_id = c("H001", "H002", "H003", "H004", "H005"),
+  weight_kg = c(600, NA, 580, 625, NA)
+)
+
+cattle_na
+
+# By default, NAs go to the end
+cattle_na %>%
+  arrange(weight_kg)
+
+# Descending: NAs still at the end
+cattle_na %>%
+  arrange(desc(weight_kg))
+```
+
+::: {.callout-tip}
+## Use `arrange()` to Check Your Work
+
+When creating or modifying columns, sort to verify results:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Did the weight classification work correctly?
+cattle %>%
+  mutate(weight_class = if_else(weight_kg > 500, "Heavy", "Light")) %>%
+  arrange(weight_kg) %>%
+  select(animal_id, weight_kg, weight_class)
+```
+
+Sorting makes it easy to spot errors!
+:::
+
+---
+
+## Grouped Operations with `group_by()` and `summarise()`
+
+The real power of dplyr comes from **grouped operations**: calculating summaries for each group separately.
+
+### Understanding `group_by()`
+
+`group_by()` doesn't change your data—it adds invisible grouping information:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create farm data with multiple breeds and farms
+farm_data <- tibble(
+  animal_id = sprintf("A%03d", 1:12),
+  breed = rep(c("Holstein", "Jersey", "Angus"), each = 4),
+  farm = rep(c("North", "South"), 6),
+  weight_kg = c(600, 620, 590, 610, 450, 470, 455, 465,
+                550, 570, 540, 560)
+)
+
+farm_data
+
+# Group by breed
+farm_data %>%
+  group_by(breed)
+```
+
+Notice: "Groups: breed [3]" in the output. The data looks the same, but it's now grouped!
+
+### Summarizing Data with `summarise()`
+
+`summarise()` (or `summarize()`) calculates summary statistics:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Overall mean weight (no grouping)
+farm_data %>%
+  summarise(
+    mean_weight = mean(weight_kg),
+    sd_weight = sd(weight_kg),
+    n = n()  # n() counts rows
+  )
+
+# Mean weight BY BREED
+farm_data %>%
+  group_by(breed) %>%
+  summarise(
+    mean_weight = mean(weight_kg),
+    sd_weight = sd(weight_kg),
+    n = n()
+  )
+```
+
+::: {.callout-important}
+## The `group_by()` + `summarise()` Pattern
+
+This is one of the most powerful patterns in data analysis:
+
+```{r}
+#| eval: false
+#| echo: true
+
+data %>%
+  group_by(category_column) %>%
+  summarise(
+    summary_name = summary_function(numeric_column)
+  )
+```
+
+**Read as**: "For each category, calculate the summary"
+:::
+
+### Common Summary Functions
+
+| Function | What it does | Example |
+|----------|-------------|---------|
+| `mean()` | Average | `mean(weight)` |
+| `median()` | Median (50th percentile) | `median(weight)` |
+| `sd()` | Standard deviation | `sd(weight)` |
+| `var()` | Variance | `var(weight)` |
+| `min()` | Minimum value | `min(weight)` |
+| `max()` | Maximum value | `max(weight)` |
+| `sum()` | Sum of all values | `sum(milk_yield)` |
+| `n()` | Count of rows | `n()` |
+| `n_distinct()` | Count unique values | `n_distinct(animal_id)` |
+| `first()` | First value | `first(weight)` |
+| `last()` | Last value | `last(weight)` |
+
+### Grouping by Multiple Variables
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Mean weight by breed AND farm
+farm_data %>%
+  group_by(breed, farm) %>%
+  summarise(
+    mean_weight = mean(weight_kg),
+    n = n(),
+    .groups = "drop"  # Remove grouping after summarise
+  )
+```
+
+::: {.callout-note}
+## The `.groups` Argument
+
+After `summarise()`, data remains grouped by all but the last grouping variable. This can cause unexpected behavior!
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Recommended: explicitly drop groups
+data %>%
+  group_by(var1, var2) %>%
+  summarise(mean_x = mean(x), .groups = "drop")
+```
+
+**Options**:
+- `.groups = "drop"`: Remove all grouping (recommended)
+- `.groups = "keep"`: Keep all grouping
+- `.groups = "drop_last"`: Drop last grouping variable (default)
+:::
+
+### Multiple Summaries at Once
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Comprehensive summary by breed
+farm_data %>%
+  group_by(breed) %>%
+  summarise(
+    n = n(),
+    mean_weight = mean(weight_kg),
+    sd_weight = sd(weight_kg),
+    min_weight = min(weight_kg),
+    max_weight = max(weight_kg),
+    median_weight = median(weight_kg),
+    .groups = "drop"
+  )
+```
+
+### Filtering on Grouped Data
+
+`filter()` works with groups too:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Keep only animals heavier than the breed average
+farm_data %>%
+  group_by(breed) %>%
+  filter(weight_kg > mean(weight_kg)) %>%
+  ungroup()  # Remove grouping when done
+```
+
+### Mutating on Grouped Data
+
+`mutate()` calculates within groups:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Calculate deviation from breed mean
+farm_data %>%
+  group_by(breed) %>%
+  mutate(
+    breed_mean = mean(weight_kg),
+    deviation = weight_kg - breed_mean
+  ) %>%
+  ungroup() %>%
+  arrange(breed, animal_id)
+```
+
+---
+
+## Helper Functions
+
+### Counting with `count()`
+
+`count()` is a shortcut for `group_by()` + `summarise()` + `n()`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# How many animals per breed?
+# Long way
+farm_data %>%
+  group_by(breed) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Short way with count()
+farm_data %>%
+  count(breed)
+
+# Count by multiple variables
+farm_data %>%
+  count(breed, farm)
+
+# Sort by count (most common first)
+farm_data %>%
+  count(breed, sort = TRUE)
+```
+
+::: {.callout-tip}
+## `count()` Pro Tips
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Rename the count column
+farm_data %>%
+  count(breed, name = "number_of_animals")
+
+# Add a total row (using add_tally)
+farm_data %>%
+  count(breed) %>%
+  mutate(proportion = n / sum(n))
+```
+:::
+
+### Renaming Columns with `rename()`
+
+`rename()` changes column names:
+
+**Syntax**: `rename(new_name = old_name)`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Rename columns
+cattle %>%
+  rename(
+    id = animal_id,
+    weight = weight_kg,
+    height = height_cm
+  )
+
+# Rename with a function
+cattle %>%
+  rename_with(str_to_upper)  # All columns to uppercase
+
+# Rename specific columns with a function
+cattle %>%
+  rename_with(str_to_upper, starts_with("weight"))
+```
+
+### Reordering Columns with `relocate()`
+
+`relocate()` moves columns to different positions:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Move breed to the front
+cattle %>%
+  relocate(breed)
+
+# Move weight_kg to the end
+cattle %>%
+  relocate(weight_kg, .after = last_col())
+
+# Move height_cm before breed
+cattle %>%
+  relocate(height_cm, .before = breed)
+
+# Move all numeric columns to the front
+cattle %>%
+  relocate(where(is.numeric))
+```
+
+---
+
+## Working Across Multiple Columns with `across()`
+
+`across()` applies the same operation to multiple columns at once.
+
+### Basic Usage
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create test data
+test_data <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  weight_kg = c(600.123, 450.456, 550.789),
+  height_cm = c(145.678, 130.234, 140.567),
+  age_months = c(30.5, 28.3, 32.1)
+)
+
+test_data
+
+# Round all numeric columns to 1 decimal place
+test_data %>%
+  mutate(across(where(is.numeric), round, 1))
+
+# Convert all character columns to uppercase
+farm_data %>%
+  mutate(across(where(is.character), str_to_upper)) %>%
+  head(3)
+```
+
+### Selecting Columns for `across()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Apply to specific columns
+test_data %>%
+  mutate(across(c(weight_kg, height_cm), round, 1))
+
+# Apply to columns matching a pattern
+test_data %>%
+  mutate(across(ends_with("_kg"), ~ . * 2.20462))  # Convert kg to lb
+
+# Apply to all except some columns
+test_data %>%
+  mutate(across(-animal_id, round, 0))
+```
+
+::: {.callout-note}
+## Anonymous Functions with `across()`
+
+The `~` creates an anonymous function, and `.` represents each column:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# These are equivalent:
+across(cols, ~ round(., 1))
+across(cols, round, 1)
+across(cols, function(x) round(x, 1))
+
+# Use ~ when you need more complex operations:
+across(cols, ~ . * 2 + 1)
+across(cols, ~ if_else(. > 100, ., . * 2))
+```
+:::
+
+### Multiple Summaries with `across()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Calculate multiple summaries for multiple columns
+farm_data %>%
+  group_by(breed) %>%
+  summarise(
+    across(
+      weight_kg,
+      list(
+        mean = mean,
+        sd = sd,
+        min = min,
+        max = max
+      )
+    ),
+    n = n(),
+    .groups = "drop"
+  )
+
+# Cleaner column names
+farm_data %>%
+  group_by(breed) %>%
+  summarise(
+    across(
+      weight_kg,
+      list(
+        mean = mean,
+        sd = sd
+      ),
+      .names = "{.col}_{.fn}"  # Creates: weight_kg_mean, weight_kg_sd
+    ),
+    .groups = "drop"
+  )
+```
+
+---
+
+## Handling Missing Data
+
+Missing data (`NA`) is common in real datasets. dplyr provides several tools to handle it.
+
+### Detecting Missing Values
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create data with missing values
+cattle_missing <- tibble(
+  animal_id = c("H001", "H002", "H003", "H004", "H005"),
+  breed = c("Holstein", "Jersey", NA, "Angus", "Holstein"),
+  weight_kg = c(600, NA, 580, 625, NA),
+  age_months = c(30, 28, NA, 32, 26)
+)
+
+cattle_missing
+
+# Check for missing values
+cattle_missing %>%
+  mutate(
+    breed_is_missing = is.na(breed),
+    weight_is_missing = is.na(weight_kg)
+  )
+
+# Count missing values per column
+cattle_missing %>%
+  summarise(
+    across(everything(), ~ sum(is.na(.)))
+  )
+```
+
+### Removing Missing Values with `drop_na()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Remove rows with ANY missing values
+cattle_missing %>%
+  drop_na()
+
+# Remove rows with missing values in specific columns
+cattle_missing %>%
+  drop_na(weight_kg)
+
+# Remove rows missing BOTH weight and age
+cattle_missing %>%
+  drop_na(weight_kg, age_months)
+```
+
+::: {.callout-warning}
+## Be Careful When Dropping NAs!
+
+Removing missing data can:
+- Reduce sample size significantly
+- Introduce bias if missingness isn't random
+- Lose valuable information in other columns
+
+**Better approach**: Understand WHY data is missing, then decide how to handle it.
+:::
+
+### Replacing Missing Values with `replace_na()`
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Replace NAs with specific values
+cattle_missing %>%
+  mutate(
+    breed = replace_na(breed, "Unknown"),
+    weight_kg = replace_na(weight_kg, 0)
+  )
+
+# Replace NAs in multiple columns
+cattle_missing %>%
+  mutate(
+    across(
+      where(is.numeric),
+      ~ replace_na(., mean(., na.rm = TRUE))  # Replace with column mean
+    )
+  )
+```
+
+### Filling Missing Values with `coalesce()`
+
+`coalesce()` returns the first non-missing value:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Multiple weight measurements, use first available
+weights <- tibble(
+  animal_id = c("A001", "A002", "A003", "A004"),
+  weight_measurement1 = c(600, NA, 580, NA),
+  weight_measurement2 = c(605, 450, NA, 625),
+  weight_measurement3 = c(NA, 455, 585, 630)
+)
+
+weights
+
+# Use first non-missing weight
+weights %>%
+  mutate(
+    weight_final = coalesce(weight_measurement1,
+                           weight_measurement2,
+                           weight_measurement3)
+  )
+```
+
+### Handling NAs in Calculations
+
+Most R functions return `NA` if any input is `NA`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Mean returns NA if any value is NA
+mean(c(1, 2, NA, 4))
+
+# Use na.rm = TRUE to remove NAs before calculating
+mean(c(1, 2, NA, 4), na.rm = TRUE)
+
+# In a summarise
+cattle_missing %>%
+  summarise(
+    mean_weight_with_na = mean(weight_kg),           # Returns NA
+    mean_weight_removed = mean(weight_kg, na.rm = TRUE)  # Calculates mean
+  )
+```
+
+---
+
+## Window Functions
+
+**Window functions** operate on groups of rows and return a value for each row (unlike `summarise()` which returns one value per group).
+
+### Ranking Functions
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create competition data
+competition <- tibble(
+  animal_id = sprintf("A%03d", 1:8),
+  breed = rep(c("Holstein", "Jersey"), each = 4),
+  score = c(92, 88, 88, 85, 78, 76, 76, 74)
+)
+
+competition
+
+# Rank animals by score
+competition %>%
+  mutate(
+    rank = min_rank(desc(score)),        # Rank (ties get same rank, gaps after)
+    dense = dense_rank(desc(score)),     # Dense rank (ties, no gaps)
+    row_num = row_number(desc(score)),   # Row number (no ties, arbitrary order)
+    percentile = percent_rank(desc(score))  # Percentile (0 to 1)
+  )
+
+# Rank within breed
+competition %>%
+  group_by(breed) %>%
+  mutate(
+    breed_rank = min_rank(desc(score))
+  ) %>%
+  ungroup() %>%
+  arrange(breed, breed_rank)
+```
+
+### Offset Functions: `lag()` and `lead()`
+
+`lag()` and `lead()` access previous or next values:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Weight measurements over time
+growth <- tibble(
+  animal_id = rep("A001", 5),
+  week = 1:5,
+  weight_kg = c(450, 465, 478, 492, 505)
+)
+
+growth
+
+# Calculate weight change from previous week
+growth %>%
+  mutate(
+    previous_weight = lag(weight_kg),           # Previous row
+    weight_gain = weight_kg - lag(weight_kg),  # Change from previous
+    next_weight = lead(weight_kg)              # Next row
+  )
+
+# Lag by multiple rows
+growth %>%
+  mutate(
+    two_weeks_ago = lag(weight_kg, n = 2)
+  )
+```
+
+### Cumulative Functions
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Running totals
+milk_production <- tibble(
+  day = 1:7,
+  milk_liters = c(25, 28, 26, 29, 27, 30, 28)
+)
+
+milk_production
+
+# Cumulative statistics
+milk_production %>%
+  mutate(
+    cumulative_milk = cumsum(milk_liters),      # Running total
+    running_mean = cummean(milk_liters),        # Running mean
+    running_min = cummin(milk_liters),          # Running minimum
+    running_max = cummax(milk_liters)           # Running maximum
+  )
+```
+
+### Real-World Example: Growth Rates
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Multiple animals, multiple measurements
+growth_data <- tibble(
+  animal_id = rep(c("A001", "A002", "A003"), each = 4),
+  week = rep(c(0, 4, 8, 12), 3),
+  weight_kg = c(
+    # A001
+    450, 485, 518, 548,
+    # A002
+    445, 475, 502, 530,
+    # A003
+    455, 492, 525, 556
+  )
+)
+
+growth_data
+
+# Calculate growth metrics for each animal
+growth_summary <- growth_data %>%
+  group_by(animal_id) %>%
+  mutate(
+    previous_weight = lag(weight_kg),
+    weight_gain = weight_kg - lag(weight_kg),
+    weeks_elapsed = week - lag(week),
+    daily_gain = weight_gain / (weeks_elapsed * 7),
+    total_gain = weight_kg - first(weight_kg),
+    cumulative_gain = cumsum(replace_na(weight_gain, 0))
+  ) %>%
+  ungroup()
+
+growth_summary
+```
+
+---
+
+## Putting It All Together: Complex Pipelines
+
+Real data analysis often requires chaining many operations. Here's a comprehensive example:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create realistic farm data
+set.seed(123)
+farm_complete <- tibble(
+  animal_id = sprintf("F%04d", 1:100),
+  farm = sample(c("North", "South", "East", "West"), 100, replace = TRUE),
+  breed = sample(c("Holstein", "Jersey", "Angus", "Hereford"), 100,
+                 replace = TRUE, prob = c(0.4, 0.3, 0.2, 0.1)),
+  sex = sample(c("M", "F"), 100, replace = TRUE),
+  birth_date = as.Date("2022-01-01") + sample(0:365, 100, replace = TRUE),
+  weight_kg = rnorm(100, mean = 500, sd = 80),
+  health_status = sample(c("Good", "Fair", "Poor", NA), 100,
+                        replace = TRUE, prob = c(0.7, 0.2, 0.05, 0.05))
+)
+
+# Preview
+head(farm_complete, 3)
+
+# Complex analysis pipeline
+analysis_result <- farm_complete %>%
+  # Data cleaning
+  drop_na(health_status) %>%                    # Remove missing health status
+  filter(health_status != "Poor") %>%           # Exclude poor health
+  mutate(
+    # Calculate age
+    age_days = as.numeric(Sys.Date() - birth_date),
+    age_months = age_days / 30.44,
+    # Standardize breed names
+    breed = str_to_title(breed),
+    # Weight categories
+    weight_class = case_when(
+      weight_kg < 450 ~ "Light",
+      weight_kg < 550 ~ "Medium",
+      TRUE ~ "Heavy"
+    ),
+    # Round weight
+    weight_kg = round(weight_kg, 1)
+  ) %>%
+  # Filter to mature animals only
+  filter(age_months >= 10) %>%
+  # Group analysis
+  group_by(farm, breed) %>%
+  summarise(
+    n = n(),
+    mean_weight = round(mean(weight_kg), 1),
+    sd_weight = round(sd(weight_kg), 1),
+    min_weight = min(weight_kg),
+    max_weight = max(weight_kg),
+    prop_heavy = mean(weight_class == "Heavy"),
+    .groups = "drop"
+  ) %>%
+  # Filter to groups with at least 3 animals
+  filter(n >= 3) %>%
+  # Sort by mean weight
+  arrange(desc(mean_weight)) %>%
+  # Add ranking
+  mutate(rank = row_number())
+
+analysis_result
+```
+
+::: {.callout-tip}
+## Complex Pipeline Best Practices
+
+1. **Comment your steps**: Explain what each section does
+2. **One operation per line**: Easier to read and debug
+3. **Use intermediate results**: Break very long pipes into steps
+4. **Check intermediate output**: Run the pipe up to a certain point to verify
+5. **Consistent indentation**: 2 spaces after pipe
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Good structure
+result <- data %>%
+  # Step 1: Clean data
+  filter(!is.na(important_var)) %>%
+  mutate(clean_var = str_trim(var)) %>%
+  # Step 2: Calculate new variables
+  mutate(
+    var1 = calculation1,
+    var2 = calculation2
+  ) %>%
+  # Step 3: Summarize by group
+  group_by(category) %>%
+  summarise(
+    mean_value = mean(value),
+    .groups = "drop"
+  )
+```
+:::
+
+---
+
+## Summary
+
+This chapter covered powerful dplyr verbs for data manipulation:
+
+- **`mutate()`** creates and modifies columns, works with functions and calculations
+- **`if_else()`** applies simple conditional logic (if/then/else)
+- **`case_when()`** handles multiple conditions elegantly (replaces nested if_else)
+- **`arrange()`** sorts data by one or more columns in ascending or descending order
+- **`summarise()`** calculates summary statistics (mean, sd, min, max, count, etc.)
+- **`group_by()`** + `summarise()` performs grouped operations (summaries by category)
+- **`count()`** quickly counts observations per group
+- **`rename()`** changes column names; `relocate()` reorders columns
+- **`across()`** applies functions to multiple columns efficiently
+- **Missing data** can be detected (`is.na()`), removed (`drop_na()`), or replaced (`replace_na()`, `coalesce()`)
+- **Window functions** (`lag()`, `lead()`, `cumsum()`, ranking) operate within groups
+- **Complex pipelines** chain many operations together for complete data transformations
+
+**Key Principle**: Start simple, build complexity gradually, and always check your work!
+
+**Next chapter**: Data visualization with ggplot2!
+
+---
+
+## Homework Assignment
+
+### Assignment: Data Transformation and Analysis
+
+**Due**: Before Week 5
+
+#### Part 1: Creating Variables (25 points)
+
+You will receive a dataset called `pig_growth.csv` with the following columns:
+- `pig_id`: Pig identifier
+- `birth_date`: Date of birth (YYYY-MM-DD)
+- `breed`: Pig breed
+- `sex`: M or F
+- `weight_day0`: Birth weight (kg)
+- `weight_day28`: Weight at 28 days (kg)
+- `weight_day56`: Weight at 56 days (kg)
+- `feed_type`: Type of feed given
+
+Tasks:
+
+1. **Read the data** and examine its structure
+2. **Create new variables** using `mutate()`:
+   - `age_days`: Calculate age in days from birth_date to today
+   - `gain_0_28`: Weight gain from day 0 to day 28
+   - `gain_28_56`: Weight gain from day 28 to day 56
+   - `adg_0_28`: Average daily gain for first period (gain / 28)
+   - `adg_28_56`: Average daily gain for second period (gain / 28)
+3. **Create categorical variables**:
+   - `birth_weight_class`: "Low" (<1.2 kg), "Normal" (1.2-1.6 kg), "High" (>1.6 kg)
+   - `sex_label`: Convert "M" to "Male", "F" to "Female"
+4. **Round** all weight and gain variables to 2 decimal places
+
+#### Part 2: Conditional Logic (25 points)
+
+Using your data with new variables:
+
+1. **Create a performance category** using `case_when()`:
+   - "Excellent": adg_28_56 > 0.50 kg/day AND weight_day56 > 18 kg
+   - "Good": adg_28_56 > 0.45 kg/day
+   - "Fair": adg_28_56 > 0.40 kg/day
+   - "Poor": everything else
+
+2. **Create a treatment recommendation** using conditional logic:
+   - If performance is "Poor" AND sex is "M": "Supplement + Monitor"
+   - If performance is "Poor" AND sex is "F": "Supplement"
+   - If performance is "Fair": "Monitor"
+   - Otherwise: "Continue"
+
+3. **Identify concerning cases**:
+   - Create a logical variable `needs_attention` that is TRUE if:
+     - Weight gain in second period is LESS than first period, OR
+     - Current weight is below 12 kg
+
+#### Part 3: Grouped Summaries (30 points)
+
+Calculate comprehensive summary statistics:
+
+1. **Overall summaries** (no grouping):
+   - Number of pigs
+   - Mean birth weight, day 28 weight, day 56 weight
+   - Mean ADG for both periods
+   - Number and proportion needing attention
+
+2. **Summaries by breed**:
+   - Count of pigs per breed
+   - Mean ADG (both periods) per breed
+   - SD of ADG per breed
+   - Min and max day 56 weight per breed
+
+3. **Summaries by feed type AND sex**:
+   - Count per combination
+   - Mean day 56 weight
+   - Proportion in each performance category
+
+4. **Summaries by performance category**:
+   - Count per category
+   - Mean ADG in period 2
+   - What proportion of each category is male vs female?
+
+**Hint**: Use `group_by()` + `summarise()` for each question. You may need `across()` for multiple columns.
+
+#### Part 4: Complex Pipeline (20 points)
+
+Create ONE pipeline that:
+
+1. Starts with the raw data
+2. Removes any pigs with missing weight measurements
+3. Calculates all new variables from Part 1
+4. Creates categories from Part 2
+5. Filters to pigs with birth_weight_class == "Normal"
+6. Filters to feed_type "A" or "B" only
+7. Groups by feed_type and sex
+8. Calculates mean day 56 weight and ADG for period 2
+9. Arranges by mean day 56 weight (descending)
+10. Adds a rank column
+
+Show:
+- The complete pipeline (with comments explaining each step)
+- The final output
+- How many rows in the final result?
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 4 Homework: Data Manipulation with dplyr"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Part 1: Creating Variables (25%)**:
+  - All variables created correctly (15%)
+  - Proper use of `mutate()` (5%)
+  - Rounding applied correctly (5%)
+
+- **Part 2: Conditional Logic (25%)**:
+  - Performance category correct (10%)
+  - Treatment recommendation correct (8%)
+  - Needs attention logic correct (7%)
+
+- **Part 3: Grouped Summaries (30%)**:
+  - Overall summaries (8%)
+  - Breed summaries (8%)
+  - Feed/sex summaries (7%)
+  - Performance category summaries (7%)
+
+- **Part 4: Complex Pipeline (20%)**:
+  - Pipeline executes correctly (12%)
+  - All steps included (5%)
+  - Clear comments and documentation (3%)
+
+### Bonus (10 points)
+
+1. **Window functions**:
+   - For each pig, calculate the difference between their day 56 weight and the breed average day 56 weight
+   - Rank pigs within their breed by day 56 weight
+
+2. **Advanced grouping**:
+   - Identify the top 3 breeds by mean ADG in period 2
+   - For just those breeds, create a detailed summary with all statistics
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 3-5: Data transformation
+- [dplyr documentation](https://dplyr.tidyverse.org/)
+- [dplyr vignettes](https://dplyr.tidyverse.org/articles/dplyr.html) - Introduction to dplyr
+
+### Optional Reading
+
+- Wickham, H., et al. (2019). "Welcome to the Tidyverse." *Journal of Open Source Software*, 4(43), 1686. [Link](https://joss.theoj.org/papers/10.21105/joss.01686)
+- [Programming with dplyr](https://dplyr.tidyverse.org/articles/programming.html) - Advanced techniques
+- [Row-wise operations](https://dplyr.tidyverse.org/articles/rowwise.html) - Working row-by-row
+
+### Videos
+
+- "Data Manipulation in R" by StatQuest with Josh Starmer
+- "dplyr Tutorial" by RStudio / Posit
+- "Tidy Data and tidyr" by RStudio / Posit
+- "grouped operations in dplyr" by Data Science Dojo
+
+### Cheat Sheets
+
+- [dplyr Cheat Sheet](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
+- [tidyr Cheat Sheet](https://rstudio.github.io/cheatsheets/tidyr.pdf)
+
+### Interactive Learning
+
+- [dplyr exercises on R for Data Science](https://r4ds.hadley.nz/)
+- [RStudio Primers: Work with Data](https://posit.cloud/learn/primers/2)
+
+### Useful Websites
+
+- [Tidyverse](https://www.tidyverse.org/) - Main tidyverse homepage
+- [Stack Overflow: dplyr](https://stackoverflow.com/questions/tagged/dplyr) - Q&A community
+- [RStudio Community](https://community.rstudio.com/) - Friendly help forum
+- [dplyr GitHub](https://github.com/tidyverse/dplyr) - Source code and issues
+
+---
+
+**Next Chapter**: [Introduction to Data Visualization with ggplot2](ch05-ggplot2_intro.qmd)

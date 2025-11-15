@@ -4,17 +4,1480 @@
 
 By the end of this chapter, you will be able to:
 
-1. Apply tidy data principles
-2. Reshape data with `pivot_longer()` and `pivot_wider()`
-3. Join multiple datasets using various join types
-4. Use functional programming with `purrr`
-5. Work with nested data structures
-
-::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
-:::
+1. Understand and apply tidy data principles to organize datasets effectively
+2. Reshape data between wide and long formats using `pivot_longer()` and `pivot_wider()`
+3. Split and combine columns using `separate()` and `unite()`
+4. Join multiple datasets using SQL-style joins (`left_join()`, `inner_join()`, etc.)
+5. Understand when to use different join types and filtering joins
+6. Bind datasets together with `bind_rows()` and `bind_cols()`
+7. Use functional programming with `purrr::map()` for iteration
+8. Work with list columns and nested data structures
 
 ---
 
-**Next Chapter**: [Special Data Formats and Course Wrap-up](part1-ch08-special_formats.qmd)
+## Introduction
+
+In previous chapters, you learned to manipulate single datasets with dplyr. Real-world analysis often requires:
+- **Reshaping** data between different formats
+- **Combining** multiple related datasets
+- **Iterating** operations across many groups or files
+
+This chapter teaches these essential data wrangling skills using `tidyr` for reshaping and `purrr` for iteration.
+
+### Setup
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: false
+
+library(tidyverse)  # Includes tidyr, dplyr, purrr
+library(readxl)     # For reading Excel files
+
+# Set default theme for plots
+theme_set(theme_minimal())
+```
+
+---
+
+## Tidy Data Principles
+
+### What is Tidy Data?
+
+**Tidy data** follows three interrelated rules:
+
+1. **Each variable forms a column**
+2. **Each observation forms a row**
+3. **Each type of observational unit forms a table**
+
+::: {.callout-note}
+## Hadley Wickham's Tidy Data
+
+The concept of tidy data comes from Hadley Wickham's 2014 paper in the *Journal of Statistical Software*. Tidy data makes analysis easier because:
+- Variables are easy to access as columns
+- Observations are easy to filter as rows
+- Most tidyverse functions expect tidy data
+:::
+
+### Tidy vs Untidy Data
+
+**Example 1: Animal weight measurements**
+
+**Untidy (wide format)**:
+```{r}
+#| eval: true
+#| echo: true
+
+# Each time point is a separate column
+untidy_weights <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  week_0 = c(45, 48, 43),
+  week_4 = c(52, 54, 50),
+  week_8 = c(58, 61, 56),
+  week_12 = c(64, 67, 62)
+)
+
+untidy_weights
+```
+
+**Tidy (long format)**:
+```{r}
+#| eval: true
+#| echo: true
+
+# Each observation (animal × time) is a separate row
+tidy_weights <- tibble(
+  animal_id = rep(c("A001", "A002", "A003"), each = 4),
+  week = rep(c(0, 4, 8, 12), times = 3),
+  weight_kg = c(45, 52, 58, 64,  # A001
+                48, 54, 61, 67,  # A002
+                43, 50, 56, 62)  # A003
+)
+
+tidy_weights
+```
+
+**Why is tidy better?**
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Easy to plot with ggplot2
+ggplot(tidy_weights, aes(x = week, y = weight_kg, color = animal_id)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  labs(title = "Animal Growth Curves",
+       x = "Week",
+       y = "Weight (kg)",
+       color = "Animal ID")
+
+# Easy to calculate summaries
+tidy_weights %>%
+  group_by(week) %>%
+  summarise(
+    mean_weight = mean(weight_kg),
+    sd_weight = sd(weight_kg)
+  )
+```
+
+### Common Messy Data Problems
+
+1. **Column headers are values, not variable names** (like `week_0`, `week_4`)
+2. **Multiple variables in one column** (like "Holstein-Male")
+3. **Variables stored in both rows and columns**
+4. **Multiple types of observational units in the same table**
+5. **Single observational unit stored in multiple tables**
+
+This chapter teaches how to fix these problems.
+
+---
+
+## Data Reshaping with tidyr
+
+### `pivot_longer()`: Wide to Long
+
+`pivot_longer()` transforms wide data (many columns) into long data (many rows).
+
+**Basic syntax**:
+```r
+pivot_longer(
+  data,
+  cols = <columns to pivot>,
+  names_to = "<name for new column with old column names>",
+  values_to = "<name for new column with values>"
+)
+```
+
+#### Example: Pivoting Weight Measurements
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Start with wide format
+wide_weights <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  breed = c("Holstein", "Jersey", "Angus"),
+  week_0 = c(45, 42, 48),
+  week_4 = c(52, 48, 54),
+  week_8 = c(58, 54, 61)
+)
+
+wide_weights
+
+# Pivot to long format
+long_weights <- wide_weights %>%
+  pivot_longer(
+    cols = starts_with("week"),
+    names_to = "time_point",
+    values_to = "weight_kg"
+  )
+
+long_weights
+```
+
+#### Selecting Columns to Pivot
+
+Multiple ways to specify which columns to pivot:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# By name
+wide_weights %>%
+  pivot_longer(
+    cols = c(week_0, week_4, week_8),
+    names_to = "time_point",
+    values_to = "weight_kg"
+  )
+
+# By position
+wide_weights %>%
+  pivot_longer(
+    cols = 3:5,
+    names_to = "time_point",
+    values_to = "weight_kg"
+  )
+
+# Everything except ID columns
+wide_weights %>%
+  pivot_longer(
+    cols = -c(animal_id, breed),
+    names_to = "time_point",
+    values_to = "weight_kg"
+  )
+```
+
+#### Cleaning Column Names During Pivot
+
+Use `names_prefix` to remove prefixes and `names_transform` to change types:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Remove "week_" prefix and convert to numeric
+wide_weights %>%
+  pivot_longer(
+    cols = starts_with("week"),
+    names_to = "week",
+    values_to = "weight_kg",
+    names_prefix = "week_",
+    names_transform = list(week = as.integer)
+  )
+```
+
+#### Multiple Value Columns
+
+What if you have multiple measurements at each time point?
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Wide data with multiple measurements
+wide_multi <- tibble(
+  animal_id = c("A001", "A002"),
+  weight_week0 = c(45, 42),
+  weight_week4 = c(52, 48),
+  height_week0 = c(80, 78),
+  height_week4 = c(85, 82)
+)
+
+wide_multi
+
+# Alternative: create separate columns for each measurement
+wide_multi %>%
+  pivot_longer(
+    cols = -animal_id,
+    names_to = c(".value", "week"),
+    names_pattern = "(.+)_week(.+)"
+  )
+```
+
+::: {.callout-tip}
+## `names_pattern` with Regular Expressions
+
+Use `names_pattern` with regex to extract parts of column names:
+- `.+` matches one or more characters
+- `(.+)` creates a capture group
+- `week(.+)` matches "week" followed by captured characters
+:::
+
+### `pivot_wider()`: Long to Wide
+
+`pivot_wider()` transforms long data (many rows) into wide data (many columns). It's the opposite of `pivot_longer()`.
+
+**Basic syntax**:
+```r
+pivot_wider(
+  data,
+  names_from = <column with names for new columns>,
+  values_from = <column with values to fill new columns>
+)
+```
+
+#### Example: Creating a Summary Table
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Long format data
+animals_long <- tibble(
+  animal_id = rep(c("A001", "A002", "A003"), each = 3),
+  breed = rep(c("Holstein", "Jersey", "Angus"), each = 3),
+  treatment = rep(c("Control", "Treatment_A", "Treatment_B"), times = 3),
+  weight_gain_kg = c(15, 22, 18, 12, 18, 15, 16, 21, 17)
+)
+
+animals_long
+
+# Pivot wider: treatments become columns
+animals_wide <- animals_long %>%
+  pivot_wider(
+    names_from = treatment,
+    values_from = weight_gain_kg
+  )
+
+animals_wide
+```
+
+#### Handling Multiple Value Columns
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Long data with multiple measurements
+measurements_long <- tibble(
+  animal_id = rep(c("A001", "A002"), each = 4),
+  week = rep(c(0, 4, 8, 12), times = 2),
+  weight_kg = c(45, 52, 58, 64, 42, 48, 54, 60),
+  height_cm = c(80, 85, 88, 91, 78, 82, 85, 88)
+)
+
+measurements_long
+
+# Pivot wider: weeks become columns for each measurement
+measurements_long %>%
+  pivot_wider(
+    names_from = week,
+    values_from = c(weight_kg, height_cm),
+    names_glue = "{.value}_week{week}"
+  )
+```
+
+#### Dealing with Duplicates
+
+What if you have duplicate id-time combinations?
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with duplicates
+duplicated_data <- tibble(
+  animal_id = c("A001", "A001", "A002", "A002"),
+  week = c(0, 0, 0, 0),  # Same animal measured twice
+  weight_kg = c(45, 46, 42, 43)
+)
+
+duplicated_data
+
+# Summarize first to remove duplicates
+duplicated_data %>%
+  group_by(animal_id, week) %>%
+  summarise(weight_kg = mean(weight_kg), .groups = "drop") %>%
+  pivot_wider(
+    names_from = week,
+    values_from = weight_kg
+  )
+```
+
+::: {.callout-warning}
+## Watch Out for Duplicates!
+
+`pivot_wider()` creates list-columns when there are multiple values for the same id × names_from combination. Either:
+- Summarize first (take mean, max, etc.)
+- Keep as list-column and `unnest()` later
+- Check your data for unexpected duplicates
+:::
+
+### `separate()`: Split One Column into Many
+
+`separate()` splits a single column into multiple columns based on a separator.
+
+**Basic syntax**:
+```r
+separate(
+  data,
+  col = <column to split>,
+  into = c("<new_col1>", "<new_col2>"),
+  sep = "<separator>"
+)
+```
+
+#### Example: Splitting Composite IDs
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with composite identifiers
+animals_composite <- tibble(
+  animal_id = c("Holstein_M_001", "Jersey_F_002", "Angus_M_003"),
+  weight_kg = c(550, 420, 580)
+)
+
+animals_composite
+
+# Separate into components
+animals_composite %>%
+  separate(
+    col = animal_id,
+    into = c("breed", "sex", "id_number"),
+    sep = "_"
+  )
+```
+
+#### Automatic Type Conversion
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Separate and convert types automatically
+animals_composite %>%
+  separate(
+    col = animal_id,
+    into = c("breed", "sex", "id_number"),
+    sep = "_",
+    convert = TRUE  # Automatically converts to appropriate types
+  )
+```
+
+#### Keeping the Original Column
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Keep original column
+animals_composite %>%
+  separate(
+    col = animal_id,
+    into = c("breed", "sex", "id_number"),
+    sep = "_",
+    remove = FALSE  # Don't remove original column
+  )
+```
+
+### `unite()`: Combine Columns into One
+
+`unite()` is the opposite of `separate()` — it combines multiple columns into one.
+
+**Basic syntax**:
+```r
+unite(
+  data,
+  col = "<new_column_name>",
+  ...,
+  sep = "<separator>"
+)
+```
+
+#### Example: Creating Unique IDs
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Separate columns
+animals_separated <- tibble(
+  farm = c("North", "South", "East"),
+  breed = c("Holstein", "Jersey", "Angus"),
+  id_num = c(1, 2, 3),
+  weight_kg = c(550, 420, 580)
+)
+
+animals_separated
+
+# Unite into single ID
+animals_separated %>%
+  unite(
+    col = "animal_id",
+    farm, breed, id_num,
+    sep = "_"
+  )
+```
+
+#### Keeping Original Columns
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Keep original columns
+animals_separated %>%
+  unite(
+    col = "animal_id",
+    farm, breed, id_num,
+    sep = "_",
+    remove = FALSE
+  )
+```
+
+### When to Use Each Function
+
+| Goal | Function | Example |
+|------|----------|---------|
+| Many columns → few rows | `pivot_longer()` | week_0, week_4, week_8 → week column |
+| Few columns → many rows | `pivot_wider()` | week column → week_0, week_4, week_8 |
+| One column → many columns | `separate()` | "Holstein_M_001" → breed, sex, id |
+| Many columns → one column | `unite()` | breed, sex, id → "Holstein_M_001" |
+
+---
+
+## Joining Datasets
+
+In real-world analysis, data is often spread across multiple tables. **Joins** combine tables based on shared keys.
+
+### Relational Data Example
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Table 1: Animal information
+animals <- tibble(
+  animal_id = c("A001", "A002", "A003", "A004"),
+  breed = c("Holstein", "Jersey", "Angus", "Holstein"),
+  birth_date = as.Date(c("2023-01-15", "2023-02-20", "2023-01-10", "2023-03-05"))
+)
+
+# Table 2: Weight records
+weights <- tibble(
+  animal_id = c("A001", "A001", "A002", "A002", "A005"),
+  date = as.Date(c("2023-06-01", "2023-09-01", "2023-06-01", "2023-09-01", "2023-06-01")),
+  weight_kg = c(180, 220, 150, 185, 200)
+)
+
+# Table 3: Treatment assignments
+treatments <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  treatment = c("Control", "Treatment_A", "Treatment_B")
+)
+
+animals
+weights
+treatments
+```
+
+### Types of Joins
+
+#### Mutating Joins: Add Columns
+
+**Visual representation**:
+
+```{mermaid}
+flowchart TD
+    A[Mutating Joins<br/>Add columns from y to x] --> B[left_join]
+    A --> C[right_join]
+    A --> D[inner_join]
+    A --> E[full_join]
+
+    B --> B1[Keep all x rows<br/>Add matching y columns]
+    C --> C1[Keep all y rows<br/>Add matching x columns]
+    D --> D1[Keep only matching rows<br/>from both x and y]
+    E --> E1[Keep all rows<br/>from both x and y]
+```
+
+### `left_join()`: Keep All Left Rows
+
+**Venn Diagram concept**: All of LEFT + matching from RIGHT
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Left join: keep all animals, add treatment info
+animals %>%
+  left_join(treatments, by = "animal_id")
+```
+
+Notice:
+- All 4 animals kept (even A004 with no treatment)
+- A004 gets `NA` for treatment
+- Unmatched rows from `treatments` (if any) are dropped
+
+#### Use `left_join()` when:
+- You want to **add information** to your main table
+- You want to **keep all rows** from the main table
+- Missing matches should be `NA`
+
+### `right_join()`: Keep All Right Rows
+
+**Venn Diagram concept**: All of RIGHT + matching from LEFT
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Right join: keep all treatments, add animal info
+animals %>%
+  right_join(treatments, by = "animal_id")
+```
+
+::: {.callout-note}
+## `right_join()` is Rarely Used
+
+`right_join(x, y)` gives the same result as `left_join(y, x)`. Most people prefer to use `left_join()` and think about the "main" table being on the left.
+
+```r
+# These are equivalent:
+animals %>% right_join(treatments)
+treatments %>% left_join(animals)
+```
+:::
+
+### `inner_join()`: Keep Only Matching Rows
+
+**Venn Diagram concept**: Only the INTERSECTION
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Inner join: keep only animals with treatments
+animals %>%
+  inner_join(treatments, by = "animal_id")
+```
+
+Notice:
+- Only 3 animals kept (A001, A002, A003)
+- A004 dropped (no treatment)
+- Perfect when you only want complete cases
+
+#### Use `inner_join()` when:
+- You only want rows that **match in both tables**
+- Unmatched rows should be **excluded**
+- You're analyzing complete cases only
+
+### `full_join()`: Keep All Rows from Both
+
+**Venn Diagram concept**: UNION of LEFT and RIGHT
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Full join: keep everything
+animals %>%
+  full_join(treatments, by = "animal_id")
+```
+
+#### Use `full_join()` when:
+- You want **all data** from both tables
+- You want to see what's missing from each table
+- You'll handle `NA` values later
+
+### Joining with Multiple Keys
+
+What if matching requires multiple columns?
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Farm data with state
+farms <- tibble(
+  farm_name = c("Green Acres", "Sunny Farm", "Green Acres"),
+  state = c("Iowa", "Kansas", "Nebraska"),
+  size_acres = c(500, 350, 600)
+)
+
+# Animal locations
+animal_locations <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  farm_name = c("Green Acres", "Sunny Farm", "Green Acres"),
+  state = c("Iowa", "Kansas", "Iowa")
+)
+
+# Join on both farm_name AND state
+animal_locations %>%
+  left_join(farms, by = c("farm_name", "state"))
+```
+
+### Joining with Different Column Names
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Different ID column names
+table1 <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  weight_kg = c(180, 150, 200)
+)
+
+table2 <- tibble(
+  id = c("A001", "A002", "A004"),
+  breed = c("Holstein", "Jersey", "Angus")
+)
+
+# Specify which columns to join on
+table1 %>%
+  left_join(table2, by = c("animal_id" = "id"))
+```
+
+### Filtering Joins: Filter Rows (Don't Add Columns)
+
+#### `semi_join()`: Keep Rows with Matches
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Semi join: keep animals that have treatments (but don't add treatment column)
+animals %>%
+  semi_join(treatments, by = "animal_id")
+```
+
+**Use `semi_join()` to answer**: "Which x rows have a match in y?"
+
+#### `anti_join()`: Keep Rows WITHOUT Matches
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Anti join: keep animals that DON'T have treatments
+animals %>%
+  anti_join(treatments, by = "animal_id")
+```
+
+**Use `anti_join()` to answer**: "Which x rows DON'T have a match in y?"
+
+This is incredibly useful for finding missing data or orphaned records.
+
+### Join Summary Table
+
+| Join Type | Rows Kept | Columns Added | Use When |
+|-----------|-----------|---------------|----------|
+| `left_join(x, y)` | All from x | From y | Adding info to main table |
+| `right_join(x, y)` | All from y | From x | Rarely used (use left_join instead) |
+| `inner_join(x, y)` | Only matches | From both | Only want complete cases |
+| `full_join(x, y)` | All from both | From both | Keep everything |
+| `semi_join(x, y)` | Matches from x | None | Filter x by presence in y |
+| `anti_join(x, y)` | Non-matches from x | None | Filter x by absence in y |
+
+### Common Join Problems and Solutions
+
+#### Problem 1: Duplicate Keys
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Multiple weights per animal
+weights_dup <- tibble(
+  animal_id = c("A001", "A001", "A002"),
+  weight_kg = c(180, 185, 150)
+)
+
+# Join creates all combinations
+animals %>%
+  left_join(weights_dup, by = "animal_id")
+```
+
+**Solution**: If you only want one weight per animal, summarize first:
+
+```{r}
+#| eval: true
+#| echo: true
+
+weights_dup %>%
+  group_by(animal_id) %>%
+  summarise(avg_weight_kg = mean(weight_kg), .groups = "drop") %>%
+  left_join(animals, ., by = "animal_id")
+```
+
+::: {.callout-warning}
+## Always Specify `by =`
+
+If you don't specify `by`, joins use all columns with the same name. This can lead to:
+- Unintended matches
+- Silent errors
+- Confusing results
+
+**Best practice**: Always explicitly state `by = "column_name"`
+:::
+
+### Real-World Example: Combining Multiple Tables
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Start with animals
+result <- animals %>%
+  # Add treatments
+  left_join(treatments, by = "animal_id") %>%
+  # Add weights (keeping all weight records)
+  left_join(weights, by = "animal_id") %>%
+  # Calculate age at weighing
+  mutate(
+    age_days = as.numeric(date - birth_date),
+    .after = date
+  )
+
+result
+```
+
+---
+
+## Binding Datasets
+
+Sometimes you need to combine datasets by **stacking** (rows) or **attaching** (columns), not by joining on keys.
+
+### `bind_rows()`: Stack Datasets Vertically
+
+Use when you have the same structure in multiple datasets.
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data from multiple farms
+farm_a <- tibble(
+  animal_id = c("A001", "A002"),
+  weight_kg = c(180, 150),
+  farm = "Farm_A"
+)
+
+farm_b <- tibble(
+  animal_id = c("B001", "B002"),
+  weight_kg = c(170, 160),
+  farm = "Farm_B"
+)
+
+# Stack them
+bind_rows(farm_a, farm_b)
+```
+
+#### Handling Missing Columns
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Different columns
+df1 <- tibble(animal_id = "A001", weight_kg = 180)
+df2 <- tibble(animal_id = "B001", height_cm = 125)
+
+# bind_rows() fills missing columns with NA
+bind_rows(df1, df2)
+```
+
+#### Adding Source Identifier
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Or use named list
+bind_rows(
+  "Iowa" = farm_a,
+  "Kansas" = farm_b,
+  .id = "state"
+)
+```
+
+### `bind_cols()`: Attach Datasets Horizontally
+
+::: {.callout-warning}
+## Use `bind_cols()` with Caution!
+
+`bind_cols()` simply attaches columns side-by-side based on row position. It does NOT match by keys!
+
+**Problems**:
+- No checking if rows actually match
+- Row order must be identical
+- Easy to create mismatched data
+
+**Better alternative**: Use a join with a row number or ID column.
+:::
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Two datasets with same row order (risky!)
+ids <- tibble(animal_id = c("A001", "A002", "A003"))
+weights <- tibble(weight_kg = c(180, 150, 200))
+
+# Attach side-by-side
+bind_cols(ids, weights)
+
+# MUCH SAFER: Use mutate instead if they're truly row-aligned
+ids %>%
+  mutate(weight_kg = weights$weight_kg)
+
+# Or use a proper join if you have keys!
+```
+
+### When to Use Binding vs Joining
+
+| Use | `bind_rows()` | `bind_cols()` | Join |
+|-----|---------------|---------------|------|
+| Same structure, stack vertically | ✅ | ❌ | ❌ |
+| Different farms/time periods | ✅ | ❌ | ❌ |
+| Add columns based on keys | ❌ | ❌ | ✅ |
+| Row-aligned data (same order) | ❌ | ⚠️ Use with caution | ❌ |
+| Relational data (shared IDs) | ❌ | ❌ | ✅ |
+
+---
+
+## Iteration with purrr
+
+The `purrr` package provides tools for **functional programming** — applying functions across elements of a list or vector.
+
+### Why Use `map()` Instead of Loops?
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Example: Calculate mean of each column
+
+# Base R loop approach
+col_means_loop <- numeric(ncol(mtcars))
+for (i in seq_along(mtcars)) {
+  col_means_loop[i] <- mean(mtcars[[i]])
+}
+col_means_loop
+
+# purrr approach
+col_means_map <- map_dbl(mtcars, mean)
+col_means_map
+
+# They're the same!
+all.equal(col_means_loop, col_means_map)
+```
+
+**Benefits of `map()`**:
+- More concise
+- Less error-prone (no index management)
+- Easier to read intent
+- Consistent return types
+
+::: {.callout-note}
+## When to Use Loops vs `map()`
+
+**Use loops when**:
+- You need to modify objects in place
+- The operation depends on previous iterations
+- The logic is complex and loops are clearer
+
+**Use `map()` when**:
+- Applying the same operation to each element
+- You want consistent output types
+- You're working with lists or data frames
+:::
+
+### Basic `map()` Functions
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create example data
+numbers <- list(
+  a = c(1, 2, 3, 4, 5),
+  b = c(10, 20, 30),
+  c = c(100, 200, 300, 400)
+)
+
+# map() returns a list
+map(numbers, mean)
+
+# map_dbl() returns a numeric vector
+map_dbl(numbers, mean)
+
+# map_chr() returns a character vector
+map_chr(numbers, \(x) paste("Mean:", round(mean(x), 1)))
+
+# map_int() returns an integer vector
+map_int(numbers, length)
+
+# map_lgl() returns a logical vector
+map_lgl(numbers, \(x) mean(x) > 50)
+```
+
+### `map()` with Data Frames
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create example animal data
+animals_list <- list(
+  farm_a = tibble(animal_id = c("A001", "A002"), weight_kg = c(180, 150)),
+  farm_b = tibble(animal_id = c("B001", "B002"), weight_kg = c(170, 160)),
+  farm_c = tibble(animal_id = c("C001", "C002"), weight_kg = c(190, 165))
+)
+
+# Calculate mean weight for each farm
+map_dbl(animals_list, \(df) mean(df$weight_kg))
+
+# Count rows in each data frame
+map_int(animals_list, nrow)
+
+# Add a new column to each data frame
+map(animals_list, \(df) mutate(df, weight_lb = weight_kg * 2.20462))
+```
+
+### Anonymous Functions in `map()`
+
+Three ways to write anonymous functions:
+
+```{r}
+#| eval: true
+#| echo: true
+
+numbers <- list(a = 1:5, b = 10:15, c = 20:25)
+
+# 1. Traditional function() syntax
+map_dbl(numbers, function(x) mean(x) * 2)
+
+# 2. Formula shorthand with ~ and .x
+map_dbl(numbers, ~ mean(.x) * 2)
+
+# 3. Lambda function with \() (R >= 4.1)
+map_dbl(numbers, \(x) mean(x) * 2)
+```
+
+All three are equivalent. Use whichever you find most readable.
+
+### `map2()`: Iterate Over Two Inputs
+
+When you need to iterate over two vectors/lists in parallel:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Two vectors to iterate over
+weights_kg <- c(180, 150, 200)
+prices_per_kg <- c(5, 5.50, 4.80)
+
+# Calculate total value for each animal
+map2_dbl(weights_kg, prices_per_kg, \(w, p) w * p)
+
+# With names
+animals <- c("A001", "A002", "A003")
+map2_chr(animals, weights_kg, \(id, wt) paste(id, "weighs", wt, "kg"))
+```
+
+### `pmap()`: Iterate Over Many Inputs
+
+For more than two inputs, use `pmap()`:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data frame with multiple columns
+sales <- tibble(
+  animal_id = c("A001", "A002", "A003"),
+  weight_kg = c(180, 150, 200),
+  price_per_kg = c(5, 5.50, 4.80),
+  bonus = c(50, 30, 60)
+)
+
+# Calculate total value: (weight * price) + bonus
+sales %>%
+  mutate(
+    total_value = pmap_dbl(
+      list(weight_kg, price_per_kg, bonus),
+      \(w, p, b) (w * p) + b
+    )
+  )
+```
+
+### Practical Example: Reading Multiple Files
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Get list of CSV files
+file_list <- list.files(path = "data/", pattern = "*.csv", full.names = TRUE)
+
+# Read all files into a list
+all_data <- map(file_list, read_csv)
+
+# Combine into single data frame with source file
+combined_data <- map(file_list, read_csv) %>%
+  set_names(basename(file_list)) %>%
+  bind_rows(.id = "source_file")
+```
+
+### Handling Errors with `safely()` and `possibly()`
+
+Sometimes operations fail for some elements. Handle errors gracefully:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Some operations might fail
+mixed_list <- list(
+  a = c(1, 2, 3),
+  b = c("a", "b", "c"),  # This will cause an error with mean()
+  c = c(10, 20, 30)
+)
+
+# This would error:
+# map_dbl(mixed_list, mean)
+
+# Use safely() to catch errors
+safe_mean <- safely(mean)
+map(mixed_list, safe_mean)
+
+# Use possibly() to return a default value on error
+possibly_mean <- possibly(mean, otherwise = NA_real_)
+map_dbl(mixed_list, possibly_mean)
+```
+
+---
+
+## List Columns and Nested Data
+
+List columns allow you to store complex objects (like data frames) inside data frame cells.
+
+### Creating Nested Data
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Example: Group and nest
+animals_nested <- tibble(
+  animal_id = c("A001", "A002", "A003", "A001", "A002", "A003"),
+  week = c(0, 0, 0, 4, 4, 4),
+  weight_kg = c(45, 42, 48, 52, 48, 54)
+) %>%
+  group_by(animal_id) %>%
+  nest()
+
+animals_nested
+
+# Each row now contains a data frame in the 'data' column
+animals_nested$data[[1]]  # Data for first animal
+```
+
+### Working with Nested Data
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Calculate statistics for each animal's data
+animals_nested %>%
+  mutate(
+    n_measurements = map_int(data, nrow),
+    mean_weight = map_dbl(data, ~mean(.x$weight_kg)),
+    weight_gain = map_dbl(data, ~diff(range(.x$weight_kg)))
+  )
+```
+
+### Fitting Models to Nested Data
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create more complete data
+set.seed(123)
+growth_data <- tibble(
+  animal_id = rep(c("A001", "A002", "A003"), each = 5),
+  week = rep(c(0, 2, 4, 6, 8), times = 3),
+  weight_kg = c(
+    45 + (0:4) * 2 + rnorm(5, 0, 1),  # A001
+    42 + (0:4) * 1.8 + rnorm(5, 0, 1),  # A002
+    48 + (0:4) * 2.2 + rnorm(5, 0, 1)   # A003
+  )
+)
+
+# Nest by animal
+growth_nested <- growth_data %>%
+  group_by(animal_id) %>%
+  nest()
+
+# Fit linear model to each animal's growth
+growth_nested <- growth_nested %>%
+  mutate(
+    model = map(data, ~lm(weight_kg ~ week, data = .x)),
+    growth_rate = map_dbl(model, ~coef(.x)[2])
+  )
+
+growth_nested
+
+# Extract coefficients
+growth_nested %>%
+  select(animal_id, growth_rate)
+```
+
+### Unnesting
+
+Convert list columns back to regular rows:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Unnest data column
+growth_nested %>%
+  select(animal_id, data) %>%
+  unnest(cols = data)
+```
+
+---
+
+## Summary
+
+This chapter covered three major topics for advanced data wrangling:
+
+### Data Reshaping (tidyr)
+
+1. **`pivot_longer()`**: Wide → Long format
+   - Convert column names to values
+   - Stack measurements
+
+2. **`pivot_wider()`**: Long → Wide format
+   - Create summary tables
+   - Spread values across columns
+
+3. **`separate()` & `unite()`**: Split or combine columns
+   - Extract information from composite columns
+   - Create unique identifiers
+
+### Joining Datasets
+
+1. **Mutating joins** (add columns):
+   - `left_join()`: Keep all left, add matching right
+   - `inner_join()`: Keep only matches
+   - `full_join()`: Keep everything
+
+2. **Filtering joins** (filter rows):
+   - `semi_join()`: Keep rows with matches
+   - `anti_join()`: Keep rows without matches
+
+3. **Binding**:
+   - `bind_rows()`: Stack vertically
+   - `bind_cols()`: Attach horizontally (use cautiously)
+
+### Iteration (purrr)
+
+1. **`map()` functions**: Apply functions to each element
+   - `map()`: Returns list
+   - `map_dbl()`, `map_chr()`, `map_int()`, `map_lgl()`: Return vectors
+
+2. **Multiple inputs**:
+   - `map2()`: Two inputs
+   - `pmap()`: Many inputs
+
+3. **List columns**: Store complex objects in data frames
+   - `nest()`: Create nested data
+   - `unnest()`: Expand nested data
+
+---
+
+## Week 7 Homework: Multi-Table Data Integration
+
+### Assignment Overview
+
+You will work with three related datasets about a pig feeding trial. Your task is to reshape, join, and analyze the data using techniques from this chapter.
+
+### Part 1: Data Generation (0 points, but required)
+
+Run this code to create your datasets:
+
+```{r}
+#| eval: false
+#| echo: true
+
+library(tidyverse)
+set.seed(2024)
+
+# Dataset 1: Pig information
+pigs <- tibble(
+  pig_id = paste0("P", 1001:1050),
+  breed = sample(c("Yorkshire", "Duroc", "Hampshire"), 50, replace = TRUE),
+  birth_date = as.Date("2023-03-01") + sample(0:30, 50, replace = TRUE),
+  initial_weight_kg = rnorm(50, mean = 8, sd = 1)
+)
+
+# Dataset 2: Feed records (wide format - needs reshaping!)
+feed_wide <- tibble(
+  pig_id = paste0("P", 1001:1050),
+  week_1_kg = rnorm(50, mean = 5, sd = 0.5),
+  week_2_kg = rnorm(50, mean = 6, sd = 0.6),
+  week_3_kg = rnorm(50, mean = 7, sd = 0.7),
+  week_4_kg = rnorm(50, mean = 8, sd = 0.8)
+)
+
+# Dataset 3: Treatment assignments (some pigs, not all)
+treatments <- tibble(
+  pig_id = sample(paste0("P", 1001:1050), 40),
+  treatment = sample(c("Standard", "HighProtein", "Supplement"), 40, replace = TRUE),
+  treatment_start = as.Date("2023-03-15")
+)
+
+# Dataset 4: Health records (long format, multiple records per pig)
+health <- tibble(
+  pig_id = rep(sample(paste0("P", 1001:1050), 30), each = 3),
+  check_date = rep(as.Date("2023-03-15") + c(7, 14, 21), times = 30),
+  health_score = sample(1:10, 90, replace = TRUE),
+  temperature_C = rnorm(90, mean = 39, sd = 0.5)
+)
+
+# Save datasets
+write_csv(pigs, "pigs.csv")
+write_csv(feed_wide, "feed_wide.csv")
+write_csv(treatments, "treatments.csv")
+write_csv(health, "health.csv")
+```
+
+### Part 2: Data Reshaping (25 points)
+
+**Task 1** (10 points): Reshape `feed_wide` from wide to long format
+- Create columns: `pig_id`, `week`, `feed_consumed_kg`
+- Convert week to numeric (remove "week_" prefix and "_kg" suffix)
+- Show first 10 rows
+
+**Task 2** (10 points): Create a summary table showing average feed by week
+- Calculate mean feed consumed for each week
+- Reshape to wide format where weeks are columns
+- Add a "total" column with sum across weeks
+
+**Task 3** (5 points): In the `health` dataset, separate `check_date` into `year`, `month`, `day`
+
+### Part 3: Joining Datasets (30 points)
+
+**Task 1** (10 points): Create a master dataset
+- Start with `pigs`
+- Add treatment information (keep all pigs)
+- Add the reshaped feed data (long format)
+- Show structure and first 15 rows
+
+**Task 2** (10 points): Analyze which pigs DON'T have health records
+- Use an appropriate filtering join
+- Show pig_id, breed, and initial_weight_kg
+- How many pigs lack health records?
+
+**Task 3** (10 points): Create a complete cases dataset
+- Only include pigs that have:
+  - Treatment assignments
+  - Feed records for all 4 weeks
+  - At least one health record
+- How many pigs remain?
+- What's the average initial weight?
+
+### Part 4: Complex Joins (20 points)
+
+**Task 1** (10 points): Calculate total feed consumption per pig
+- Sum feed_consumed_kg across all weeks for each pig
+- Join with pig information and treatment
+- Create a table showing mean total feed by breed and treatment
+- Which breed × treatment combination consumed most feed?
+
+**Task 2** (10 points): Identify treatment effects
+- Calculate average health_score for each pig
+- Join with treatment information
+- Compare average health scores across treatments
+- Create a visualization (boxplot or violin plot)
+
+### Part 5: Iteration with purrr (20 points)
+
+**Task 1** (10 points): Calculate summary statistics for each breed
+- Nest data by breed
+- Use `map()` to calculate for each breed:
+  - Number of pigs
+  - Mean initial weight
+  - Mean total feed consumed (if you calculated it in Part 4)
+  - Mean health score (if available)
+- Unnest results into a summary table
+
+**Task 2** (10 points): Fit models to nested data
+- Nest feed data by pig_id
+- Fit a linear model of feed_consumed_kg ~ week for each pig
+- Extract the slope (growth rate of feed consumption)
+- Which pig has the highest feed growth rate?
+- Which breed has the highest average feed growth rate?
+
+### Part 6: Reflection (5 points)
+
+Write 200-300 words addressing:
+- Which type of join did you use most and why?
+- What was the most challenging aspect of reshaping the data?
+- When did you choose `map()` vs a loop (if at all)?
+- What insights did you discover about the pig feeding trial?
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 7 Homework: Multi-Table Data Integration"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Part 2: Data Reshaping (25%)**
+  - Correct pivoting to long format (10%)
+  - Summary table correctly reshaped (10%)
+  - Date separation correct (5%)
+
+- **Part 3: Joining Datasets (30%)**
+  - Master dataset correctly created (10%)
+  - Anti-join to find missing health records (10%)
+  - Complete cases filtering correct (10%)
+
+- **Part 4: Complex Joins (20%)**
+  - Total feed calculation and table (10%)
+  - Treatment effects analysis (10%)
+
+- **Part 5: Iteration with purrr (20%)**
+  - Nested summaries by breed (10%)
+  - Model fitting with map (10%)
+
+- **Part 6: Reflection (5%)**
+  - Thoughtful analysis of methods and insights
+
+### Bonus (+10 points)
+
+1. Create a function that takes a pig_id and returns a plot of their feed consumption over time
+2. Use `map()` to generate plots for all pigs in one breed
+3. Combine plots using patchwork (from Chapter 6)
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 19-21 (Joins, Tidy Data, Iteration)
+- [tidyr documentation](https://tidyr.tidyverse.org/)
+- [purrr documentation](https://purrr.tidyverse.org/)
+- Wickham, H. (2014). "Tidy Data." *Journal of Statistical Software*, 59(10). [Link](https://www.jstatsoft.org/article/view/v059i10)
+
+### Optional Reading
+
+- [Tidy Data Tutor](https://tidydatatutor.com/) - Interactive visual guide
+- [purrr tutorial](https://jennybc.github.io/purrr-tutorial/) by Jenny Bryan
+- [Relational Data chapter](https://r4ds.hadley.nz/joins.html) from R4DS
+
+### Videos
+
+- "Tidy Data and tidyr" by RStudio / Posit
+- "Iteration with purrr" by RStudio / Posit
+- "Row-oriented workflows" by Jenny Bryan
+
+### Cheat Sheets
+
+- [tidyr Cheat Sheet](https://rstudio.github.io/cheatsheets/tidyr.pdf)
+- [purrr Cheat Sheet](https://rstudio.github.io/cheatsheets/purrr.pdf)
+- [Data Import Cheat Sheet](https://rstudio.github.io/cheatsheets/data-import.pdf)
+
+### Interactive Learning
+
+- [RStudio Primers: Tidy Your Data](https://posit.cloud/learn/primers/4)
+- [RStudio Primers: Iterate](https://posit.cloud/learn/primers/5)
+
+### Useful Websites
+
+- [Tidy Data Principles](https://tidyr.tidyverse.org/articles/tidy-data.html)
+- [dplyr join vignette](https://dplyr.tidyverse.org/articles/two-table.html)
+- [purrr GitHub](https://github.com/tidyverse/purrr)
+- [Stack Overflow: tidyr tag](https://stackoverflow.com/questions/tagged/tidyr)
+
+---
+
+**Next Chapter**: [Special Data Formats, Integration, and Course Wrap-up](ch08-special_formats.qmd)

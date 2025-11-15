@@ -4,17 +4,1320 @@
 
 By the end of this chapter, you will be able to:
 
-1. Understand the Grammar of Graphics philosophy
-2. Create basic plots: scatter, line, bar, histogram, boxplot
-3. Map variables to aesthetic properties
-4. Apply themes and customize plot appearance
-5. Save plots for publication
+1. Understand the Grammar of Graphics philosophy and how ggplot2 implements it
+2. Create scatter plots, line plots, bar charts, histograms, box plots, and violin plots
+3. Map variables to aesthetic properties (color, size, shape, alpha)
+4. Apply and customize themes for publication-ready plots
+5. Add labels, titles, and customize scales
+6. Save plots with `ggsave()` for different output formats
+7. Choose the appropriate plot type for your data and research question
+
+---
+
+## Introduction to the Grammar of Graphics
+
+### What is ggplot2?
+
+`ggplot2` is R's most powerful and popular data visualization package. Created by Hadley Wickham, it implements Leland Wilkinson's **Grammar of Graphics** — a systematic way to describe and build any visualization.
 
 ::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
+## Why "gg"plot2?
+
+- **gg** = Grammar of Graphics
+- **2** = Second iteration (there was a ggplot1, but it's obsolete)
+
+The package is part of the tidyverse and integrates seamlessly with dplyr, tidyr, and other tidyverse tools.
+:::
+
+### The Grammar of Graphics Philosophy
+
+Traditional plotting systems (like base R graphics) force you to choose from predefined plot types. The Grammar of Graphics takes a different approach: **every visualization is built by combining independent components**.
+
+```{mermaid}
+flowchart LR
+    A[Data] --> B[Aesthetic Mappings]
+    B --> C[Geometric Objects]
+    C --> D[Statistical Transformations]
+    D --> E[Scales]
+    E --> F[Coordinate System]
+    F --> G[Facets]
+    G --> H[Theme]
+    H --> I[Final Plot]
+```
+
+### The Three Essential Components
+
+Every ggplot2 plot requires three components:
+
+1. **Data**: A data frame or tibble
+2. **Aesthetic mappings** (`aes()`): How variables map to visual properties (x, y, color, size, etc.)
+3. **Geometric objects** (`geom_*()`): The type of plot (points, lines, bars, etc.)
+
+**Basic syntax**:
+
+```r
+ggplot(data = <DATA>) +
+  aes(x = <X_VAR>, y = <Y_VAR>) +
+  geom_<TYPE>()
+```
+
+Or more commonly:
+
+```r
+ggplot(<DATA>, aes(x = <X_VAR>, y = <Y_VAR>)) +
+  geom_<TYPE>()
+```
+
+::: {.callout-important}
+## ggplot2 Uses `+`, Not `%>%`
+
+Notice we use `+` to add layers to a ggplot, NOT the pipe (`%>%` or `|>`). This is a common mistake!
+
+```r
+# CORRECT
+ggplot(data, aes(x = var1, y = var2)) +
+  geom_point()
+
+# WRONG - don't use pipe!
+ggplot(data, aes(x = var1, y = var2)) %>%
+  geom_point()
+```
+:::
+
+### Setup
+
+Let's load the necessary packages:
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: false
+
+library(tidyverse)  # Includes ggplot2, dplyr, etc.
+```
+
+---
+
+## Your First ggplot: Scatter Plots with `geom_point()`
+
+Scatter plots display the relationship between two continuous variables. Each observation is represented by a point.
+
+### Basic Scatter Plot
+
+Let's create example data on cattle feed intake and weight gain:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create example cattle data
+cattle <- tibble(
+  animal_id = paste0("C", 1001:1030),
+  breed = rep(c("Holstein", "Jersey", "Angus"), each = 10),
+  feed_intake_kg = c(
+    rnorm(10, mean = 25, sd = 3),  # Holstein
+    rnorm(10, mean = 18, sd = 2),  # Jersey
+    rnorm(10, mean = 22, sd = 2.5) # Angus
+  ),
+  weight_gain_kg = c(
+    rnorm(10, mean = 1.2, sd = 0.15),  # Holstein
+    rnorm(10, mean = 0.8, sd = 0.12),  # Jersey
+    rnorm(10, mean = 1.0, sd = 0.13)   # Angus
+  )
+)
+
+# View first few rows
+head(cattle)
+
+# Create basic scatter plot
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg)) +
+  geom_point()
+```
+
+**Reading this code:**
+
+1. `ggplot(cattle, ...)` — Use the cattle data
+2. `aes(x = feed_intake_kg, y = weight_gain_kg)` — Map feed intake to x-axis, weight gain to y-axis
+3. `geom_point()` — Draw points
+
+### Adding Color by Group
+
+We can map the `breed` variable to color:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point()
+```
+
+Notice:
+- Each breed gets a different color automatically
+- A legend is created automatically
+- Colors are chosen from a default palette
+
+### Customizing Point Aesthetics
+
+Points have several aesthetic properties we can map to variables OR set manually:
+
+| Aesthetic | What it controls | Example variable type |
+|-----------|------------------|-----------------------|
+| `x` | Horizontal position | Continuous |
+| `y` | Vertical position | Continuous |
+| `color` | Point outline color | Categorical or continuous |
+| `size` | Point size | Continuous |
+| `shape` | Point shape | Categorical |
+| `alpha` | Transparency (0-1) | Continuous |
+
+::: {.callout-important}
+## Mapping vs Setting
+
+**Mapping** (inside `aes()`): Connects a variable to an aesthetic — varies by data
+
+```r
+aes(color = breed)  # Color depends on breed variable
+```
+
+**Setting** (outside `aes()`): Sets a fixed value for all points
+
+```r
+geom_point(color = "blue", size = 3)  # All points blue and size 3
+```
+:::
+
+#### Example: Mapping Size
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Map size to feed intake (redundant with x, but demonstrates the concept)
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg,
+                   color = breed, size = feed_intake_kg)) +
+  geom_point()
+```
+
+#### Example: Setting Fixed Aesthetics
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Make all points larger and semi-transparent
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 4, alpha = 0.6)
+```
+
+#### Example: Using Shape
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Map shape to breed (in addition to color)
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg,
+                   color = breed, shape = breed)) +
+  geom_point(size = 3)
+```
+
+### When to Use Scatter Plots
+
+✅ **Use scatter plots when:**
+- You have two continuous variables
+- You want to explore relationships/correlations
+- You want to identify outliers or patterns
+- You want to show individual data points
+
+❌ **Don't use scatter plots when:**
+- One or both variables are categorical (use bar charts or box plots)
+- You have too many overlapping points (consider hex bins or contour plots)
+- You want to show change over time for a single entity (use line plots)
+
+---
+
+## Line Plots with `geom_line()`
+
+Line plots connect points in order, typically used for time series or sequential data.
+
+### Example: Growth Curves
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create growth data for individual animals over time
+growth <- tibble(
+  animal_id = rep(c("H001", "H002", "H003"), each = 6),
+  week = rep(c(0, 2, 4, 6, 8, 10), times = 3),
+  weight_kg = c(
+    c(45, 58, 72, 88, 105, 122),  # H001
+    c(42, 55, 68, 83, 98, 115),   # H002
+    c(48, 60, 75, 91, 108, 126)   # H003
+  )
+)
+
+growth
+
+# Create line plot
+ggplot(growth, aes(x = week, y = weight_kg, color = animal_id)) +
+  geom_line()
+```
+
+### Combining Lines and Points
+
+Often, it's helpful to show both the line and the data points:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(growth, aes(x = week, y = weight_kg, color = animal_id)) +
+  geom_line() +
+  geom_point()
+```
+
+::: {.callout-tip}
+## Layer Order Matters
+
+Layers are drawn in the order you add them. Later layers appear on top of earlier layers.
+
+```r
+# Points on top of lines (usually preferred)
+geom_line() + geom_point()
+
+# Lines on top of points (can obscure data)
+geom_point() + geom_line()
+```
+:::
+
+### Customizing Lines
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Thicker lines with different line types
+ggplot(growth, aes(x = week, y = weight_kg, color = animal_id)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3)
+```
+
+### When to Use Line Plots
+
+✅ **Use line plots when:**
+- Data represents a sequence (especially time)
+- You want to show trends or changes
+- Points should be connected in a specific order
+- You're tracking individual subjects over time
+
+❌ **Don't use line plots when:**
+- Data points are independent (no meaningful order)
+- You have many overlapping trajectories (hard to read)
+- X-axis is not continuous or sequential
+
+---
+
+## Bar Charts with `geom_col()` and `geom_bar()`
+
+Bar charts display categorical data with rectangular bars.
+
+### `geom_col()` vs `geom_bar()`
+
+| Function | When to use | Y-axis comes from |
+|----------|-------------|-------------------|
+| `geom_col()` | You've already calculated the values | Your data |
+| `geom_bar()` | You want to count occurrences | Automatic counting |
+
+### Using `geom_col()` with Pre-calculated Values
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Average milk production by breed (already summarized)
+milk_production <- tibble(
+  breed = c("Holstein", "Jersey", "Guernsey", "Brown Swiss"),
+  avg_liters_per_day = c(35, 24, 28, 30)
+)
+
+milk_production
+
+# Create bar chart
+ggplot(milk_production, aes(x = breed, y = avg_liters_per_day)) +
+  geom_col()
+```
+
+### Using `geom_bar()` to Count
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create dataset with individual animals
+animals <- tibble(
+  breed = sample(c("Holstein", "Jersey", "Angus"), size = 100, replace = TRUE)
+)
+
+# Count animals per breed automatically
+ggplot(animals, aes(x = breed)) +
+  geom_bar()
+```
+
+::: {.callout-note}
+## `geom_bar()` Counts for You
+
+When you use `geom_bar()`, you only specify `x` (the categorical variable). The y-axis (count) is calculated automatically using `stat = "count"`.
+:::
+
+### Adding Color
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Color bars by breed
+ggplot(milk_production, aes(x = breed, y = avg_liters_per_day, fill = breed)) +
+  geom_col()
+```
+
+::: {.callout-important}
+## `color` vs `fill` for Bars
+
+- `color` controls the **outline** of the bar
+- `fill` controls the **inside** of the bar
+
+Usually, you want `fill` for bar charts:
+
+```r
+aes(fill = breed)  # Fills the bars (typical)
+aes(color = breed) # Just colors the outlines (usually not what you want)
+```
+:::
+
+### Grouped and Stacked Bars
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create data with two categorical variables
+feed_trial <- tibble(
+  breed = rep(c("Holstein", "Jersey"), each = 3),
+  feed_type = rep(c("A", "B", "C"), times = 2),
+  avg_gain_kg = c(1.2, 1.4, 1.1, 0.9, 1.0, 0.8)
+)
+
+feed_trial
+
+# Grouped bars
+ggplot(feed_trial, aes(x = breed, y = avg_gain_kg, fill = feed_type)) +
+  geom_col(position = "dodge")
+
+# Stacked bars (default)
+ggplot(feed_trial, aes(x = breed, y = avg_gain_kg, fill = feed_type)) +
+  geom_col()
+```
+
+### Horizontal Bars
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Use coord_flip() for horizontal bars
+ggplot(milk_production, aes(x = breed, y = avg_liters_per_day)) +
+  geom_col() +
+  coord_flip()
+```
+
+### When to Use Bar Charts
+
+✅ **Use bar charts when:**
+- Comparing quantities across categories
+- Showing counts or frequencies
+- Categories are on the x-axis
+- Bars should start at zero
+
+❌ **Don't use bar charts when:**
+- Showing distributions (use histograms)
+- Comparing many categories (can be hard to read)
+- Changes over time are important (use line plots)
+
+---
+
+## Histograms with `geom_histogram()`
+
+Histograms show the **distribution** of a single continuous variable by dividing the data into bins and counting how many observations fall into each bin.
+
+### Basic Histogram
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create birth weight data
+birth_weights <- tibble(
+  calf_id = 1:200,
+  birth_weight_kg = rnorm(200, mean = 40, sd = 5)
+)
+
+# Create histogram
+ggplot(birth_weights, aes(x = birth_weight_kg)) +
+  geom_histogram()
+```
+
+::: {.callout-warning}
+## Pick the Right Number of Bins!
+
+The default number of bins (30) may not be ideal for your data. Experiment with:
+
+```r
+geom_histogram(bins = 20)      # Specify number of bins
+geom_histogram(binwidth = 2)   # Specify width of each bin
+```
+
+Too few bins → lose detail; too many bins → noisy
+:::
+
+### Customizing Binwidth
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Wider bins (3 kg)
+ggplot(birth_weights, aes(x = birth_weight_kg)) +
+  geom_histogram(binwidth = 3, fill = "steelblue", color = "white")
+```
+
+### Overlapping Histograms by Group
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create breed data with different distributions
+set.seed(123)
+breeds_vec <- sample(c("Holstein", "Jersey"), size = 200, replace = TRUE, prob = c(0.5, 0.5))
+
+birth_weights_breed <- tibble(
+  breed = breeds_vec,
+  birth_weight_kg = ifelse(
+    breed == "Holstein",
+    rnorm(sum(breed == "Holstein"), mean = 42, sd = 5),
+    rnorm(sum(breed == "Jersey"), mean = 37, sd = 4)
+  )
+)
+
+# Overlapping histograms
+ggplot(birth_weights_breed, aes(x = birth_weight_kg, fill = breed)) +
+  geom_histogram(binwidth = 2, alpha = 0.6, position = "identity")
+```
+
+::: {.callout-tip}
+## Use `alpha` for Overlapping Histograms
+
+When showing multiple distributions, use `alpha` (transparency) so you can see where they overlap:
+
+```r
+geom_histogram(alpha = 0.5, position = "identity")
+```
+
+`position = "identity"` places histograms on top of each other (default is stacked).
+:::
+
+### When to Use Histograms
+
+✅ **Use histograms when:**
+- Showing the distribution of a continuous variable
+- Checking for normality
+- Identifying skewness or outliers
+- Understanding the shape of your data
+
+❌ **Don't use histograms when:**
+- You have categorical data (use bar charts)
+- Comparing multiple groups precisely (use box plots or density plots)
+- You have very few data points (distributions won't be clear)
+
+---
+
+## Box Plots with `geom_boxplot()`
+
+Box plots (box-and-whisker plots) display the distribution of data through five summary statistics: minimum, first quartile (Q1), median, third quartile (Q3), and maximum.
+
+### Anatomy of a Box Plot
+
+```{mermaid}
+graph TD
+    A[Box Plot Components] --> B[Box: IQR Q1 to Q3]
+    A --> C[Line in box: Median]
+    A --> D[Whiskers: 1.5 × IQR]
+    A --> E[Points beyond whiskers: Outliers]
+```
+
+### Basic Box Plot
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create data for different treatment groups
+treatments <- tibble(
+  treatment = rep(c("Control", "Drug A", "Drug B", "Drug C"), each = 25),
+  weight_gain_kg = c(
+    rnorm(25, mean = 50, sd = 8),   # Control
+    rnorm(25, mean = 58, sd = 7),   # Drug A
+    rnorm(25, mean = 62, sd = 9),   # Drug B
+    rnorm(25, mean = 55, sd = 6)    # Drug C
+  )
+)
+
+# Create box plot
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg)) +
+  geom_boxplot()
+```
+
+### Adding Color
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg, fill = treatment)) +
+  geom_boxplot()
+```
+
+### Combining Box Plots with Individual Points
+
+It's often useful to show the underlying data along with the box plot:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Add jittered points
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg, fill = treatment)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5)
+```
+
+::: {.callout-tip}
+## `geom_jitter()` Reduces Overplotting
+
+When points overlap, `geom_jitter()` adds small random horizontal noise to make them visible:
+
+```r
+geom_jitter(width = 0.2)  # Jitter horizontally (adjust width as needed)
+```
+:::
+
+### When to Use Box Plots
+
+✅ **Use box plots when:**
+- Comparing distributions across groups
+- You want to show median, quartiles, and outliers
+- You have multiple groups to compare
+- You want a compact summary of distributions
+
+❌ **Don't use box plots when:**
+- Your data has multiple modes (bimodal, multimodal) — box plots hide this
+- You have very few data points (< ~10 per group)
+- You want to show exact distributions (use violin plots or histograms)
+
+---
+
+## Violin Plots with `geom_violin()`
+
+Violin plots show the full distribution of data (like a density plot) rotated and mirrored. They're useful for showing distributions that box plots might hide.
+
+### Basic Violin Plot
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg, fill = treatment)) +
+  geom_violin()
+```
+
+### Combining Violin Plots with Box Plots
+
+A powerful combination: violin plot shows distribution, box plot shows summary statistics:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg, fill = treatment)) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.2, fill = "white")
+```
+
+### Adding Points
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(treatments, aes(x = treatment, y = weight_gain_kg, fill = treatment)) +
+  geom_violin(alpha = 0.5) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1)
+```
+
+### When to Use Violin Plots
+
+✅ **Use violin plots when:**
+- You want to show full distribution shape
+- Your data might be bimodal or have multiple peaks
+- Comparing distributions across groups
+- You have enough data points (> ~20 per group)
+
+❌ **Don't use violin plots when:**
+- You have very few data points (distributions won't be smooth)
+- Readers aren't familiar with violin plots (less intuitive than box plots)
+- You only need summary statistics (use box plots)
+
+---
+
+## Aesthetic Mappings: A Deeper Dive
+
+We've seen several aesthetics already. Let's consolidate what we know:
+
+### Common Aesthetics
+
+| Aesthetic | Type | Example | Best used with |
+|-----------|------|---------|----------------|
+| `x` | Position | `aes(x = treatment)` | All geoms |
+| `y` | Position | `aes(y = weight)` | All geoms |
+| `color` | Color | `aes(color = breed)` | Points, lines, text |
+| `fill` | Fill | `aes(fill = breed)` | Bars, boxes, violins |
+| `size` | Size | `aes(size = age)` | Points, text |
+| `shape` | Shape | `aes(shape = sex)` | Points |
+| `alpha` | Transparency | `aes(alpha = density)` | All geoms |
+| `linetype` | Line type | `aes(linetype = group)` | Lines |
+
+### Continuous vs Discrete Variables
+
+ggplot2 handles continuous and discrete variables differently:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create data with both variable types
+mixed_data <- tibble(
+  group = rep(c("A", "B", "C"), each = 20),  # Discrete
+  score = rnorm(60, mean = 100, sd = 15),    # Continuous
+  intensity = rep(1:20, times = 3)           # Continuous
+)
+
+# Color by discrete variable (gets distinct colors)
+ggplot(mixed_data, aes(x = intensity, y = score, color = group)) +
+  geom_point(size = 3)
+
+# Color by continuous variable (gets gradient)
+ggplot(mixed_data, aes(x = intensity, y = score, color = intensity)) +
+  geom_point(size = 3)
+```
+
+::: {.callout-important}
+## Choosing the Right Aesthetic
+
+- **Categorical data**: Use `color`, `fill`, `shape`, `linetype`
+- **Continuous data**: Use `x`, `y`, `size`, `alpha`, `color` (gradient)
+- **Too many categories?** (> ~7): Don't use `shape` (hard to distinguish); consider faceting instead
 :::
 
 ---
 
-**Next Chapter**: [Advanced ggplot2 and Multi-Panel Plots](part1-ch06-ggplot2_advanced.qmd)
+## Working with Scales
+
+Scales control how data values map to visual properties. Every aesthetic has a scale.
+
+### Scale Functions
+
+Scale functions follow the pattern: `scale_<aesthetic>_<type>()`
+
+Examples:
+- `scale_x_continuous()` — Continuous x-axis
+- `scale_y_log10()` — Log10 transform y-axis
+- `scale_color_manual()` — Manually specify colors
+- `scale_fill_brewer()` — Use ColorBrewer palettes
+
+### Modifying Continuous Scales
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create sample data
+growth_rate <- tibble(
+  animal_id = 1:30,
+  weight_kg = runif(30, min = 400, max = 700),
+  gain_per_day_kg = runif(30, min = 0.8, max = 1.5)
+)
+
+# Modify axis limits and breaks
+ggplot(growth_rate, aes(x = weight_kg, y = gain_per_day_kg)) +
+  geom_point() +
+  scale_x_continuous(limits = c(350, 750), breaks = seq(350, 750, by = 100)) +
+  scale_y_continuous(limits = c(0, 2), breaks = seq(0, 2, by = 0.5))
+```
+
+### Log Transformations
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with exponential relationship
+bacteria <- tibble(
+  time_hours = 0:24,
+  count = 100 * 2^(0:24 / 4)  # Exponential growth
+)
+
+# Regular scale (hard to see early values)
+ggplot(bacteria, aes(x = time_hours, y = count)) +
+  geom_line() +
+  geom_point()
+
+# Log scale (easier to see pattern)
+ggplot(bacteria, aes(x = time_hours, y = count)) +
+  geom_line() +
+  geom_point() +
+  scale_y_log10()
+```
+
+### Discrete Scales: Manual Colors
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Specify custom colors
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("Holstein" = "blue",
+                                  "Jersey" = "orange",
+                                  "Angus" = "darkred"))
+```
+
+### Using ColorBrewer Palettes
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Use ColorBrewer palette (colorblind-friendly)
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1")
+```
+
+::: {.callout-tip}
+## Colorblind-Friendly Palettes
+
+Use `scale_color_viridis_d()` (discrete) or `scale_color_viridis_c()` (continuous) for accessible colors:
+
+```r
+scale_color_viridis_d()  # Discrete variable
+scale_color_viridis_c()  # Continuous variable
+```
+:::
+
+---
+
+## Labels and Titles with `labs()`
+
+Use `labs()` to add or modify plot labels:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  labs(
+    title = "Relationship Between Feed Intake and Weight Gain",
+    subtitle = "Data from 30 cattle across three breeds",
+    x = "Daily Feed Intake (kg)",
+    y = "Daily Weight Gain (kg)",
+    color = "Breed",
+    caption = "Source: Fictional farm data (2024)"
+  )
+```
+
+::: {.callout-note}
+## Label Arguments in `labs()`
+
+- `title` — Main plot title
+- `subtitle` — Secondary title (smaller font)
+- `x`, `y` — Axis labels
+- `color`, `fill`, `shape`, `size` — Legend titles (match the aesthetic name)
+- `caption` — Small text at bottom (often for data source or notes)
+:::
+
+---
+
+## Themes: Customizing Plot Appearance
+
+Themes control the non-data elements of your plot (background, grid lines, fonts, etc.).
+
+### Built-in Themes
+
+ggplot2 includes several complete themes:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create base plot
+p <- ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  labs(title = "Feed Intake vs Weight Gain")
+
+# Default theme (theme_gray)
+p
+
+# theme_minimal() - Clean and modern
+p + theme_minimal()
+
+# theme_classic() - No grid lines
+p + theme_classic()
+
+# theme_bw() - Black and white
+p + theme_bw()
+
+# theme_light() - Light gray grid
+p + theme_light()
+```
+
+### Setting a Default Theme
+
+You can set a theme for all plots in your session:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Set default theme for all subsequent plots
+theme_set(theme_minimal())
+```
+
+### Customizing Themes
+
+Use `theme()` to modify specific elements:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  labs(title = "Feed Intake vs Weight Gain") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    legend.position = "bottom"
+  )
+```
+
+::: {.callout-tip}
+## Common Theme Customizations
+
+```r
+theme(
+  plot.title = element_text(size = 16, face = "bold"),
+  axis.text = element_text(size = 10),
+  legend.position = "bottom",  # or "top", "left", "right", "none"
+  panel.grid.major = element_line(color = "gray90"),
+  panel.grid.minor = element_blank()
+)
+```
+:::
+
+---
+
+## Coordinate Systems
+
+Coordinate systems control how the x and y axes are rendered.
+
+### `coord_cartesian()`: Zooming
+
+`coord_cartesian()` is useful for zooming without removing data:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Zoom in on a specific region
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  coord_cartesian(xlim = c(18, 26), ylim = c(0.8, 1.2))
+```
+
+::: {.callout-important}
+## `coord_cartesian()` vs `scale_*_continuous(limits = ...)`
+
+- `coord_cartesian(xlim = c(a, b))` — **Zooms** without removing data (stat calculations use all data)
+- `scale_x_continuous(limits = c(a, b))` — **Removes** data outside limits before plotting
+
+Usually, you want `coord_cartesian()` for zooming.
+:::
+
+### `coord_flip()`: Horizontal Plots
+
+We saw this earlier with bar charts. It swaps x and y:
+
+```{r}
+#| eval: true
+#| echo: true
+
+ggplot(milk_production, aes(x = breed, y = avg_liters_per_day)) +
+  geom_col(fill = "steelblue") +
+  coord_flip()
+```
+
+### Fixed Aspect Ratio
+
+`coord_fixed()` ensures equal scales on both axes (1 unit on x = 1 unit on y visually):
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Without fixed aspect ratio
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg)) +
+  geom_point()
+
+# With fixed aspect ratio
+ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg)) +
+  geom_point() +
+  coord_fixed(ratio = 20)  # 20 kg of feed = 1 kg weight gain visually
+```
+
+---
+
+## Saving Plots with `ggsave()`
+
+After creating a plot, save it with `ggsave()`:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Create plot
+my_plot <- ggplot(cattle, aes(x = feed_intake_kg, y = weight_gain_kg, color = breed)) +
+  geom_point(size = 3) +
+  labs(title = "Feed Intake vs Weight Gain") +
+  theme_minimal()
+
+# Save to file
+ggsave("cattle_plot.png", plot = my_plot, width = 8, height = 6, dpi = 300)
+```
+
+### Common Arguments
+
+| Argument | What it does | Example |
+|----------|--------------|---------|
+| `filename` | File path and name | `"plots/figure1.png"` |
+| `plot` | ggplot object (defaults to last plot) | `my_plot` |
+| `width` | Width in inches (or cm, mm) | `8` |
+| `height` | Height in inches (or cm, mm) | `6` |
+| `dpi` | Resolution (dots per inch) | `300` (publication quality) |
+| `units` | Units for width/height | `"in"`, `"cm"`, `"mm"` |
+
+### File Formats
+
+ggplot2 supports many formats (determined by file extension):
+
+- **PNG** (`.png`) — Good for presentations, web (raster)
+- **PDF** (`.pdf`) — Best for publications (vector, scalable)
+- **JPEG** (`.jpg`) — Compressed (raster, smaller files)
+- **SVG** (`.svg`) — Vector format for web
+- **TIFF** (`.tiff`) — High quality (raster, large files)
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Save as PDF (recommended for publications)
+ggsave("figure1.pdf", width = 7, height = 5)
+
+# Save as high-resolution PNG
+ggsave("figure1.png", width = 7, height = 5, dpi = 300)
+```
+
+::: {.callout-tip}
+## Publication Guidelines
+
+Most journals require:
+- **300 dpi** minimum resolution
+- **PDF** or **TIFF** format for final submission
+- Specific dimensions (check journal guidelines)
+- Readable fonts (usually at least 8-10 pt in final figure)
+
+Start with:
+```r
+ggsave("figure.pdf", width = 7, height = 5, dpi = 300)
+```
+:::
+
+---
+
+## Summary: Choosing the Right Plot Type
+
+| Data Type | Goal | Recommended Plot |
+|-----------|------|------------------|
+| 2 continuous variables | Show relationship | **Scatter plot** (`geom_point`) |
+| Time series | Show change over time | **Line plot** (`geom_line`) |
+| Categorical + continuous | Compare groups | **Bar chart** (`geom_col`), **Box plot** (`geom_boxplot`) |
+| 1 continuous variable | Show distribution | **Histogram** (`geom_histogram`), **Density plot** |
+| Multiple groups + continuous | Compare distributions | **Box plot** (`geom_boxplot`), **Violin plot** (`geom_violin`) |
+| Counts of categories | Show frequencies | **Bar chart** (`geom_bar`) |
+
+### Key Concepts Review
+
+1. **Three essentials**: Data + `aes()` + `geom_*()`
+2. **Layers**: Build plots by adding layers with `+`
+3. **Aesthetics**: Map variables to visual properties (`aes()`)
+4. **Geoms**: Choose the right plot type for your data
+5. **Scales**: Control how data maps to visuals
+6. **Labels**: Always label axes and legends clearly (`labs()`)
+7. **Themes**: Customize appearance for publication
+8. **Save**: Use `ggsave()` with appropriate format and resolution
+
+---
+
+## Week 5 Homework: Creating Publication-Ready Plots
+
+### Assignment Overview
+
+You will create **5 different types of plots** from a provided dataset and present them in a professional Quarto report. Focus on choosing appropriate plot types, applying proper labels, and using themes effectively.
+
+### Dataset
+
+You'll use simulated data from a sheep grazing study:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Generate dataset (include this in your homework)
+set.seed(2024)
+
+sheep_data <- tibble(
+  sheep_id = rep(1:60, each = 4),
+  breed = rep(rep(c("Merino", "Suffolk", "Dorper"), each = 20), each = 4),
+  pasture_type = rep(rep(c("Native", "Improved"), each = 30), each = 4),
+  week = rep(c(0, 4, 8, 12), times = 60),
+  weight_kg = rep(rnorm(60, mean = 45, sd = 5), each = 4) +
+              rep(c(0, 5, 9, 12), times = 60) +
+              rnorm(240, mean = 0, sd = 1.5),
+  wool_growth_mm = rep(rnorm(60, mean = 8, sd = 1.5), each = 4) +
+                   rnorm(240, mean = 0, sd = 0.5)
+)
+
+# Add some additional variables
+sheep_data <- sheep_data %>%
+  group_by(sheep_id) %>%
+  mutate(
+    weight_gain_kg = weight_kg - first(weight_kg),
+    avg_daily_gain_g = (weight_gain_kg * 1000) / (week * 7)
+  ) %>%
+  ungroup() %>%
+  filter(week > 0)  # Remove week 0 for some analyses
+
+```
+
+### Part 1: Scatter Plot (20 points)
+
+Create a scatter plot showing the relationship between `weight_kg` (x-axis) and `wool_growth_mm` (y-axis).
+
+**Requirements**:
+- Color points by `breed`
+- Set point size to 3
+- Use `theme_minimal()`
+- Add appropriate title and axis labels
+- Include a subtitle indicating sample size
+
+**Bonus** (+5 points): Add a trend line using `geom_smooth(method = "lm")` for each breed
+
+### Part 2: Line Plot (20 points)
+
+Create a line plot showing `weight_kg` over `week` for individual sheep.
+
+**Requirements**:
+- Show data for **6 randomly selected sheep** (use `filter(sheep_id %in% c(...))`)
+- Color lines by `breed`
+- Add both lines and points
+- Use `theme_classic()`
+- Proper labels and title
+
+### Part 3: Bar Chart (20 points)
+
+Create a bar chart showing the **average final weight** (week 12) by breed and pasture type.
+
+**Requirements**:
+- Calculate average final weight using `dplyr` first
+- Use `geom_col()` with `position = "dodge"` for grouped bars
+- Fill bars by `pasture_type`
+- Add axis labels including units
+- Use a ColorBrewer palette
+
+### Part 4: Histogram (15 points)
+
+Create histograms showing the distribution of `avg_daily_gain_g` for each breed.
+
+**Requirements**:
+- Three separate histograms (one per breed) — hint: use faceting or create 3 separate plots
+- Choose appropriate binwidth
+- Fill color should differ by breed
+- Use `theme_bw()`
+- Title should be descriptive
+
+**Note**: We'll cover faceting (`facet_wrap()`) in the next chapter, but you can try it now or create 3 separate plots.
+
+### Part 5: Box Plot or Violin Plot (20 points)
+
+Compare the distribution of `weight_gain_kg` (total gain over the study) across breeds and pasture types.
+
+**Requirements**:
+- Use `geom_boxplot()` OR `geom_violin()` (your choice)
+- X-axis: `breed`, fill by `pasture_type`
+- Add jittered points with transparency
+- Use `theme_light()`
+- Clear labels and legend
+
+### Part 6: Interpretation (5 points)
+
+For each plot, write 2-3 sentences interpreting what the plot shows. What patterns, trends, or differences do you observe?
+
+### Bonus Challenge (+10 points)
+
+Create a single multi-panel figure combining your scatter plot and box plot using either:
+- Manual arrangement (creating two separate plots)
+- Looking ahead: Try `library(patchwork)` and combine with `+`
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Example structure (you'll learn this next week!)
+library(patchwork)
+plot1 + plot2
+```
+
+### Submission Requirements
+
+- Submit a rendered Quarto HTML document
+- Include all code and output
+- All plots should be clearly labeled
+- Use professional formatting
+- Include interpretations
+
+### Recommended YAML
+
+```yaml
+---
+title: "Week 5 Homework: Data Visualization with ggplot2"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: false
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+```
+
+### Grading Rubric
+
+- **Part 1: Scatter Plot (20%)**
+  - Correct geom and aesthetics (8%)
+  - Proper labels and theme (7%)
+  - Overall appearance (5%)
+
+- **Part 2: Line Plot (20%)**
+  - Correct data filtering and plotting (8%)
+  - Lines and points shown (7%)
+  - Labels and styling (5%)
+
+- **Part 3: Bar Chart (20%)**
+  - Correct data summarization (8%)
+  - Grouped bars correctly displayed (7%)
+  - Labels and color palette (5%)
+
+- **Part 4: Histogram (15%)**
+  - Appropriate binwidth chosen (6%)
+  - One histogram per breed (5%)
+  - Labels and theme (4%)
+
+- **Part 5: Box/Violin Plot (20%)**
+  - Correct plot with multiple groupings (8%)
+  - Points added with transparency (7%)
+  - Labels and theme (5%)
+
+- **Part 6: Interpretation (5%)**
+  - Clear, accurate interpretations for each plot
+
+---
+
+## Additional Resources
+
+### Required Reading
+
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Chapters 9-10: Visualize and Layers
+- [ggplot2 documentation](https://ggplot2.tidyverse.org/)
+- [ggplot2 book (3e)](https://ggplot2-book.org/) - Chapters 1-4
+
+### Optional Reading
+
+- Wilkinson, L. (2005). *The Grammar of Graphics* (2nd ed.). Springer. (Original theory)
+- Wickham, H. (2010). "A Layered Grammar of Graphics." *Journal of Computational and Graphical Statistics*, 19(1), 3-28.
+- [Data Visualization: A Practical Introduction](https://socviz.co/) by Kieran Healy
+
+### Videos
+
+- "ggplot2 Workshop" by Thomas Lin Pedersen (RStudio)
+- "A Quick Introduction to ggplot2" by StatQuest with Josh Starmer
+- "ggplot2 Tutorial" series by Data Science Dojo
+
+### Cheat Sheets
+
+- [ggplot2 Cheat Sheet](https://rstudio.github.io/cheatsheets/data-visualization.pdf) ⭐ **Most important!**
+- [RStudio Cheatsheets Collection](https://posit.co/resources/cheatsheets/)
+
+### Galleries and Inspiration
+
+- [R Graph Gallery](https://r-graph-gallery.com/) — Hundreds of examples with code
+- [Top 50 ggplot2 Visualizations](http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html)
+- [ggplot2 extensions](https://exts.ggplot2.tidyverse.org/) — Additional packages
+
+### Color Resources
+
+- [ColorBrewer](https://colorbrewer2.org/) — Color schemes for maps and data viz
+- [Viridis color palettes](https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html) — Colorblind-friendly
+- [Coolors](https://coolors.co/) — Color palette generator
+
+### Interactive Learning
+
+- [RStudio Primers: Visualize Data](https://posit.cloud/learn/primers/3)
+- [ggplot2 Exercises](https://r-graphics.org/exercises.html)
+
+### Useful Websites
+
+- [ggplot2 Tidyverse Page](https://ggplot2.tidyverse.org/)
+- [Stack Overflow: ggplot2 tag](https://stackoverflow.com/questions/tagged/ggplot2)
+- [RStudio Community](https://community.rstudio.com/)
+
+---
+
+**Next Chapter**: [Advanced ggplot2 and Multi-Panel Plots](ch06-ggplot2_advanced.qmd)

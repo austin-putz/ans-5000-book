@@ -1,20 +1,1734 @@
-# Special Data Formats and Course Wrap-up
+# Special Data Formats, Integration, and Course Wrap-up
 
 ## Learning Objectives
 
 By the end of this chapter, you will be able to:
 
-1. Read data from SAS, SPSS, and Stata files
-2. Work with Excel files for reading and writing
-3. Use helpful packages like `janitor` and `lubridate`
-4. Apply the complete data science workflow
-5. Create reproducible analysis pipelines
+1. Read data from SAS (`.sas7bdat`), SPSS (`.sav`), and Stata (`.dta`) files using the `haven` package
+2. Work with Excel files for reading (simple and advanced) and writing with formatting
+3. Use `janitor` for data cleaning tasks like fixing column names and removing duplicates
+4. Manipulate dates and times effectively with `lubridate`
+5. Create dynamic strings with the `glue` package
+6. Apply the complete data science workflow from raw data to final report
+7. Implement reproducibility best practices in your analysis projects
+8. Understand how data science skills enable statistical analysis (Part 2 preview)
+9. Identify career paths in data science and resources for continued learning
+10. Complete a capstone project integrating all skills from Part 1
+
+---
+
+## Introduction
+
+Congratulations on reaching the final chapter of Part 1! Over the past seven weeks, you've built a comprehensive foundation in data science using R, RStudio, and the tidyverse ecosystem. You've learned to read data, clean and transform it, visualize patterns, and create reproducible reports.
+
+This chapter serves three important purposes:
+
+1. **Technical Skills**: Introduce additional tools for working with data in formats you'll encounter in the real world
+2. **Integration**: Review and synthesize the complete data science workflow
+3. **Transition**: Prepare you for Part 2 (statistics) and point you toward continued learning
+
+In the real world, data rarely arrives in clean CSV files. You might receive:
+
+- Data from colleagues using SAS, SPSS, or Stata (common in animal science research)
+- Excel files with multiple sheets, formatting, and formulas
+- Messy column names that need standardization
+- Date and time data in various formats
+- The need to create formatted Excel reports for stakeholders
+
+This chapter will equip you to handle these situations confidently.
 
 ::: {.callout-note}
-## Coming Soon
-This chapter is under development. Content will be added shortly.
+## Installing Packages for This Chapter
+
+You'll need several packages that may not be installed yet:
+
+```r
+install.packages(c(
+  "haven",      # Read SAS, SPSS, Stata files
+  "readxl",     # Read Excel files (you should have this)
+  "writexl",    # Write simple Excel files
+  "openxlsx",   # Advanced Excel operations
+  "janitor",    # Data cleaning utilities
+  "lubridate",  # Date/time manipulation
+  "glue"        # String interpolation
+))
+```
+:::
+
+```{r}
+#| eval: true
+#| echo: true
+#| message: false
+#| warning: false
+
+# Load packages
+library(tidyverse)  # Core data science tools
+library(haven)      # Statistical software files
+library(readxl)     # Read Excel
+library(writexl)    # Write simple Excel
+library(janitor)    # Data cleaning
+library(lubridate)  # Dates and times
+library(glue)       # String interpolation
+
+# Optional: Install openxlsx if you need advanced Excel formatting
+# install.packages("openxlsx")
+```
+
+---
+
+## Reading Data from Statistical Software
+
+Many researchers in animal science and related fields use SAS, SPSS, or Stata for their analyses. If you need to collaborate with these researchers or access legacy data, you'll need to read these file formats. The `haven` package makes this straightforward.
+
+### The haven Package
+
+`haven` can read:
+
+- **SAS**: `.sas7bdat` (data files), `.sas7bcat` (catalog files)
+- **SPSS**: `.sav` files
+- **Stata**: `.dta` files
+
+All three software packages support variable labels (longer descriptions) and value labels (like factor levels in R). `haven` preserves this metadata.
+
+### Reading SAS Files
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create a simulated SAS-style dataset for demonstration
+# In reality, you'd receive this file from a colleague
+sas_cattle_data <- tibble(
+  id = 1:10,
+  treatment = c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
+  weight_gain_kg = c(125, 130, 118, 135, 128, 145, 152, 138, 148, 143)
+)
+
+# Save as SAS file (for demonstration)
+write_sas(sas_cattle_data, "../data/raw/cattle_trial.sas7bdat")
+
+# Now read it back
+cattle_sas <- read_sas("../data/raw/cattle_trial.sas7bdat")
+cattle_sas
+```
+
+### Reading SPSS Files
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create labeled data similar to SPSS format
+spss_feeding_data <- tibble(
+  animal_id = 1:15,
+  feed_type = c(rep(1, 5), rep(2, 5), rep(3, 5)),
+  daily_gain_kg = rnorm(15, mean = 1.5, sd = 0.3)
+)
+
+# Write as SPSS file
+write_sav(spss_feeding_data, "../data/raw/feeding_study.sav")
+
+# Read it back
+feeding_spss <- read_sav("../data/raw/feeding_study.sav")
+feeding_spss
+```
+
+### Reading Stata Files
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create Stata-style dataset
+stata_breeding_data <- tibble(
+  cow_id = 1001:1020,
+  parity = sample(1:4, 20, replace = TRUE),
+  conception = sample(0:1, 20, replace = TRUE)
+)
+
+# Write as Stata file
+write_dta(stata_breeding_data, "../data/raw/breeding_records.dta")
+
+# Read it back
+breeding_stata <- read_dta("../data/raw/breeding_records.dta")
+breeding_stata
+```
+
+### Working with Labeled Data
+
+Statistical software often uses numeric codes with text labels. For example, `1 = "Control"` and `2 = "Treatment"`. `haven` preserves these as labeled vectors.
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create data with value labels (like SPSS)
+labeled_data <- tibble(
+  id = 1:6,
+  sex = c(1, 2, 1, 2, 1, 2),
+  breed = c(1, 1, 2, 2, 3, 3)
+) %>%
+  mutate(
+    sex = labelled(sex, c("Male" = 1, "Female" = 2)),
+    breed = labelled(breed, c("Angus" = 1, "Hereford" = 2, "Charolais" = 3))
+  )
+
+# View the structure
+str(labeled_data)
+
+# Convert labeled columns to factors for analysis
+labeled_data_clean <- labeled_data %>%
+  mutate(
+    sex = as_factor(sex),
+    breed = as_factor(breed)
+  )
+
+labeled_data_clean
+```
+
+::: {.callout-tip}
+## Converting Labeled Data
+
+When you read SAS/SPSS/Stata files with labels, use `as_factor()` from `haven` to convert labeled columns to regular R factors. This makes them easier to work with in tidyverse functions.
+
+```r
+# Convert all labeled columns at once
+data_clean <- data %>%
+  mutate(across(where(is.labelled), as_factor))
+```
+:::
+
+### When You Might Need haven
+
+- Collaborating with researchers who use SAS/SPSS/Stata
+- Accessing institutional databases stored in these formats
+- Converting legacy data to R for new analyses
+- Maintaining compatibility with established workflows
+
+---
+
+## Working with Excel Files
+
+Excel is ubiquitous in business and research settings. While we generally prefer CSV files for data storage, you'll often need to read from or write to Excel files.
+
+### Reading Excel Files (Review + Advanced)
+
+We covered `readxl` basics in Week 2. Let's review and add advanced features:
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create a sample Excel file for demonstration
+cattle_summary <- tibble(
+  breed = c("Angus", "Hereford", "Charolais", "Limousin"),
+  n_animals = c(45, 38, 42, 35),
+  avg_weight_kg = c(520, 495, 535, 510),
+  avg_gain_kg = c(1.45, 1.38, 1.52, 1.41)
+)
+
+# Write to Excel
+write_xlsx(cattle_summary, "../data/raw/cattle_summary.xlsx")
+
+# Read back - basic
+read_excel("../data/raw/cattle_summary.xlsx")
+```
+
+### Reading Specific Ranges and Sheets
+
+::: {.callout-note}
+## Note on openxlsx
+
+The code below uses `openxlsx` to create multi-sheet Excel files. If you want to run this code, first install the package:
+
+```r
+install.packages("openxlsx")
+library(openxlsx)
+```
+:::
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Create multi-sheet Excel file
+weight_data <- tibble(
+  week = 0:12,
+  weight_kg = c(42, 48, 54, 60, 66, 72, 78, 84, 90, 96, 102, 108, 114)
+)
+
+health_data <- tibble(
+  week = 0:12,
+  health_score = sample(1:5, 13, replace = TRUE)
+)
+
+# Write multiple sheets (requires openxlsx package)
+library(openxlsx)
+wb <- createWorkbook()
+addWorksheet(wb, "Weights")
+addWorksheet(wb, "Health")
+writeData(wb, "Weights", weight_data)
+writeData(wb, "Health", health_data)
+saveWorkbook(wb, "../data/raw/calf_data.xlsx", overwrite = TRUE)
+
+# Read specific sheet
+read_excel("../data/raw/calf_data.xlsx", sheet = "Weights")
+
+# List all sheets first
+excel_sheets("../data/raw/calf_data.xlsx")
+
+# Read specific range (e.g., first 5 rows)
+read_excel("../data/raw/calf_data.xlsx",
+           sheet = "Weights",
+           range = "A1:B6")
+```
+
+### Writing Simple Excel Files with writexl
+
+For basic Excel export without formatting, `writexl` is fast and simple:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Write single sheet
+write_xlsx(cattle_summary, "output_cattle.xlsx")
+
+# Write multiple sheets as a list
+cattle_list <- list(
+  Summary = cattle_summary,
+  Weights = weight_data,
+  Health = health_data
+)
+
+write_xlsx(cattle_list, "output_multi_sheet.xlsx")
+```
+
+### Advanced Excel Operations with openxlsx
+
+For formatted reports, use `openxlsx`:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Create a formatted Excel report
+wb <- createWorkbook()
+
+# Add a worksheet
+addWorksheet(wb, "Performance Report")
+
+# Write title
+writeData(wb, "Performance Report",
+          "Cattle Performance Summary - 2024",
+          startRow = 1, startCol = 1)
+
+# Format title (bold, larger, colored)
+addStyle(wb, "Performance Report",
+         style = createStyle(fontSize = 16, textDecoration = "bold",
+                            fgFill = "#4F81BD", fontColour = "#FFFFFF"),
+         rows = 1, cols = 1:4, gridExpand = TRUE)
+
+# Write data starting at row 3
+writeData(wb, "Performance Report", cattle_summary, startRow = 3)
+
+# Format header row
+addStyle(wb, "Performance Report",
+         style = createStyle(textDecoration = "bold",
+                            fgFill = "#D9E1F2"),
+         rows = 3, cols = 1:4, gridExpand = TRUE)
+
+# Add borders
+addStyle(wb, "Performance Report",
+         style = createStyle(border = "TopBottomLeftRight"),
+         rows = 3:7, cols = 1:4, gridExpand = TRUE, stack = TRUE)
+
+# Set column widths
+setColWidths(wb, "Performance Report", cols = 1:4, widths = c(15, 12, 15, 15))
+
+# Add a formula (total animals)
+writeFormula(wb, "Performance Report",
+             x = "=SUM(B4:B7)",
+             startRow = 8, startCol = 2)
+
+# Save
+saveWorkbook(wb, "../data/raw/formatted_cattle_report.xlsx", overwrite = TRUE)
+```
+
+::: {.callout-important}
+## When to Use Excel vs CSV
+
+**Use CSV when:**
+- Data will be read by R, Python, or databases
+- You want simplicity and version control (text files)
+- No special formatting needed
+
+**Use Excel when:**
+- Sharing with non-technical stakeholders
+- Multiple related tables (sheets) belong together
+- Formatting enhances readability (colors, bold, borders)
+- Client specifically requests Excel format
 :::
 
 ---
 
-**Next Section**: [Part 2: Introduction to Statistics](part2-ch01-statistical_foundations.qmd)
+## Essential Utility Packages
+
+Three packages that will make your data cleaning life much easier:
+
+### The janitor Package
+
+`janitor` provides simple functions for common data cleaning tasks.
+
+#### clean_names(): Fix Messy Column Names
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Messy data with terrible column names (realistic!)
+messy_data <- tibble(
+  `Animal ID` = 1:5,
+  `Birth Weight (kg)` = c(42, 45, 39, 44, 41),
+  `Final Weight-KG` = c(520, 535, 498, 528, 512),
+  `%Daily Gain` = c(1.45, 1.48, 1.39, 1.46, 1.43),
+  `Dam's ID` = c(101, 102, 103, 104, 105)
+)
+
+messy_data
+
+# Clean it up!
+clean_data <- messy_data %>%
+  clean_names()
+
+clean_data
+
+# Now you have snake_case names that work well with R
+# animal_id, birth_weight_kg, final_weight_kg, percent_daily_gain, dam_s_id
+```
+
+::: {.callout-tip}
+## Always Use clean_names()
+
+Make it a habit to run `clean_names()` immediately after reading data from external sources. It prevents countless headaches with spaces, special characters, and inconsistent naming.
+
+```r
+data <- read_excel("messy_file.xlsx") %>%
+  clean_names()
+```
+:::
+
+#### tabyl(): Better Frequency Tables
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create sample data
+animals <- tibble(
+  breed = sample(c("Angus", "Hereford", "Charolais"), 100, replace = TRUE),
+  sex = sample(c("M", "F"), 100, replace = TRUE),
+  treatment = sample(c("Control", "Treatment"), 100, replace = TRUE)
+)
+
+# Base R table (basic)
+table(animals$breed)
+
+# janitor's tabyl (better!)
+animals %>%
+  tabyl(breed)
+
+# Two-way table with totals
+animals %>%
+  tabyl(breed, sex) %>%
+  adorn_totals(c("row", "col"))
+
+# Add percentages
+animals %>%
+  tabyl(breed, sex) %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1) %>%
+  adorn_ns()  # Add counts in parentheses
+```
+
+#### remove_empty() and get_dupes()
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Data with empty rows/columns
+data_with_empties <- tibble(
+  id = c(1, 2, NA, 4, 5),
+  weight = c(50, 55, NA, 60, 65),
+  empty_col = rep(NA, 5),
+  breed = c("Angus", "Angus", NA, "Hereford", "Hereford")
+)
+
+# Remove empty rows and columns
+data_with_empties %>%
+  remove_empty(c("rows", "cols"))
+
+# Find duplicates
+dup_data <- tibble(
+  animal_id = c("A001", "A002", "A003", "A001", "A004"),
+  weight = c(50, 55, 60, 50, 65)
+)
+
+dup_data %>%
+  get_dupes(animal_id)
+```
+
+### The lubridate Package
+
+Working with dates and times in base R is painful. `lubridate` makes it intuitive.
+
+#### Parsing Dates
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Different date formats
+dates_various <- c("2024-01-15", "January 20, 2024", "03/25/2024", "2024-04-10")
+
+# lubridate parsing functions
+ymd("2024-01-15")  # Year-Month-Day
+mdy("03/25/2024")  # Month-Day-Year
+dmy("15-01-2024")  # Day-Month-Year
+
+# Parse with times
+ymd_hms("2024-01-15 14:30:00")
+```
+
+#### Extracting Components
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Sample birthdates
+cattle <- tibble(
+  animal_id = c("C001", "C002", "C003", "C004"),
+  birth_date = ymd(c("2023-03-15", "2023-04-02", "2023-03-28", "2023-05-10"))
+)
+
+cattle <- cattle %>%
+  mutate(
+    birth_year = year(birth_date),
+    birth_month = month(birth_date, label = TRUE),  # Jan, Feb, etc.
+    birth_day = day(birth_date),
+    birth_week = week(birth_date),
+    birth_quarter = quarter(birth_date)
+  )
+
+cattle
+```
+
+#### Date Arithmetic
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Calculate age in days
+cattle <- cattle %>%
+  mutate(
+    today_date = ymd("2024-11-14"),
+    age_days = as.numeric(today_date - birth_date),
+    age_weeks = age_days / 7,
+    age_months = age_days / 30.44  # Approximate
+  )
+
+cattle %>%
+  select(animal_id, birth_date, age_days, age_weeks)
+
+# Add time intervals
+cattle %>%
+  mutate(
+    weaning_date = birth_date + weeks(8),
+    yearling_date = birth_date + years(1)
+  ) %>%
+  select(animal_id, birth_date, weaning_date, yearling_date)
+```
+
+#### Working with Periods and Durations
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Periods (human units: 1 month = 1 month regardless of days)
+today() + months(1)
+today() + weeks(2)
+
+# Durations (exact seconds)
+today() + ddays(30)  # Exactly 30 days
+today() + dhours(24)  # Exactly 24 hours
+
+# Time intervals
+birth <- ymd("2023-03-15")
+weaning <- ymd("2023-05-10")
+
+interval(birth, weaning) / days(1)  # Days between dates
+interval(birth, weaning) / weeks(1)  # Weeks between dates
+```
+
+::: {.callout-tip}
+## Common lubridate Functions
+
+- **Parsing**: `ymd()`, `mdy()`, `dmy()`, `ymd_hms()`
+- **Extracting**: `year()`, `month()`, `day()`, `week()`, `quarter()`, `wday()`
+- **Arithmetic**: `+` / `-` with `days()`, `weeks()`, `months()`, `years()`
+- **Current date/time**: `today()`, `now()`
+- **Intervals**: `interval()`, `time_length()`
+:::
+
+### The glue Package
+
+`glue` provides elegant string interpolation (inserting variables into strings).
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Instead of paste() or paste0()
+animal_id <- "C001"
+weight <- 520
+breed <- "Angus"
+
+# Base R way (clunky)
+paste0("Animal ", animal_id, " (", breed, ") weighs ", weight, " kg")
+
+# glue way (elegant!)
+glue("Animal {animal_id} ({breed}) weighs {weight} kg")
+```
+
+#### glue_data() for Data Frames
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create reports for each row
+cattle_report <- tibble(
+  animal_id = c("C001", "C002", "C003"),
+  breed = c("Angus", "Hereford", "Charolais"),
+  weight = c(520, 495, 535),
+  gain = c(1.45, 1.38, 1.52)
+)
+
+cattle_report %>%
+  mutate(
+    summary = glue_data(.,
+      "Animal {animal_id} is a {breed} weighing {weight} kg with a daily gain of {gain} kg/day."
+    )
+  ) %>%
+  pull(summary)
+```
+
+#### Dynamic Column Names
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Create dynamic column names in summaries
+treatment_var <- "treatment"
+metric <- "weight_gain"
+
+# Use glue for dynamic naming
+summary_data <- tibble(
+  treatment = c("Control", "Treatment A"),
+  avg_gain = c(1.35, 1.48)
+)
+
+summary_data %>%
+  rename(
+    "{treatment_var}" := treatment,
+    "avg_{metric}" := avg_gain
+  )
+```
+
+---
+
+## The Complete Data Science Workflow
+
+Let's synthesize everything you've learned into a comprehensive workflow. This is what you do when tackling a real data analysis project:
+
+::: {.panel-tabset}
+
+### Workflow Diagram
+
+```{mermaid}
+flowchart TD
+    A[1. Define Question] --> B[2. Import Data]
+    B --> C[3. Explore & Clean]
+    C --> D[4. Transform & Reshape]
+    D --> E[5. Visualize]
+    E --> F[6. Model/Analyze]
+    F --> G[7. Communicate Results]
+    G --> H{Need to Refine?}
+    H -->|Yes| C
+    H -->|No| I[Final Report]
+
+    style A fill:#e1f5ff
+    style I fill:#d4edda
+```
+
+### Eight-Week Review
+
+1. **Week 1: Foundations**
+   - What is data science
+   - Best practices (project structure, file naming, database concepts)
+   - R, RStudio, Quarto setup
+   - Version control basics
+
+2. **Week 2: Getting Started**
+   - RStudio interface
+   - R Projects and working directories
+   - Reading CSV (`readr::read_csv()`) and Excel (`readxl::read_excel()`)
+   - First look at data: `glimpse()`, `summary()`
+
+3. **Week 3: Data Types & Strings**
+   - R data types (numeric, character, factor, logical, dates)
+   - String manipulation (`stringr`)
+   - Regular expressions
+   - The pipe operator: `%>%` and `|>`
+   - First dplyr verbs: `select()`, `filter()`
+
+4. **Week 4: Data Manipulation**
+   - Core dplyr verbs: `mutate()`, `arrange()`, `group_by()`, `summarise()`
+   - `across()` for multiple columns
+   - Conditional logic: `if_else()`, `case_when()`
+   - Handling missing data: `drop_na()`, `replace_na()`
+   - Window functions: `lag()`, `lead()`, `cumsum()`
+
+5. **Week 5: Visualization Basics**
+   - Grammar of Graphics
+   - Essential geoms: `geom_point()`, `geom_line()`, `geom_col()`, `geom_histogram()`, `geom_boxplot()`, `geom_violin()`
+   - Aesthetic mappings: `x`, `y`, `color`, `fill`, `size`, `shape`
+   - Scales, themes, labels
+   - Saving plots with `ggsave()`
+
+6. **Week 6: Advanced Visualization**
+   - Faceting: `facet_wrap()`, `facet_grid()`
+   - Statistical layers: `geom_smooth()`, `stat_summary()`
+   - Custom themes and color palettes
+   - Text annotations
+   - Combining plots: `cowplot`, `patchwork`
+
+7. **Week 7: Reshaping & Joining**
+   - Tidy data principles
+   - Reshaping: `pivot_longer()`, `pivot_wider()`, `separate()`, `unite()`
+   - Joining: `left_join()`, `right_join()`, `inner_join()`, `full_join()`
+   - Functional programming: `purrr::map()` functions
+   - List columns and nested data
+
+8. **Week 8: Integration (This Week!)**
+   - Reading statistical software files (`haven`)
+   - Excel workflows (`readxl`, `writexl`, `openxlsx`)
+   - Data cleaning (`janitor`)
+   - Date/time handling (`lubridate`)
+   - String interpolation (`glue`)
+   - Complete workflow synthesis
+
+:::
+
+### Real-World Example: Complete Analysis Pipeline
+
+Let's work through a complete example from raw messy data to final report.
+
+**Scenario**: You receive cattle weight data from three sources:
+1. Birth records from a colleague (SAS file)
+2. Monthly weight measurements (messy Excel file)
+3. Treatment assignments (CSV file)
+
+Your task: Analyze weight gain by treatment and create a report.
+
+#### Step 1: Import from Multiple Sources
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Source 1: Birth records (SAS file - simulated)
+birth_records <- tibble(
+  animal_id = sprintf("C%03d", 1:20),
+  birth_date = ymd("2023-03-01") + days(sample(0:30, 20, replace = TRUE)),
+  dam_id = sample(1001:1010, 20, replace = TRUE),
+  birth_weight_kg = rnorm(20, mean = 42, sd = 5)
+)
+
+# Source 2: Monthly weights (messy Excel - simulated)
+weight_measurements <- tibble(
+  `Animal ID` = rep(sprintf("C%03d", 1:20), each = 4),
+  `Measurement Date` = rep(c("2023-04-01", "2023-05-01", "2023-06-01", "2023-07-01"), times = 20),
+  `Body Weight (kg)` = rnorm(80, mean = 150, sd = 30) + rep(0:3, times = 20) * 50,
+  `Notes` = sample(c(NA, "healthy", ""), 80, replace = TRUE)
+)
+
+# Source 3: Treatment assignments (CSV)
+treatments <- tibble(
+  animal_id = sprintf("C%03d", 1:20),
+  treatment = sample(c("Control", "High Protein", "Standard"), 20, replace = TRUE),
+  assigned_date = ymd("2023-03-15")
+)
+```
+
+#### Step 2: Clean Each Dataset
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Clean birth records (already clean in this case)
+birth_clean <- birth_records
+
+# Clean weight measurements
+weights_clean <- weight_measurements %>%
+  clean_names() %>%  # Fix column names
+  mutate(
+    measurement_date = ymd(measurement_date),
+    body_weight_kg = round(body_weight_kg, 1)
+  ) %>%
+  select(-notes)  # Remove empty notes column
+
+# Clean treatments (already clean)
+treatments_clean <- treatments
+
+glimpse(weights_clean)
+```
+
+#### Step 3: Join Datasets
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Join everything together
+complete_data <- birth_clean %>%
+  left_join(treatments_clean, by = "animal_id") %>%
+  left_join(weights_clean, by = "animal_id") %>%
+  # Calculate age at measurement
+  mutate(
+    age_days = as.numeric(measurement_date - birth_date),
+    age_weeks = age_days / 7
+  )
+
+glimpse(complete_data)
+```
+
+#### Step 4: Transform and Summarize
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Calculate growth rates
+growth_analysis <- complete_data %>%
+  group_by(animal_id, treatment) %>%
+  summarise(
+    birth_weight = first(birth_weight_kg),
+    final_weight = last(body_weight_kg),
+    total_gain = final_weight - birth_weight,
+    days_measured = max(age_days),
+    avg_daily_gain = total_gain / days_measured,
+    .groups = "drop"
+  )
+
+# Summary by treatment
+treatment_summary <- growth_analysis %>%
+  group_by(treatment) %>%
+  summarise(
+    n = n(),
+    mean_adg = mean(avg_daily_gain),
+    sd_adg = sd(avg_daily_gain),
+    min_adg = min(avg_daily_gain),
+    max_adg = max(avg_daily_gain)
+  )
+
+treatment_summary
+```
+
+#### Step 5: Visualize
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Growth curves by treatment
+complete_data %>%
+  ggplot(aes(x = age_weeks, y = body_weight_kg,
+             color = treatment, group = animal_id)) +
+  geom_line(alpha = 0.5) +
+  geom_smooth(aes(group = treatment), method = "lm", se = TRUE, size = 1.5) +
+  labs(
+    title = "Cattle Growth Curves by Treatment",
+    x = "Age (weeks)",
+    y = "Body Weight (kg)",
+    color = "Treatment"
+  ) +
+  theme_minimal()
+
+# Distribution of daily gains
+growth_analysis %>%
+  ggplot(aes(x = treatment, y = avg_daily_gain, fill = treatment)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  labs(
+    title = "Average Daily Gain by Treatment",
+    x = "Treatment",
+    y = "Average Daily Gain (kg/day)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+#### Step 6: Create Summary Report
+
+```{r}
+#| eval: true
+#| echo: true
+
+# Generate text summaries with glue
+treatment_summary %>%
+  mutate(
+    report_text = glue(
+      "The {treatment} group (n={n}) had an average daily gain of {round(mean_adg, 3)} kg/day (SD = {round(sd_adg, 3)})."
+    )
+  ) %>%
+  pull(report_text)
+```
+
+::: {.callout-note}
+## Complete Workflow in Action
+
+This example demonstrates:
+1. **Importing** from multiple sources
+2. **Cleaning** with `janitor::clean_names()` and date parsing
+3. **Joining** with `left_join()`
+4. **Transforming** with `mutate()` and `group_by() %>% summarise()`
+5. **Visualizing** with ggplot2
+6. **Communicating** with summary statistics and glue
+
+This is exactly what you'll do in your capstone project!
+:::
+
+---
+
+## Reproducibility Best Practices
+
+Reproducibility means someone else (including future you!) can re-run your analysis and get the same results. Here's a checklist:
+
+### Project Organization Checklist
+
+```
+my_project/
+├── README.md              # Project overview, how to run
+├── my_project.Rproj       # RStudio project file
+├── data/
+│   ├── raw/               # Original, untouched data (read-only!)
+│   └── processed/         # Cleaned data (created by scripts)
+├── code/
+│   ├── 01_import.R        # Data import scripts
+│   ├── 02_clean.R         # Cleaning scripts
+│   └── 03_analysis.R      # Analysis scripts
+├── output/
+│   ├── figures/           # Generated plots
+│   └── tables/            # Generated tables
+├── reports/
+│   └── final_report.qmd   # Quarto reports
+└── renv.lock              # Package versions (if using renv)
+```
+
+::: {.callout-important}
+## Golden Rules
+
+1. **Never modify raw data files** - Keep originals pristine
+2. **Use R Projects** - Avoid `setwd()`, use relative paths
+3. **Document everything** - Comments, README, codebooks
+4. **Version control** - Use Git from the start
+5. **Explicit packages** - Always use `library()` at the top of scripts
+:::
+
+### File Naming Conventions
+
+**Good file names:**
+- `2024-11-14_cattle-weights_final.csv`
+- `01_import_data.R`
+- `fig01_growth_curves.png`
+
+**Bad file names:**
+- `data.csv` (not descriptive)
+- `analysis final FINAL v2.R` (version chaos)
+- `my file with spaces.csv` (spaces cause problems)
+
+**Principles:**
+- Use dates: `YYYY-MM-DD_description.ext`
+- Use numbers for order: `01_`, `02_`, `03_`
+- Use hyphens or underscores (no spaces)
+- Be descriptive but concise
+- Use lowercase
+
+### Code Style Best Practices
+
+```{r}
+#| eval: false
+#| echo: true
+
+# GOOD: Clear, readable, consistent
+cattle_data <- read_csv("../data/raw/cattle_weights.csv") %>%
+  clean_names() %>%
+  filter(weight_kg > 0) %>%
+  mutate(
+    weight_lb = weight_kg * 2.20462,
+    weight_category = case_when(
+      weight_kg < 400 ~ "Light",
+      weight_kg < 500 ~ "Medium",
+      TRUE ~ "Heavy"
+    )
+  )
+
+# BAD: Hard to read, inconsistent spacing
+cattle_data<-read_csv("../data/raw/cattle_weights.csv")%>%clean_names()%>%filter(weight_kg>0)%>%mutate(weight_lb=weight_kg*2.20462,weight_category=case_when(weight_kg<400~"Light",weight_kg<500~"Medium",TRUE~"Heavy"))
+```
+
+**Style Guidelines:**
+- Use `<-` for assignment (not `=`)
+- Space around operators: `x + y` not `x+y`
+- Space after commas: `f(x, y)` not `f(x,y)`
+- Indent code blocks (2 or 4 spaces)
+- Break long pipes into multiple lines
+- Use meaningful variable names: `cattle_weights` not `cw` or `x`
+
+### Package Version Management
+
+R packages update frequently. To ensure reproducibility across time:
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Option 1: Document package versions in your report
+sessionInfo()
+
+# Option 2: Use renv for package management (recommended for important projects)
+# install.packages("renv")
+# renv::init()    # Initialize renv for project
+# renv::snapshot() # Save package versions
+# renv::restore()  # Restore exact package versions
+```
+
+### Quarto/R Markdown Best Practices
+
+```yaml
+---
+title: "Cattle Growth Analysis"
+author: "Your Name"
+date: today  # Auto-updates to current date
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show  # Or 'false' to hide code
+    code-tools: true
+    embed-resources: true  # Single-file output
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+  cache: true  # Cache results for faster re-rendering
+---
+```
+
+**Code Chunk Options:**
+- `#| eval: true` - Run the code
+- `#| echo: true` - Show the code
+- `#| warning: false` - Hide warnings
+- `#| message: false` - Hide messages
+- `#| fig-width: 8` - Control figure dimensions
+- `#| fig-cap: "Caption text"` - Add figure captions
+
+::: {.callout-tip}
+## Reproducibility Checklist
+
+Before sharing your analysis:
+
+- [ ] All file paths are relative (no hard-coded `/Users/yourname/`)
+- [ ] Raw data files are unchanged and documented
+- [ ] All required packages are loaded at the top
+- [ ] Code runs from start to finish without errors
+- [ ] Random processes use `set.seed()` for reproducibility
+- [ ] README explains how to run the analysis
+- [ ] Output folder contains generated figures/tables
+- [ ] Quarto document renders successfully
+:::
+
+---
+
+## Transitioning to Part 2: How Data Science Enables Statistics
+
+You've spent 8 weeks building essential data manipulation and visualization skills. Now you might wonder: **Why was this necessary? How does this connect to statistics?**
+
+### The Foundation for Statistical Analysis
+
+Statistical analyses require clean, well-structured data. Consider what you need before running a t-test or regression:
+
+1. **Data must be imported** - You can't analyze data you can't load (Weeks 2, 8)
+2. **Data must be clean** - Missing values, wrong types, messy names cause errors (Weeks 3, 4, 8)
+3. **Data must be in the right format** - Wide vs long, joined tables (Week 7)
+4. **You must understand your data** - Distributions, outliers, patterns (Weeks 5, 6)
+5. **You must communicate results** - Tables, plots, reports (Weeks 5, 6, Quarto throughout)
+
+**The reality**: 80% of a data scientist's time is spent on steps 1-4. Only 20% is the "sexy" statistical modeling.
+
+### Example: What Part 1 Enables in Part 2
+
+Let's say you want to test if a new feed supplement affects cattle weight gain (Week 4 of Part 2: t-tests).
+
+**Part 1 skills needed:**
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Import data (Week 2)
+cattle <- read_csv("cattle_trial.csv")
+
+# Clean and prepare (Weeks 3, 4)
+cattle_clean <- cattle %>%
+  clean_names() %>%
+  filter(!is.na(weight_gain_kg)) %>%
+  mutate(
+    treatment = factor(treatment, levels = c("Control", "Supplement")),
+    weight_gain_kg = as.numeric(weight_gain_kg)
+  )
+
+# Check assumptions with visualization (Week 5)
+cattle_clean %>%
+  ggplot(aes(x = treatment, y = weight_gain_kg)) +
+  geom_boxplot()
+
+# NOW you're ready for Part 2: Statistical test
+t.test(weight_gain_kg ~ treatment, data = cattle_clean)
+```
+
+Without Part 1 skills, you'd be stuck at the import or cleaning stage!
+
+### Preview of Part 2 Topics
+
+You'll learn to answer questions like:
+
+- **Week 1-2**: Are these two groups really different, or is it just random variation?
+- **Week 3**: What's the probability of observing this result by chance?
+- **Week 4**: Is this treatment effective? (t-tests)
+- **Week 5**: Do these three feed types differ? (ANOVA)
+- **Week 6**: Are these two variables associated? (Chi-square tests)
+- **Week 7**: Can I predict weight from age? (Simple regression)
+- **Week 8**: How do multiple factors affect the outcome? (Multiple regression)
+
+**The connection**: Every statistical test in Part 2 builds on the data wrangling and visualization skills you've mastered in Part 1.
+
+### Your Advantage
+
+By learning data science *before* statistics, you have a **huge advantage** over traditional statistics courses:
+
+1. You won't be stuck fighting with data import and cleaning
+2. You can visualize data to build intuition before testing
+3. You can create professional reports to communicate findings
+4. You understand reproducibility from the start
+
+Many students learn statistics first and struggle to apply it because they lack these skills. You're ahead of the curve!
+
+---
+
+## Career Paths in Data Science
+
+Data science skills are in high demand across industries. Here are potential career paths, especially relevant to animal science backgrounds:
+
+### 1. Data Analyst
+
+**What they do:**
+- Explore data to find patterns
+- Create dashboards and reports
+- Support business/research decisions with data
+
+**Skills emphasized:**
+- SQL and database queries
+- Data visualization (Tableau, Power BI, or R/ggplot2)
+- Basic statistics
+- Communication with non-technical stakeholders
+
+**Animal science examples:**
+- Analyzing herd performance data for dairy operations
+- Market analysis for livestock commodities
+- Reporting on feed efficiency metrics
+
+**Typical salary:** $60,000 - $90,000 USD
+
+---
+
+### 2. Data Scientist
+
+**What they do:**
+- Build predictive models
+- Design experiments (A/B testing)
+- Extract insights from complex data
+- Communicate findings to guide strategy
+
+**Skills emphasized:**
+- Statistical modeling and machine learning
+- Programming (R, Python)
+- Data visualization and storytelling
+- Domain expertise (animal science is valuable!)
+
+**Animal science examples:**
+- Predicting disease outbreaks in livestock populations
+- Optimizing breeding programs with genomic data
+- Forecasting feed prices and supply chain logistics
+
+**Typical salary:** $90,000 - $140,000 USD
+
+---
+
+### 3. Quantitative Analyst (Animal Science Focus)
+
+**What they do:**
+- Analyze breeding values and genetic data
+- Model growth curves and production traits
+- Support precision livestock farming initiatives
+
+**Skills emphasized:**
+- Statistical genetics
+- R programming (especially for quantitative genetics)
+- Knowledge of linear models and BLUP
+- Domain expertise in animal breeding/nutrition
+
+**Animal science examples:**
+- Calculating EPDs (Expected Progeny Differences) for breed associations
+- Analyzing feed efficiency and genetic correlations
+- Supporting genomic selection programs
+
+**Typical salary:** $70,000 - $110,000 USD
+
+---
+
+### 4. Machine Learning Engineer (Industry/Tech)
+
+**What they do:**
+- Build and deploy ML models at scale
+- Work on computer vision, NLP, recommendation systems
+- Optimize model performance and infrastructure
+
+**Skills emphasized:**
+- Python programming
+- Deep learning frameworks (TensorFlow, PyTorch)
+- Cloud platforms (AWS, GCP, Azure)
+- Software engineering practices
+
+**Animal science examples:**
+- Computer vision for livestock monitoring (activity, health scoring)
+- Predictive models for precision agriculture
+- Sensor data analysis (wearables for animals)
+
+**Typical salary:** $110,000 - $180,000 USD (tech companies)
+
+---
+
+### 5. Researcher / Academic Data Scientist
+
+**What they do:**
+- Conduct research using quantitative methods
+- Publish peer-reviewed papers
+- Teach statistics and data science
+- Collaborate on grants and interdisciplinary projects
+
+**Skills emphasized:**
+- Advanced statistics and experimental design
+- R and Quarto for reproducible research
+- Domain expertise in animal science
+- Scientific writing and communication
+
+**Animal science examples:**
+- University faculty studying animal nutrition with data-driven approaches
+- USDA researchers analyzing agricultural data
+- Industry R&D scientists at feed companies
+
+**Typical salary:** $65,000 - $120,000 USD (varies widely by institution)
+
+---
+
+### What Skills Do You Need Beyond This Course?
+
+#### For Most Data Science Roles:
+- **SQL**: Querying databases (critical!)
+- **More statistics**: Hypothesis testing, regression, time series (Part 2 covers basics)
+- **Machine learning basics**: Classification, regression, clustering
+- **Python** (optional but valuable): Complements R skills
+- **Version control**: Git and GitHub (introduced in Week 1)
+- **Communication**: Writing reports, presenting to stakeholders
+
+#### For Specialized Roles:
+- **Quantitative genetics**: BLUP, genomic selection (for breeding/genetics roles)
+- **Cloud computing**: AWS, GCP for scaling analyses
+- **Big data tools**: Spark, Hadoop (for massive datasets)
+- **Deep learning**: Neural networks for computer vision or complex prediction
+
+### Resources for Continued Learning
+
+**R Programming:**
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) by Hadley Wickham & Garrett Grolemund
+- [Advanced R](https://adv-r.hadley.nz/) by Hadley Wickham (when you're ready to level up)
+
+**Statistics:**
+- [Learning Statistics with R](https://learningstatisticswithr.com/) by Danielle Navarro
+- [Statistical Rethinking](https://xcelab.net/rm/statistical-rethinking/) by Richard McElreath (Bayesian focus)
+
+**Machine Learning:**
+- [An Introduction to Statistical Learning](https://www.statlearning.com/) (ISLR) - Free textbook with R code
+- [Tidy Modeling with R](https://www.tmwr.org/) by Max Kuhn & Julia Silge
+
+**SQL:**
+- [SQL for Data Scientists](https://sqlfordatascientists.com/)
+- [Mode SQL Tutorial](https://mode.com/sql-tutorial/) (interactive)
+
+**Python (if desired):**
+- [Python for Data Analysis](https://wesmckinney.com/book/) by Wes McKinney
+- [Python Data Science Handbook](https://jakevdp.github.io/PythonDataScienceHandbook/)
+
+**Quarto & Reproducibility:**
+- [Quarto Documentation](https://quarto.org/)
+- [Happy Git with R](https://happygitwithr.com/) by Jenny Bryan
+
+**Communities:**
+- [R for Data Science (R4DS) Online Learning Community](https://www.rfordatasci.com/) - Slack community
+- [RStudio Community](https://community.rstudio.com/) - Forum for questions
+- [Stack Overflow](https://stackoverflow.com/questions/tagged/r) - Technical Q&A
+- [Twitter/X #RStats hashtag](https://twitter.com/hashtag/rstats) - R community updates
+
+---
+
+## Summary
+
+Congratulations! You've completed Part 1 of this course. Let's recap what you've accomplished:
+
+### Skills You've Mastered
+
+1. **Data Import**: CSV, Excel, SAS, SPSS, Stata files
+2. **Data Cleaning**: Fixing names, handling missing data, removing duplicates
+3. **Data Transformation**: dplyr verbs, grouped summaries, conditional logic
+4. **Data Reshaping**: Wide to long, long to wide, separating and uniting columns
+5. **Data Joining**: Combining multiple datasets with all join types
+6. **String Manipulation**: `stringr` functions and regular expressions
+7. **Date/Time Handling**: Parsing, extracting, arithmetic with `lubridate`
+8. **Data Visualization**: Creating publication-quality plots with ggplot2
+9. **Functional Programming**: Iteration with `purrr::map()` functions
+10. **Reproducible Reporting**: Professional reports with Quarto
+11. **Best Practices**: Project organization, version control, code style
+
+### The Journey Ahead
+
+You've built a **solid foundation** in data science. These skills will serve you throughout your career, whether you pursue:
+
+- Graduate research in animal science
+- Industry roles in livestock/agriculture
+- Data science positions in any field
+- Teaching and extension work
+
+**Part 2 (Statistics)** will build directly on these skills. You'll learn to:
+- Test hypotheses with confidence
+- Quantify uncertainty
+- Build predictive models
+- Make data-driven decisions
+
+### A Note of Encouragement
+
+Data science is a journey, not a destination. You won't master everything immediately, and that's okay. What matters is:
+
+- You know what's possible
+- You can find help when stuck (documentation, communities, Google/Stack Overflow)
+- You understand reproducibility and best practices
+- You're comfortable enough with R to keep learning
+
+**Keep practicing!** The more you use these skills on real projects, the more natural they'll become.
+
+::: {.callout-tip}
+## Next Steps
+
+1. Complete the capstone project below (this integrates everything!)
+2. Review any topics from Weeks 1-8 that feel unclear
+3. Explore the additional resources section
+4. Get ready for Part 2: Introduction to Statistics!
+:::
+
+---
+
+## Homework: Final Part 1 Capstone Project
+
+### Overview
+
+This is your opportunity to demonstrate everything you've learned in Part 1. You'll work with **messy, multi-source data** from a realistic animal science scenario, clean it, analyze it, visualize it, and present your findings in a professional Quarto report.
+
+**Total Points: 100**
+
+---
+
+### Scenario
+
+You are a data analyst for a large cattle feedlot operation. Management wants to understand factors affecting cattle performance to optimize feeding strategies. You've been given data from three sources:
+
+1. **Animal records** (SAS file): Birth dates, breeds, initial weights
+2. **Weight measurements** (messy Excel file): Monthly weight measurements with inconsistent formatting
+3. **Feed treatments** (CSV file): Which animals received which feed rations
+
+Your task is to integrate these datasets, clean them, analyze growth patterns, and report your findings.
+
+---
+
+### Part 1: Data Import and Initial Exploration (20 points)
+
+**Tasks:**
+
+1. Create a well-organized R Project with appropriate folder structure:
+   ```
+   capstone_project/
+   ├── data/
+   │   ├── raw/          # Original data files
+   │   └── processed/    # Cleaned data
+   ├── code/
+   │   └── analysis.qmd  # Your Quarto report
+   ├── output/
+   │   └── figures/      # Generated plots
+   └── README.md         # Project description
+   ```
+
+2. Import all three datasets:
+   - `animal_records.sas7bdat` (haven)
+   - `weight_measurements.xlsx` (readxl)
+   - `feed_treatments.csv` (readr)
+
+3. Use `glimpse()`, `summary()`, and `head()` to explore each dataset
+
+4. Document any initial observations about data quality issues
+
+**Deliverable:** R code showing import and initial exploration with commentary
+
+**Data files will be provided separately with:**
+- 200 cattle
+- 6 monthly weight measurements per animal
+- 3 feed treatment groups
+- Intentional messiness: missing values, inconsistent column names, date formats, etc.
+
+---
+
+### Part 2: Data Cleaning (25 points)
+
+**Tasks:**
+
+1. **Clean column names** in the Excel file using `janitor::clean_names()`
+
+2. **Fix date formats** using `lubridate` functions
+
+3. **Handle missing values**:
+   - Identify which variables have NAs
+   - Decide on an appropriate strategy (remove, impute, or flag)
+   - Document your decisions
+
+4. **Remove duplicates** if any exist (use `janitor::get_dupes()` to check)
+
+5. **Fix data types**:
+   - Ensure weights are numeric
+   - Ensure breeds and treatments are factors with meaningful levels
+   - Ensure dates are Date class
+
+6. **Create derived variables**:
+   - Calculate age (days) at each weight measurement
+   - Calculate weight gain between consecutive measurements
+   - Create a birth season variable (Winter/Spring/Summer/Fall)
+
+**Deliverable:** Clean, well-structured datasets with code and explanations
+
+---
+
+### Part 3: Data Integration (15 points)
+
+**Tasks:**
+
+1. **Join the three datasets** into a single analysis-ready dataset
+   - Choose appropriate join types (likely `left_join()`)
+   - Ensure you don't lose data unintentionally
+   - Check the dimensions before and after joining
+
+2. **Reshape data if needed**:
+   - You may need `pivot_longer()` or `pivot_wider()` depending on your analysis approach
+
+3. **Create a summary table** showing:
+   - Number of animals per treatment
+   - Number of animals per breed
+   - Number of measurements per animal
+
+**Deliverable:** A single tidy dataset ready for analysis and summary tables
+
+---
+
+### Part 4: Exploratory Data Analysis (20 points)
+
+**Tasks:**
+
+Create **at least 5 visualizations** addressing these questions:
+
+1. **Growth curves**: How do cattle weights change over time?
+   - Line plot with time on x-axis, weight on y-axis
+   - Color by treatment or breed
+
+2. **Treatment comparison**: Do treatments affect final weights?
+   - Box plots or violin plots comparing treatments
+
+3. **Breed differences**: Are there breed differences in growth?
+   - Faceted plots or colored lines
+
+4. **Weight gain distribution**: What's the distribution of daily gain?
+   - Histogram or density plot
+
+5. **Relationships**: Is initial weight related to final weight?
+   - Scatter plot with trend line
+
+**Requirements for each plot:**
+- Appropriate geom choice
+- Clear axis labels and titles
+- Proper use of color/fill
+- Clean theme
+- Saved to `output/figures/` with `ggsave()`
+
+**Deliverable:** Five publication-quality plots with interpretation
+
+---
+
+### Part 5: Summary Statistics (10 points)
+
+**Tasks:**
+
+1. **Calculate summary statistics by treatment**:
+   - Mean and SD of initial weight
+   - Mean and SD of final weight
+   - Mean and SD of total weight gain
+   - Mean and SD of average daily gain
+
+2. **Create a nicely formatted table** (use `knitr::kable()` or `gt` package)
+
+3. **Write 2-3 sentences** interpreting the results:
+   - Which treatment performed best?
+   - Is the difference substantial?
+
+**Deliverable:** Summary table and written interpretation
+
+---
+
+### Part 6: Professional Quarto Report (10 points)
+
+**Tasks:**
+
+Structure your report with these sections:
+
+1. **Title and Author Information**
+2. **Executive Summary** (2-3 paragraphs summarizing goals, methods, key findings)
+3. **Introduction** (background and objectives)
+4. **Methods**:
+   - Data sources
+   - Cleaning steps
+   - Analysis approach
+5. **Results**:
+   - Summary statistics table
+   - Figures with captions
+   - Written interpretation of each figure
+6. **Discussion**:
+   - What do these results mean for feedlot management?
+   - Limitations of the analysis
+   - Recommendations for future work
+7. **Conclusion** (1 paragraph)
+8. **Appendix**: Session info (`sessionInfo()`)
+
+**YAML header requirements:**
+
+```yaml
+---
+title: "Cattle Feedlot Performance Analysis"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-tools: true
+    embed-resources: true
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+---
+```
+
+**Deliverable:** Fully rendered HTML report that tells a cohesive story
+
+---
+
+### Grading Rubric
+
+| Component | Points | Criteria |
+|-----------|--------|----------|
+| **Data Import** | 20 | All datasets imported correctly; initial exploration documented |
+| **Data Cleaning** | 25 | Thorough cleaning with appropriate techniques; well-documented decisions |
+| **Data Integration** | 15 | Datasets joined correctly; appropriate reshaping; summary tables |
+| **Visualizations** | 20 | 5+ plots addressing key questions; clear, publication-quality formatting |
+| **Summary Statistics** | 10 | Correct calculations; well-formatted table; thoughtful interpretation |
+| **Report Quality** | 10 | Professional structure; clear writing; reproducible; proper YAML |
+| **TOTAL** | **100** | |
+
+---
+
+### Submission Instructions
+
+**Due Date:** [To be announced by instructor]
+
+**Submission:**
+
+1. Render your Quarto document to HTML
+2. Compress your entire project folder (including data, code, output) into a ZIP file
+3. Submit via the course learning management system (Canvas/Blackboard/etc.)
+
+**Checklist before submitting:**
+- [ ] All code runs from top to bottom without errors
+- [ ] Quarto document renders successfully to HTML
+- [ ] All required sections are present
+- [ ] Figures are saved in `output/figures/`
+- [ ] README.md describes the project
+- [ ] File paths are relative (no hard-coded paths like `/Users/yourname/`)
+- [ ] Code is well-commented and easy to follow
+
+---
+
+### Tips for Success
+
+1. **Start early!** This is a substantial project.
+
+2. **Work incrementally**:
+   - Import → Clean → Join → Visualize → Report
+   - Don't try to do everything at once
+
+3. **Test your code frequently**:
+   - Render your Quarto document often to catch errors early
+
+4. **Use comments generously**:
+   - Explain *why* you made decisions, not just *what* the code does
+
+5. **Make it your own**:
+   - Feel free to go beyond the minimum requirements
+   - Additional analyses, creative visualizations, and deeper insights are encouraged!
+
+6. **Ask for help if stuck**:
+   - Instructor office hours
+   - R4DS Slack community
+   - Stack Overflow (search first, then ask)
+
+7. **Proofread your writing**:
+   - Your report should be polished and professional
+
+---
+
+## Additional Resources
+
+### R Packages Documentation
+
+**Data Import:**
+- [haven](https://haven.tidyverse.org/) - Read SAS, SPSS, Stata
+- [readxl](https://readxl.tidyverse.org/) - Read Excel
+- [writexl](https://docs.ropensci.org/writexl/) - Write Excel (simple)
+- [openxlsx](https://ycphs.github.io/openxlsx/) - Advanced Excel operations
+
+**Data Cleaning:**
+- [janitor](https://sfirke.github.io/janitor/) - Data cleaning utilities
+- [lubridate](https://lubridate.tidyverse.org/) - Date/time manipulation
+- [glue](https://glue.tidyverse.org/) - String interpolation
+
+**Core Tidyverse:**
+- [dplyr](https://dplyr.tidyverse.org/) - Data manipulation
+- [tidyr](https://tidyr.tidyverse.org/) - Data reshaping
+- [ggplot2](https://ggplot2.tidyverse.org/) - Data visualization
+- [readr](https://readr.tidyverse.org/) - Read CSV files
+- [stringr](https://stringr.tidyverse.org/) - String manipulation
+- [purrr](https://purrr.tidyverse.org/) - Functional programming
+
+### Cheat Sheets
+
+- [Data Import Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/data-import.pdf)
+- [Data Transformation (dplyr) Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/data-transformation.pdf)
+- [Data Tidying (tidyr) Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/tidyr.pdf)
+- [Data Visualization (ggplot2) Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/data-visualization.pdf)
+- [Dates and Times (lubridate) Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/lubridate.pdf)
+- [Apply Functions (purrr) Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/main/purrr.pdf)
+
+### Books (Free Online)
+
+**R Programming:**
+- [R for Data Science (2e)](https://r4ds.hadley.nz/) - Wickham & Grolemund (comprehensive reference)
+- [Hands-On Programming with R](https://rstudio-education.github.io/hopr/) - Grolemund (beginner-friendly)
+- [Advanced R](https://adv-r.hadley.nz/) - Wickham (when you're ready to level up)
+
+**Statistics (Part 2 Preview):**
+- [Learning Statistics with R](https://learningstatisticswithr.com/) - Navarro (statistics fundamentals)
+- [Introduction to Modern Statistics](https://openintro-ims.netlify.app/) - OpenIntro (free textbook)
+
+**Quarto:**
+- [Quarto Guide](https://quarto.org/docs/guide/) - Official documentation
+
+**Data Science Career:**
+- [Build a Career in Data Science](https://www.manning.com/books/build-a-career-in-data-science) - Robinson & Nolis
+
+### Video Tutorials
+
+- [StatQuest with Josh Starmer](https://www.youtube.com/c/joshstarmer) - R and statistics (excellent explanations!)
+- [Data Science Dojo](https://www.youtube.com/c/Datasciencedojo) - R tutorials
+- [RStudio Webinars](https://www.rstudio.com/resources/webinars/) - Advanced topics
+
+### Online Courses
+
+- [DataCamp: Data Scientist with R Track](https://www.datacamp.com/tracks/data-scientist-with-r) (paid)
+- [Coursera: R Programming](https://www.coursera.org/learn/r-programming) (Johns Hopkins)
+- [edX: Data Science: R Basics](https://www.edx.org/course/data-science-r-basics) (Harvard)
+
+### Communities
+
+- [R for Data Science Online Learning Community](https://www.rfordatasci.com/) - Slack workspace, book club
+- [RStudio Community](https://community.rstudio.com/) - Forum for questions
+- [Stack Overflow [r] tag](https://stackoverflow.com/questions/tagged/r) - Technical Q&A
+- [#RStats on Twitter/X](https://twitter.com/hashtag/rstats) - R community news and tips
+
+### Blogs to Follow
+
+- [R-bloggers](https://www.r-bloggers.com/) - Aggregator of R blogs
+- [Simply Statistics](https://simplystatistics.org/) - Statistics and data science
+- [Julia Silge's Blog](https://juliasilge.com/blog/) - Tidy modeling and text analysis
+- [David Robinson's Blog](http://varianceexplained.org/) - Data analysis and visualization
+
+---
+
+**Next Chapter**: [Part 2, Chapter 1: Statistical Foundations](part2-ch01-statistical_foundations.qmd)
+
+---
+
+::: {.callout-note icon="false"}
+## 🎉 Congratulations on Completing Part 1!
+
+You've learned an incredible amount in 8 weeks. Take a moment to be proud of what you've accomplished. You now have the skills to:
+
+- Import data from any source
+- Clean and transform messy real-world data
+- Create publication-quality visualizations
+- Join and reshape complex datasets
+- Produce reproducible reports
+
+These skills will serve you throughout your career. Well done, and see you in Part 2!
+:::
